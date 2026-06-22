@@ -7,6 +7,9 @@ This repository is for a local-first GTM Marketing OS agent suite.
 - Work locally until scope is confirmed.
 - Do not run remote agent lifecycle commands, install into a workspace, publish, or make public without explicit approval.
 - Do not add platform lifecycle config files to this repo until remote packaging is approved.
+- Do not run `guild agent save --publish`, `guild agent publish`, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
+- The Guild CLI may be installed locally. Informational checks such as `guild --version` are acceptable; lifecycle, install, publish, or visibility-changing commands still require explicit approval.
+- Use https://docs.guild.ai for current Guild platform, CLI, SDK, and Agent Hub behavior. Use https://www.guild.ai/glossary for Guild terminology.
 - Treat transcripts, meeting notes, and client-specific materials as private context.
 - Keep raw private source material in `_private/`, which is ignored by Git.
 - Never commit `_private/` or `_local-guild-agent-prototype/`.
@@ -16,7 +19,14 @@ This repository is for a local-first GTM Marketing OS agent suite.
 - Nine separate future marketplace/workspace agents.
 - One orchestrator/router that can help project leaders choose and use the nine agents together.
 - Fixture-backed outputs until live integrations are explicitly in scope.
-- Open-source posture is acceptable, but license preference should be confirmed before public release.
+- Open source under Apache-2.0.
+- Marketplace target is Guild's Agent Hub.
+- Missing GTM loops may become new agents if they strengthen the operating system.
+- The flagship demo should remain generic open-source cloud native.
+- Eventual live integrations are TBD.
+- The dashboard direction is the logged-in Guild.ai state, not a separate live dashboard in this repo yet.
+- Agent Hub publishing is version-based and validation-gated. Keep this repo local until packaging is explicitly approved.
+- Do not publish Team-installable or public On-Hub versions from this repo without explicit approval.
 
 ## Verification
 

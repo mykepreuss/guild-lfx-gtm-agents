@@ -12,6 +12,23 @@ This is not a remote agent package and intentionally has no platform lifecycle c
 - Substantive fixture-backed outputs for review.
 - Local smoke tests and demo packet generation.
 
+The lab is iterating toward Guild's Agent Hub. The acceptance bar is excellence, not mechanical completeness. Future GTM loops can become new agents when they add a distinct operating job.
+
+The current flagship demo context should remain a generic open-source cloud-native project. Future live integrations are TBD. Dashboard payloads should evolve toward the logged-in Guild.ai state a project leader would use to track approvals, blockers, decisions, and performance.
+
+## Agent Hub Boundary
+
+Agent Hub packaging is not active in this lab. The public Guild docs describe publishing validated agent versions from real agent directories, including validation through `guild agent save --wait --publish` or later publication with `guild agent publish`.
+
+Source: https://docs.guild.ai/platform/publish-to-agent-hub#agent-hub
+
+Related references:
+
+- Guild docs: https://docs.guild.ai
+- Guild glossary: https://www.guild.ai/glossary
+
+Those commands are intentionally out of scope here. This lab should only prepare the source material, demo packets, routing behavior, dashboard contract, and public-safety posture needed before the nine agents are split into real Agent Hub packages.
+
 ## Commands
 
 ```sh
