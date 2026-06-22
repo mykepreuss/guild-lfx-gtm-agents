@@ -1,0 +1,12 @@
+{
+  "name": "gtm-marketing-os-local-agent-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke:test": "node ./scripts/smoke-test.mjs",
+    "generate:demos": "node ./scripts/generate-demo-packets.mjs",
+    "check:demos": "node ./scripts/check-demo-packets.mjs",
+    "verify": "npm run smoke:test && npm run check:demos"
+  }
+}
