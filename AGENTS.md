@@ -6,8 +6,10 @@ This repository is for a local-first GTM Marketing OS agent suite.
 
 - Work locally until scope is confirmed.
 - Do not run remote agent lifecycle commands, install into a workspace, publish, or make public without explicit approval.
+- Do not add platform lifecycle config files to this repo until remote packaging is approved.
 - Treat transcripts, meeting notes, and client-specific materials as private context.
 - Keep raw private source material in `_private/`, which is ignored by Git.
+- Never commit `_private/` or `_local-guild-agent-prototype/`.
 
 ## Deliverable Shape
 
@@ -18,11 +20,24 @@ This repository is for a local-first GTM Marketing OS agent suite.
 
 ## Verification
 
-For the local-only agent lab:
+Run from the repo root:
 
 ```sh
 npm run verify
 ```
 
-`npm run verify` should be run from the repo root and must not create Guild-side records.
-It must also leave `_private/` untracked.
+`npm run verify` must not create remote agent records. It must also leave `_private/` untracked.
+
+When changing agent definitions, generated assets, routing, or packet format:
+
+1. Update files under `work/local-agent-lab/`.
+2. Run `npm run generate:demos`.
+3. Run `npm run verify`.
+4. Commit the source changes and updated `delivery/local-demo-packets/` together.
+
+## Public-Safety Rules
+
+- Keep public docs generic: do not name private calls, transcripts, decks, people, buyers, or unconfirmed client details.
+- Keep `submission/` and `delivery/` free of confidential source material.
+- If a detail came from private context, either generalize it or keep it in `_private/`.
+- Prefer fixture project names and generic platform labels over real client systems unless approved.
