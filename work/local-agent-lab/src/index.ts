@@ -1,4 +1,4 @@
-export { agents, sharedContext } from "./agent-catalog.mjs";
+export { agents, sharedContext } from "./agent-catalog.js";
 export {
   buildDashboardPayload,
   buildMenu,
@@ -6,4 +6,4 @@ export {
   rankAgents,
   runAgent,
   runOrchestrator,
-} from "./runtime.mjs";
+} from "./runtime.js";

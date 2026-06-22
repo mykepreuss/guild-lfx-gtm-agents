@@ -1,20 +1,21 @@
-import { agents, sharedContext } from "./agent-catalog.mjs";
+import { agents, sharedContext } from "./agent-catalog.js";
+import type { AdapterNote, AgentDefinition, AssetBlock, DashboardPayload, RankedAgent } from "./types.js";
 
 const LOCAL_ONLY_BOUNDARY =
   "Local-only boundary: this packet uses fixture data and does not publish, spend, sync, schedule, or modify records in live marketing platforms.";
 
 const MENU_REQUESTS = ["help", "menu", "list agents", "show agents"];
 
-export function normalizeText(value) {
+export function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function includesPhrase(haystack, phrase) {
+function includesPhrase(haystack: string, phrase: string): boolean {
   const normalizedPhrase = normalizeText(phrase);
   return normalizedPhrase.length > 0 && haystack.includes(normalizedPhrase);
 }
 
-export function getAgentById(id) {
+export function getAgentById(id: string): AgentDefinition {
   const agent = agents.find((candidate) => candidate.id === id);
   if (!agent) {
     throw new Error(`Unknown agent id: ${id}`);
@@ -22,7 +23,7 @@ export function getAgentById(id) {
   return agent;
 }
 
-function scoreAgent(text, agent) {
+function scoreAgent(text: string, agent: AgentDefinition): number {
   const normalized = normalizeText(text);
   let score = 0;
 
@@ -41,34 +42,34 @@ function scoreAgent(text, agent) {
   return score;
 }
 
-export function rankAgents(text) {
+export function rankAgents(text: string): RankedAgent[] {
   return agents
     .map((agent) => ({ agent, score: scoreAgent(text, agent) }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => b.score - a.score || a.agent.order - b.agent.order);
 }
 
-function listItems(items) {
+function listItems(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
-function adapterItems(adapters) {
+function adapterItems(adapters: AdapterNote[]): string {
   return adapters
     .map(([system, action]) => `- ${system}: V1 documents the handoff. Future live action: ${action}`)
     .join("\n");
 }
 
-function assetBlocks(agent) {
+function assetBlocks(agent: AgentDefinition): string {
   return agent.assetBlocks
-    .map((block) => [`### ${block.title}`, block.body].join("\n"))
+    .map((block: AssetBlock) => [`### ${block.title}`, block.body].join("\n"))
     .join("\n\n");
 }
 
-function agentMenuLine(agent) {
+function agentMenuLine(agent: AgentDefinition): string {
   return `${agent.order}. ${agent.displayName} - future hub name: \`${agent.hubName}\``;
 }
 
-function isMenuRequest(normalizedText) {
+function isMenuRequest(normalizedText: string): boolean {
   if (!normalizedText) {
     return true;
   }
@@ -76,13 +77,13 @@ function isMenuRequest(normalizedText) {
   return MENU_REQUESTS.some((phrase) => includesPhrase(normalizedText, phrase));
 }
 
-function clarificationOptions(matches) {
+function clarificationOptions(matches: RankedAgent[]): string[] {
   return matches
     .slice(0, 3)
     .map((entry) => `- ${entry.agent.displayName}`);
 }
 
-export function buildDashboardPayload(agent, requestText) {
+export function buildDashboardPayload(agent: AgentDefinition, requestText: string): DashboardPayload {
   return {
     agentId: agent.id,
     agentHubName: agent.hubName,
@@ -96,7 +97,7 @@ export function buildDashboardPayload(agent, requestText) {
   };
 }
 
-export function runAgent(agentId, requestText) {
+export function runAgent(agentId: string, requestText: string): string {
   const agent = getAgentById(agentId);
   const payload = buildDashboardPayload(agent, requestText);
 
@@ -138,7 +139,7 @@ export function runAgent(agentId, requestText) {
   ].join("\n");
 }
 
-export function buildMenu() {
+export function buildMenu(): string {
   return [
     "# Marketing OS Local Agent Lab",
     "",
@@ -148,7 +149,7 @@ export function buildMenu() {
   ].join("\n");
 }
 
-export function runOrchestrator(requestText) {
+export function runOrchestrator(requestText: string): string {
   const normalized = normalizeText(requestText);
   if (isMenuRequest(normalized)) {
     return buildMenu();

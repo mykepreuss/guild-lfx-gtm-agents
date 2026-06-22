@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { agents, runAgent, runOrchestrator } from "../src/index.mjs";
+import { agents, runAgent, runOrchestrator } from "../dist/index.js";
+
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const srcDir = resolve(currentDir, "../src");
 
 const packetSectionPatterns = [
   /## Workflow Summary/,
@@ -36,6 +42,19 @@ assert.deepEqual(
 
 const hubNames = new Set(agents.map((agent) => agent.hubName));
 assert.equal(hubNames.size, 9, "each local agent should have a unique future Agent Hub name");
+assert.equal(
+  existsSync(resolve(srcDir, "shared-context.ts")),
+  true,
+  "shared fixture context should live outside the ordered agent catalog",
+);
+
+for (const agent of agents) {
+  assert.equal(
+    existsSync(resolve(srcDir, "agents", `${agent.id}.ts`)),
+    true,
+    `${agent.id} should have a dedicated per-agent definition module`,
+  );
+}
 
 function sectionBetween(text, startMarker, endMarker) {
   return text.split(startMarker)[1].split(endMarker)[0];

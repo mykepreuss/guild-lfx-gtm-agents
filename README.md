@@ -83,6 +83,7 @@ Additional GTM loops may become new agents if they are important enough to the o
 
 ```sh
 cd /Users/mp/Code/guild/marketing-os
+npm install
 npm run verify
 npm run generate:demos
 ```
@@ -97,7 +98,7 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 
 - `research/source-pages/` - public source captures only, if needed later.
 - `work/` - local implementation workspace.
-- `work/local-agent-lab/` - local-only agent definitions, orchestrator, tests, and demo generation.
+- `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
 - `submission/` - sendable material only.
 - `delivery/local-demo-packets/` - generated fixture packets for the orchestrator and nine agents.
 - `_private/` - local-only private notes, ignored by Git.

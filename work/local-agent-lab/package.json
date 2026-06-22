@@ -5,9 +5,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "smoke:test": "node ./scripts/smoke-test.mjs",
-    "generate:demos": "node ./scripts/generate-demo-packets.mjs",
-    "check:demos": "node ./scripts/check-demo-packets.mjs",
-    "verify": "npm run smoke:test && npm run check:demos"
+    "build": "tsc -p tsconfig.json",
+    "smoke:test": "npm run build && node ./scripts/smoke-test.mjs",
+    "generate:demos": "npm run build && node ./scripts/generate-demo-packets.mjs",
+    "check:demos": "npm run build && node ./scripts/check-demo-packets.mjs",
+    "verify": "npm run build && node ./scripts/smoke-test.mjs && node ./scripts/check-demo-packets.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
   }
 }

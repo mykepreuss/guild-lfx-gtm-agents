@@ -1,7 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { agents, buildMenu, runAgent } from "../src/index.mjs";
+import { agents, buildMenu, runAgent } from "../dist/index.js";
 
 const LOCAL_ONLY_NOTICE =
   "<!-- Generated fixture demo packet. No live platform changes are performed. -->";

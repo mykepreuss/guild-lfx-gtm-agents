@@ -45,6 +45,8 @@ When changing agent definitions, generated assets, routing, or packet format:
 3. Run `npm run verify`.
 4. Commit the source changes and updated `delivery/local-demo-packets/` together.
 
+Agent definitions and runtime source live in TypeScript under `work/local-agent-lab/src/`. Compiled `dist/` output is generated locally and ignored by Git.
+
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name private calls, transcripts, decks, people, buyers, or unconfirmed client details.

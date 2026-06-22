@@ -14,6 +14,8 @@ Contributions should improve one of these areas:
 - Marketplace readiness: clearer Agent Hub packaging boundaries, acceptance criteria, or future adapter contracts.
 - Demo quality: richer generic open-source cloud-native examples that remain public-safe.
 
+Use TypeScript for local lab source changes under `work/local-agent-lab/src/`. The generated `dist/` directory is ignored and should not be committed.
+
 ## Public-Safety Rules
 
 - Do not add private source notes, meeting transcripts, deck-derived details, relationship notes, buyer assumptions, NDA material, credentials, tokens, or client-specific details.
@@ -47,6 +49,7 @@ The CLI being installed does not make lifecycle commands in scope. Packaging, in
 From the repo root:
 
 ```sh
+npm install
 npm run verify
 ```
 

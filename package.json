@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "private": true,
+  "workspaces": [
+    "work/local-agent-lab"
+  ],
   "type": "module",
   "scripts": {
     "smoke:test": "npm run smoke:test --prefix work/local-agent-lab",
