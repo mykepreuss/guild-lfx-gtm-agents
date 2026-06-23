@@ -56,11 +56,63 @@ Learning supporter: logo, table space, and post-event resource inclusion.
   "agentId": "event-creation",
   "agentHubName": "marketing-os-event-creation",
   "agentDisplayName": "Event Creation Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "event",
+    "registration",
+    "sponsor",
+    "launch"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Create a new regional meetup event with 150-person capacity, sponsor options, and a registration page.",
+  "workstream": "events",
+  "ownerRole": "Events Owner",
+  "approvalStatus": "draft_ready",
+  "decisionRequired": "Confirm event details, registration form, sponsor language, and approval owner.",
+  "blockers": [
+    "Event detail confirmation",
+    "Sponsor tier review",
+    "Registration form approval"
+  ],
+  "nextAction": "Confirm event details and approval owner, then prepare the event platform draft.",
+  "metrics": [
+    {
+      "key": "capacity_target",
+      "label": "Capacity target",
+      "value": 150,
+      "unit": "registrants"
+    },
+    {
+      "key": "sponsor_tiers_defined",
+      "label": "Sponsor tiers defined",
+      "value": true
+    },
+    {
+      "key": "velocity_monitor_enabled",
+      "label": "Velocity monitor enabled",
+      "value": true
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "event-promotion",
+    "audience-segmentation",
+    "campaigns-paid-media"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "event_record_ready": true,
     "registration_page_status": "draft_ready",

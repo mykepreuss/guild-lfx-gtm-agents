@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const socialContentAgent: AgentDefinition = {
   id: "social-content",
   hubName: "marketing-os-social-content",
   displayName: "Social Content Agent",
   order: 3,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["social", "content", "distribution", "community"],
+    workstream: "content",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["social", "social content", "social posts", "linkedin posts", "x posts"],
   keywords: ["posts", "linkedin", "twitter", "mastodon", "bluesky", "sprout", "youtube"],
   trigger: "Weekly, with a Monday queue of five to ten post drafts.",
@@ -50,6 +60,27 @@ export const socialContentAgent: AgentDefinition = {
     "Sponsor or partner mentions are confirmed before publication.",
     "Sensitive release timing is cleared.",
   ],
+  approvalModel: {
+    ownerRole: "Social Owner",
+    requiredApprovers: ["Project Leader", "Marketing Owner", "Sponsor or Partner Owner"],
+    decisionType: "approve_or_edit",
+  },
+  dashboard: {
+    workstream: "content",
+    ownerRole: "Social Owner",
+    approvalStatus: "ready_for_review",
+    decisionRequired: "Approve, edit, or reject each platform post before future scheduling.",
+    blockers: ["Maintainer quote confirmation", "Release URL", "Community meeting date", "Sponsor mention approval"],
+    nextAction:
+      "Review technical accuracy first, then approve or reject each post before any scheduling adapter is connected.",
+    metrics: [
+      { key: "posts_waiting_for_review", label: "Posts waiting for review", value: 5, unit: "posts" },
+      { key: "platform_count", label: "Platforms", value: 4, unit: "channels" },
+      { key: "mentions_to_confirm", label: "Mentions to confirm", value: 2, unit: "mentions" },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["newsletter-composition", "event-promotion", "campaign-performance"],
+  },
   dashboardSignals: {
     social_queue_ready: true,
     posts_waiting_for_review: 5,

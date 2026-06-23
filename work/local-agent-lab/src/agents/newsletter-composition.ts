@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const newsletterCompositionAgent: AgentDefinition = {
   id: "newsletter-composition",
   hubName: "marketing-os-newsletter-composition",
   displayName: "Newsletter Composition Agent",
   order: 2,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["newsletter", "email", "content", "lifecycle"],
+    workstream: "content",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["newsletter", "email newsletter", "weekly newsletter", "substack", "beehiiv"],
   keywords: ["email", "digest", "subject line", "subscriber", "send list", "campaign"],
   trigger: "Weekly or on demand when the project leader asks for this week's newsletter.",
@@ -60,6 +70,26 @@ export const newsletterCompositionAgent: AgentDefinition = {
     "Community owner confirms project activity is accurate.",
     "Final reviewer confirms links, dates, and calls to action.",
   ],
+  approvalModel: {
+    ownerRole: "Marketing Owner",
+    requiredApprovers: ["Project Leader", "Marketing Owner", "Community Owner", "Final Reviewer"],
+    decisionType: "approve_or_edit",
+  },
+  dashboard: {
+    workstream: "content",
+    ownerRole: "Marketing Owner",
+    approvalStatus: "draft_ready",
+    decisionRequired: "Approve subject line, lead story, audience segment, and send timing.",
+    blockers: ["Final link check", "Community activity accuracy", "Segment and suppression review"],
+    nextAction: "Approve one subject line and mark any sections that should be shortened before scheduling.",
+    metrics: [
+      { key: "subscriber_segment_size", label: "Subscriber segment size", value: 4200, unit: "contacts" },
+      { key: "open_rate_target", label: "Open rate target", value: "34%" },
+      { key: "click_rate_target", label: "Click rate target", value: "5.5%" },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["social-content", "event-promotion", "campaign-performance"],
+  },
   dashboardSignals: {
     newsletter_draft_ready: true,
     subscriber_segment_size: 4200,

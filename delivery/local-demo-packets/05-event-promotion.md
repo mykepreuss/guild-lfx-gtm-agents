@@ -56,11 +56,66 @@ Red flag: fewer than 120 registrations by week -5 or conversion rate below 9% fr
   "agentId": "event-promotion",
   "agentHubName": "marketing-os-event-promotion",
   "agentDisplayName": "Event Promotion Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "event",
+    "promotion",
+    "forecast",
+    "paid"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Run the Event Promotion Agent for an October webinar with 400 registrations as the goal and a small paid media budget.",
+  "workstream": "events",
+  "ownerRole": "Events Owner",
+  "approvalStatus": "plan_ready",
+  "decisionRequired": "Approve milestone calendar, audience priority, registration goal, and paid threshold.",
+  "blockers": [
+    "Paid media threshold approval",
+    "Landing page URL",
+    "Audience prioritization"
+  ],
+  "nextAction": "Approve the milestone calendar and paid threshold before any email, social, or ad drafts are created in live systems.",
+  "metrics": [
+    {
+      "key": "registration_goal",
+      "label": "Registration goal",
+      "value": 400,
+      "unit": "registrants"
+    },
+    {
+      "key": "forecasted_attendance",
+      "label": "Forecasted attendance",
+      "value": 260,
+      "unit": "attendees"
+    },
+    {
+      "key": "weeks_to_event",
+      "label": "Weeks to event",
+      "value": 12,
+      "unit": "weeks"
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "newsletter-composition",
+    "social-content",
+    "campaigns-paid-media",
+    "campaign-performance"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "event_promotion_status": "plan_ready",
     "weeks_to_event": 12,

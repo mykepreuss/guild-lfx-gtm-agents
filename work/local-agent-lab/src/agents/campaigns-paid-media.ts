@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const campaignsPaidMediaAgent: AgentDefinition = {
   id: "campaigns-paid-media",
   hubName: "marketing-os-campaigns-paid-media",
   displayName: "Campaigns and Paid Media Agent",
   order: 9,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["paid-media", "campaigns", "budget", "guardrails"],
+    workstream: "paid_media",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["paid media", "campaigns", "campaign structure", "google ads", "linkedin ads", "reddit ads"],
   keywords: ["campaign", "budget", "utm", "ad creative", "roas", "pause", "scale", "sem"],
   trigger: "Project leader sets budget and goal, then reviews the proposed campaign structure.",
@@ -65,6 +75,26 @@ export const campaignsPaidMediaAgent: AgentDefinition = {
     "Audience owner approves targeting logic.",
     "Paid media owner approves platform setup before launch.",
   ],
+  approvalModel: {
+    ownerRole: "Paid Media Owner",
+    requiredApprovers: ["Project Leader", "Marketing Owner", "Audience Owner", "Paid Media Owner"],
+    decisionType: "confirm_budget",
+  },
+  dashboard: {
+    workstream: "paid_media",
+    ownerRole: "Paid Media Owner",
+    approvalStatus: "ready_for_budget_review",
+    decisionRequired: "Approve budget, audience, message, platform scope, and pause-scale guardrails.",
+    blockers: ["Budget approval", "Targeting logic approval", "Platform setup review"],
+    nextAction: "Approve budget, message, and guardrails before any paid-media adapter creates or modifies campaigns.",
+    metrics: [
+      { key: "creative_variant_count", label: "Creative variants", value: 4, unit: "variants" },
+      { key: "utm_plan_ready", label: "UTM plan ready", value: true },
+      { key: "pause_scale_guardrails_set", label: "Pause-scale guardrails set", value: true },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["campaign-performance", "audience-segmentation", "event-promotion"],
+  },
   dashboardSignals: {
     campaign_structure_status: "ready_for_budget_review",
     budget_pending_approval: true,

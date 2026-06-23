@@ -59,11 +59,64 @@ Launch blockers: approved logo, final one-sentence mission, trademark review, ma
   "agentId": "foundation-setup",
   "agentHubName": "marketing-os-foundation-setup",
   "agentDisplayName": "Foundation Setup Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "foundation",
+    "messaging",
+    "website",
+    "dashboard"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Run the Foundation Setup Agent for a cloud native project that needs clearer messaging, a refreshed project site, and a first dashboard for project leaders.",
+  "workstream": "foundation",
+  "ownerRole": "Project Leader",
+  "approvalStatus": "needs_project_leader_review",
+  "decisionRequired": "Approve the messaging source, audiences, and first dashboard signals.",
+  "blockers": [
+    "Brand assets approval",
+    "Trademark review",
+    "Channel registry confirmation"
+  ],
+  "nextAction": "Project leader should approve or edit the messaging source before design, web, or channel setup work begins.",
+  "metrics": [
+    {
+      "key": "okr_count",
+      "label": "Initial OKRs",
+      "value": 3,
+      "unit": "count"
+    },
+    {
+      "key": "brand_assets_approved",
+      "label": "Brand assets approved",
+      "value": false
+    },
+    {
+      "key": "channel_registry_complete",
+      "label": "Channel registry complete",
+      "value": false
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "audience-segmentation",
+    "newsletter-composition",
+    "social-content",
+    "event-creation"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "foundation_status": "needs_project_leader_review",
     "brand_assets_approved": false,

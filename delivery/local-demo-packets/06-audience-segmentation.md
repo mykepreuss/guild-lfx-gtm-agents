@@ -48,11 +48,65 @@ Route ambiguous consent records to data owner review before use.
   "agentId": "audience-segmentation",
   "agentHubName": "marketing-os-audience-segmentation",
   "agentDisplayName": "Audience Segmentation Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "audience",
+    "segmentation",
+    "personas",
+    "consent"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Create audience segments for a contributor re-engagement campaign and October webinar promotion.",
+  "workstream": "audience",
+  "ownerRole": "Data Owner",
+  "approvalStatus": "ready_for_review",
+  "decisionRequired": "Approve persona names, segment criteria, consent guardrails, and suppressions.",
+  "blockers": [
+    "Source field confirmation",
+    "Consent review",
+    "Contact-frequency guardrail approval"
+  ],
+  "nextAction": "Approve or edit plain-language segment criteria before any future adapter writes lists to marketing systems.",
+  "metrics": [
+    {
+      "key": "eligible_contact_count",
+      "label": "Eligible contacts",
+      "value": 6800,
+      "unit": "contacts"
+    },
+    {
+      "key": "suppression_count",
+      "label": "Suppressed contacts",
+      "value": 940,
+      "unit": "contacts"
+    },
+    {
+      "key": "re_engagement_candidates",
+      "label": "Re-engagement candidates",
+      "value": 510,
+      "unit": "contacts"
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "newsletter-composition",
+    "event-promotion",
+    "campaigns-paid-media"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "segment_review_status": "ready",
     "persona_count": 3,

@@ -47,11 +47,66 @@ Risk note: sponsor mentions require explicit approval before scheduling.
   "agentId": "social-content",
   "agentHubName": "marketing-os-social-content",
   "agentDisplayName": "Social Content Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "social",
+    "content",
+    "distribution",
+    "community"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Create this week's social queue for a release update, maintainer quote, and October webinar CTA.",
+  "workstream": "content",
+  "ownerRole": "Social Owner",
+  "approvalStatus": "ready_for_review",
+  "decisionRequired": "Approve, edit, or reject each platform post before future scheduling.",
+  "blockers": [
+    "Maintainer quote confirmation",
+    "Release URL",
+    "Community meeting date",
+    "Sponsor mention approval"
+  ],
+  "nextAction": "Review technical accuracy first, then approve or reject each post before any scheduling adapter is connected.",
+  "metrics": [
+    {
+      "key": "posts_waiting_for_review",
+      "label": "Posts waiting for review",
+      "value": 5,
+      "unit": "posts"
+    },
+    {
+      "key": "platform_count",
+      "label": "Platforms",
+      "value": 4,
+      "unit": "channels"
+    },
+    {
+      "key": "mentions_to_confirm",
+      "label": "Mentions to confirm",
+      "value": 2,
+      "unit": "mentions"
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "newsletter-composition",
+    "event-promotion",
+    "campaign-performance"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "social_queue_ready": true,
     "posts_waiting_for_review": 5,

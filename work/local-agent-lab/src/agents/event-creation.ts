@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const eventCreationAgent: AgentDefinition = {
   id: "event-creation",
   hubName: "marketing-os-event-creation",
   displayName: "Event Creation Agent",
   order: 4,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["event", "registration", "sponsor", "launch"],
+    workstream: "events",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["event setup", "event creation", "create event", "new event", "cvent page"],
   keywords: ["event", "registration", "capacity", "sponsor", "cfp", "cvent", "landing page"],
   trigger: "Project leader starts a create-new-event mission.",
@@ -65,6 +75,26 @@ export const eventCreationAgent: AgentDefinition = {
     "Sponsor owner approves tier language if sponsors are included.",
     "Marketing owner approves launch copy and CTA.",
   ],
+  approvalModel: {
+    ownerRole: "Events Owner",
+    requiredApprovers: ["Project Leader", "Events Owner", "Sponsor Owner", "Marketing Owner"],
+    decisionType: "confirm_launch",
+  },
+  dashboard: {
+    workstream: "events",
+    ownerRole: "Events Owner",
+    approvalStatus: "draft_ready",
+    decisionRequired: "Confirm event details, registration form, sponsor language, and approval owner.",
+    blockers: ["Event detail confirmation", "Sponsor tier review", "Registration form approval"],
+    nextAction: "Confirm event details and approval owner, then prepare the event platform draft.",
+    metrics: [
+      { key: "capacity_target", label: "Capacity target", value: 150, unit: "registrants" },
+      { key: "sponsor_tiers_defined", label: "Sponsor tiers defined", value: true },
+      { key: "velocity_monitor_enabled", label: "Velocity monitor enabled", value: true },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["event-promotion", "audience-segmentation", "campaigns-paid-media"],
+  },
   dashboardSignals: {
     event_record_ready: true,
     registration_page_status: "draft_ready",

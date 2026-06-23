@@ -54,11 +54,63 @@ Recommended send: Tuesday 09:30 recipient-local time.
   "agentId": "newsletter-composition",
   "agentHubName": "marketing-os-newsletter-composition",
   "agentDisplayName": "Newsletter Composition Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "newsletter",
+    "email",
+    "content",
+    "lifecycle"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Draft this week's newsletter for contributors and technical evaluators with a release update, event CTA, and community highlight.",
+  "workstream": "content",
+  "ownerRole": "Marketing Owner",
+  "approvalStatus": "draft_ready",
+  "decisionRequired": "Approve subject line, lead story, audience segment, and send timing.",
+  "blockers": [
+    "Final link check",
+    "Community activity accuracy",
+    "Segment and suppression review"
+  ],
+  "nextAction": "Approve one subject line and mark any sections that should be shortened before scheduling.",
+  "metrics": [
+    {
+      "key": "subscriber_segment_size",
+      "label": "Subscriber segment size",
+      "value": 4200,
+      "unit": "contacts"
+    },
+    {
+      "key": "open_rate_target",
+      "label": "Open rate target",
+      "value": "34%"
+    },
+    {
+      "key": "click_rate_target",
+      "label": "Click rate target",
+      "value": "5.5%"
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "social-content",
+    "event-promotion",
+    "campaign-performance"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "newsletter_draft_ready": true,
     "subscriber_segment_size": 4200,

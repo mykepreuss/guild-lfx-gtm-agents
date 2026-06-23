@@ -18,6 +18,7 @@ Working thesis:
 - No remote agent records are created from this repo.
 - No workspace installs or publishing.
 - The local lab models the nine future agents and generates fixture-backed demo packets.
+- A first local-only Agent Hub exemplar models the Campaign Performance Agent package boundary without lifecycle config.
 - Marketplace target is Guild's Agent Hub, but the project is still iterating toward that acceptance bar.
 - License: Apache-2.0.
 - Eventual live integrations are TBD. Current packets document future adapter handoffs only.
@@ -99,6 +100,7 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 - `research/source-pages/` - public source captures only, if needed later.
 - `work/` - local implementation workspace.
 - `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
+- `work/agent-hub-exemplars/` - local-only per-agent TypeScript package exemplars for future Guild packaging.
 - `submission/` - sendable material only.
 - `delivery/local-demo-packets/` - generated fixture packets for the orchestrator and nine agents.
 - `_private/` - local-only private notes, ignored by Git.
@@ -112,4 +114,5 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 - Keep ownership, license, maintenance, and public-use rights explicit before public sharing.
 - Do not run remote agent lifecycle commands until scope and review path are confirmed.
 - Do not add platform lifecycle config files to this repo until remote packaging is approved.
+- Keep Agent Hub exemplars free of `guild.json` until packaging is explicitly approved.
 - Do not publish Team-installable or public On-Hub versions until the Agent Hub acceptance checklist is complete.

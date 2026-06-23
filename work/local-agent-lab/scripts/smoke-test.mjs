@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { agents, runAgent, runOrchestrator } from "../dist/index.js";
+import { agents, buildDashboardPayload, runAgent, runOrchestrator } from "../dist/index.js";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const srcDir = resolve(currentDir, "../src");
@@ -16,6 +16,10 @@ const packetSectionPatterns = [
   /## Dashboard Update Payload/,
   /## Future Integration Adapter Notes/,
   /## Next Recommended Action/,
+  /"workstream":/,
+  /"approvalStatus":/,
+  /"decisionRequired":/,
+  /"agentHubReadiness":/,
   /"mode": "fixture-backed-local-v1"/,
   /"liveExecution": false/,
 ];
@@ -56,6 +60,50 @@ for (const agent of agents) {
   );
 }
 
+function assertNonEmptyString(value, message) {
+  assert.equal(typeof value, "string", message);
+  assert(value.trim().length > 0, message);
+}
+
+function assertNonEmptyArray(value, message) {
+  assert(Array.isArray(value), message);
+  assert(value.length > 0, message);
+}
+
+function assertAgentContract(agent) {
+  assert.equal(agent.metadata.category, "gtm-marketing-os", `${agent.id} should declare Agent Hub category`);
+  assert.equal(agent.metadata.sourceSafetyLevel, "public_fixture_only", `${agent.id} should declare source safety`);
+  assert.equal(agent.metadata.visibilityReadiness, "local_lab_only", `${agent.id} should remain local-lab only`);
+  assert.equal(
+    agent.metadata.agentHubReadiness.packageStatus,
+    "not_packaged",
+    `${agent.id} should not claim Agent Hub packaging`,
+  );
+  assert.equal(
+    agent.metadata.agentHubReadiness.validationStatus,
+    "not_run",
+    `${agent.id} should not claim Guild validation has run`,
+  );
+  assert.equal(
+    agent.metadata.agentHubReadiness.visibility,
+    "draft_only",
+    `${agent.id} should stay draft-only until approved packaging`,
+  );
+  assertNonEmptyArray(agent.metadata.tags, `${agent.id} should include Agent Hub tags`);
+  assertNonEmptyString(agent.metadata.primaryUser, `${agent.id} should identify primary user`);
+
+  assertNonEmptyString(agent.approvalModel.ownerRole, `${agent.id} should identify approval owner role`);
+  assertNonEmptyArray(agent.approvalModel.requiredApprovers, `${agent.id} should list required approvers`);
+  assertNonEmptyString(agent.approvalModel.decisionType, `${agent.id} should identify decision type`);
+
+  assert.equal(agent.dashboard.workstream, agent.metadata.workstream, `${agent.id} dashboard workstream should align`);
+  assert.equal(agent.dashboard.ownerRole, agent.approvalModel.ownerRole, `${agent.id} owner role should align`);
+  assertNonEmptyString(agent.dashboard.approvalStatus, `${agent.id} should have dashboard approval status`);
+  assertNonEmptyString(agent.dashboard.decisionRequired, `${agent.id} should state the dashboard decision`);
+  assertNonEmptyArray(agent.dashboard.metrics, `${agent.id} should include dashboard metrics`);
+  assertNonEmptyString(agent.dashboard.sourceConfidence, `${agent.id} should declare source confidence`);
+}
+
 function sectionBetween(text, startMarker, endMarker) {
   return text.split(startMarker)[1].split(endMarker)[0];
 }
@@ -78,6 +126,18 @@ function assertLocalPacket(output, agent) {
 }
 
 for (const agent of agents) {
+  assertAgentContract(agent);
+
+  const payload = buildDashboardPayload(agent, agent.demoPrompt);
+  assert.equal(payload.agentId, agent.id, `${agent.id} payload should include agent id`);
+  assert.equal(payload.category, agent.metadata.category, `${agent.id} payload should include category`);
+  assert.equal(payload.workstream, agent.metadata.workstream, `${agent.id} payload should include workstream`);
+  assert.equal(payload.ownerRole, agent.approvalModel.ownerRole, `${agent.id} payload should include owner role`);
+  assert.equal(payload.approvalStatus, agent.dashboard.approvalStatus, `${agent.id} payload should include approval`);
+  assertNonEmptyString(payload.decisionRequired, `${agent.id} payload should include decision required`);
+  assertNonEmptyArray(payload.metrics, `${agent.id} payload should include dashboard metrics`);
+  assert.equal(payload.agentHubReadiness.packageStatus, "not_packaged", `${agent.id} payload should stay local`);
+
   const output = runAgent(agent.id, agent.demoPrompt);
   assertLocalPacket(output, agent);
 }

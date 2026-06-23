@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const ownedMediaProductionAgent: AgentDefinition = {
   id: "owned-media-production",
   hubName: "marketing-os-owned-media-production",
   displayName: "Owned Media Production Agent",
   order: 7,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["owned-media", "podcast", "youtube", "distribution"],
+    workstream: "owned_media",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["owned media", "podcast", "youtube", "recording", "show notes", "content plan"],
   keywords: ["transcript", "episode", "riverside", "transistor", "clip", "distribution"],
   trigger: "New recording upload or content plan update.",
@@ -60,6 +70,26 @@ export const ownedMediaProductionAgent: AgentDefinition = {
     "Social owner approves clip and post variants.",
     "Distribution owner confirms schedule.",
   ],
+  approvalModel: {
+    ownerRole: "Content Owner",
+    requiredApprovers: ["Project Leader", "Content Owner", "Social Owner", "Distribution Owner"],
+    decisionType: "approve_or_edit",
+  },
+  dashboard: {
+    workstream: "owned_media",
+    ownerRole: "Content Owner",
+    approvalStatus: "ready_for_review",
+    decisionRequired: "Approve show notes, quote selection, episode metadata, and distribution schedule.",
+    blockers: ["Sensitive quote approval", "Episode title approval", "Clip timing confirmation"],
+    nextAction: "Review show notes and selected quote first; those decisions drive episode and distribution assets.",
+    metrics: [
+      { key: "clip_count", label: "Clip count", value: 2, unit: "clips" },
+      { key: "distribution_channels", label: "Distribution channels", value: 4, unit: "channels" },
+      { key: "newsletter_teaser_ready", label: "Newsletter teaser ready", value: true },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["newsletter-composition", "social-content", "campaign-performance"],
+  },
   dashboardSignals: {
     owned_media_asset_status: "ready_for_review",
     episode_ready_for_review: true,

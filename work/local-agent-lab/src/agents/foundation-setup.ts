@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const foundationSetupAgent: AgentDefinition = {
   id: "foundation-setup",
   hubName: "marketing-os-foundation-setup",
   displayName: "Foundation Setup Agent",
   order: 1,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["foundation", "messaging", "website", "dashboard"],
+    workstream: "foundation",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["foundation", "brand setup", "brand kit", "web setup", "ai readiness"],
   keywords: ["brand", "messaging", "website", "boilerplate", "llms", "schema", "okr"],
   trigger: "First login or major project refresh.",
@@ -68,6 +78,27 @@ export const foundationSetupAgent: AgentDefinition = {
     "Legal or trademark owner confirms naming and logo constraints.",
     "Dashboard owner confirms first status signals.",
   ],
+  approvalModel: {
+    ownerRole: "Project Leader",
+    requiredApprovers: ["Project Leader", "Marketing Advisor", "Design Stakeholder", "Legal or Trademark Owner"],
+    decisionType: "approve_or_edit",
+  },
+  dashboard: {
+    workstream: "foundation",
+    ownerRole: "Project Leader",
+    approvalStatus: "needs_project_leader_review",
+    decisionRequired: "Approve the messaging source, audiences, and first dashboard signals.",
+    blockers: ["Brand assets approval", "Trademark review", "Channel registry confirmation"],
+    nextAction:
+      "Project leader should approve or edit the messaging source before design, web, or channel setup work begins.",
+    metrics: [
+      { key: "okr_count", label: "Initial OKRs", value: 3, unit: "count" },
+      { key: "brand_assets_approved", label: "Brand assets approved", value: false },
+      { key: "channel_registry_complete", label: "Channel registry complete", value: false },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["audience-segmentation", "newsletter-composition", "social-content", "event-creation"],
+  },
   dashboardSignals: {
     foundation_status: "needs_project_leader_review",
     brand_assets_approved: false,

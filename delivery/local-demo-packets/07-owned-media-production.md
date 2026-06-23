@@ -52,11 +52,64 @@ New maintainer interview: how teams are evaluating the project, what changed in 
   "agentId": "owned-media-production",
   "agentHubName": "marketing-os-owned-media-production",
   "agentDisplayName": "Owned Media Production Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "owned-media",
+    "podcast",
+    "youtube",
+    "distribution"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Turn a maintainer interview recording into show notes, episode descriptions, social clips, and a newsletter teaser.",
+  "workstream": "owned_media",
+  "ownerRole": "Content Owner",
+  "approvalStatus": "ready_for_review",
+  "decisionRequired": "Approve show notes, quote selection, episode metadata, and distribution schedule.",
+  "blockers": [
+    "Sensitive quote approval",
+    "Episode title approval",
+    "Clip timing confirmation"
+  ],
+  "nextAction": "Review show notes and selected quote first; those decisions drive episode and distribution assets.",
+  "metrics": [
+    {
+      "key": "clip_count",
+      "label": "Clip count",
+      "value": 2,
+      "unit": "clips"
+    },
+    {
+      "key": "distribution_channels",
+      "label": "Distribution channels",
+      "value": 4,
+      "unit": "channels"
+    },
+    {
+      "key": "newsletter_teaser_ready",
+      "label": "Newsletter teaser ready",
+      "value": true
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "newsletter-composition",
+    "social-content",
+    "campaign-performance"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "owned_media_asset_status": "ready_for_review",
     "episode_ready_for_review": true,

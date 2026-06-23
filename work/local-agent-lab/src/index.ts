@@ -7,3 +7,4 @@ export {
   runAgent,
   runOrchestrator,
 } from "./runtime.js";
+export type { AgentDefinition, AgentId, DashboardPayload } from "./types.js";

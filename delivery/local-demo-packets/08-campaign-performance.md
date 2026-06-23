@@ -49,11 +49,64 @@ A/B winner: subject line B, 'What changed this week in the project', wins on cli
   "agentId": "campaign-performance",
   "agentHubName": "marketing-os-campaign-performance",
   "agentDisplayName": "Campaign Performance Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "performance",
+    "dashboard",
+    "anomaly",
+    "decisioning"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Run the Campaign Performance Agent for the Monday readout and call out anomalies, A/B winners, and recommended pause or scale actions.",
+  "workstream": "performance",
+  "ownerRole": "Analytics Owner",
+  "approvalStatus": "ready_for_review",
+  "decisionRequired": "Choose whether to pause, scale, investigate, or keep learning for each flagged channel.",
+  "blockers": [
+    "Metric threshold confirmation",
+    "Query quality review",
+    "Landing-page conversion review"
+  ],
+  "nextAction": "Approve investigate, pause, or scale actions before connecting any live campaign-control adapter.",
+  "metrics": [
+    {
+      "key": "critical_anomaly_count",
+      "label": "Critical anomalies",
+      "value": 1,
+      "unit": "alerts"
+    },
+    {
+      "key": "recommended_action_count",
+      "label": "Recommended actions",
+      "value": 3,
+      "unit": "actions"
+    },
+    {
+      "key": "ab_test_winner",
+      "label": "A/B winner",
+      "value": "subject_line_b"
+    }
+  ],
+  "sourceConfidence": "fixture_metric",
+  "downstreamAgents": [
+    "event-promotion",
+    "campaigns-paid-media",
+    "audience-segmentation"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "performance_readout_status": "ready",
     "critical_anomaly_count": 1,

@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const audienceSegmentationAgent: AgentDefinition = {
   id: "audience-segmentation",
   hubName: "marketing-os-audience-segmentation",
   displayName: "Audience Segmentation Agent",
   order: 6,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["audience", "segmentation", "personas", "consent"],
+    workstream: "audience",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["audience", "segmentation", "segments", "personas", "hubspot sync"],
   keywords: ["persona", "segment", "identity", "subscriber", "re-engagement", "target market"],
   trigger: "New event, new campaign, or quarterly target-market review.",
@@ -54,6 +64,26 @@ export const audienceSegmentationAgent: AgentDefinition = {
     "Data owner confirms source fields and suppression rules.",
     "Campaign owner confirms contact-frequency guardrails.",
   ],
+  approvalModel: {
+    ownerRole: "Data Owner",
+    requiredApprovers: ["Project Leader", "Marketing Owner", "Data Owner", "Campaign Owner"],
+    decisionType: "confirm_segment",
+  },
+  dashboard: {
+    workstream: "audience",
+    ownerRole: "Data Owner",
+    approvalStatus: "ready_for_review",
+    decisionRequired: "Approve persona names, segment criteria, consent guardrails, and suppressions.",
+    blockers: ["Source field confirmation", "Consent review", "Contact-frequency guardrail approval"],
+    nextAction: "Approve or edit plain-language segment criteria before any future adapter writes lists to marketing systems.",
+    metrics: [
+      { key: "eligible_contact_count", label: "Eligible contacts", value: 6800, unit: "contacts" },
+      { key: "suppression_count", label: "Suppressed contacts", value: 940, unit: "contacts" },
+      { key: "re_engagement_candidates", label: "Re-engagement candidates", value: 510, unit: "contacts" },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["newsletter-composition", "event-promotion", "campaigns-paid-media"],
+  },
   dashboardSignals: {
     segment_review_status: "ready",
     persona_count: 3,

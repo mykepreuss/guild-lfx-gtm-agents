@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const eventPromotionAgent: AgentDefinition = {
   id: "event-promotion",
   hubName: "marketing-os-event-promotion",
   displayName: "Event Promotion Agent",
   order: 5,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["event", "promotion", "forecast", "paid"],
+    workstream: "events",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["event promotion", "event execution", "12 week plan", "attendance forecast"],
   keywords: ["milestone", "promotion", "webinar", "attendance", "forecast", "budget", "paid"],
   trigger: "Project leader provides event date, event URL, goals, and budget.",
@@ -62,6 +72,27 @@ export const eventPromotionAgent: AgentDefinition = {
     "Marketing owner approves email and social cadence.",
     "Paid media owner approves spend threshold before launch.",
   ],
+  approvalModel: {
+    ownerRole: "Events Owner",
+    requiredApprovers: ["Project Leader", "Events Owner", "Marketing Owner", "Paid Media Owner"],
+    decisionType: "confirm_budget",
+  },
+  dashboard: {
+    workstream: "events",
+    ownerRole: "Events Owner",
+    approvalStatus: "plan_ready",
+    decisionRequired: "Approve milestone calendar, audience priority, registration goal, and paid threshold.",
+    blockers: ["Paid media threshold approval", "Landing page URL", "Audience prioritization"],
+    nextAction:
+      "Approve the milestone calendar and paid threshold before any email, social, or ad drafts are created in live systems.",
+    metrics: [
+      { key: "registration_goal", label: "Registration goal", value: 400, unit: "registrants" },
+      { key: "forecasted_attendance", label: "Forecasted attendance", value: 260, unit: "attendees" },
+      { key: "weeks_to_event", label: "Weeks to event", value: 12, unit: "weeks" },
+    ],
+    sourceConfidence: "fixture_assumption",
+    downstreamAgents: ["newsletter-composition", "social-content", "campaigns-paid-media", "campaign-performance"],
+  },
   dashboardSignals: {
     event_promotion_status: "plan_ready",
     weeks_to_event: 12,

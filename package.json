@@ -4,13 +4,15 @@
   "license": "Apache-2.0",
   "private": true,
   "workspaces": [
-    "work/local-agent-lab"
+    "work/local-agent-lab",
+    "work/agent-hub-exemplars/*"
   ],
   "type": "module",
   "scripts": {
     "smoke:test": "npm run smoke:test --prefix work/local-agent-lab",
     "generate:demos": "npm run generate:demos --prefix work/local-agent-lab",
     "check:demos": "npm run check:demos --prefix work/local-agent-lab",
-    "verify": "npm run verify --prefix work/local-agent-lab"
+    "verify:exemplars": "npm run verify --prefix work/agent-hub-exemplars/campaign-performance",
+    "verify": "npm run verify --prefix work/local-agent-lab && npm run verify:exemplars"
   }
 }

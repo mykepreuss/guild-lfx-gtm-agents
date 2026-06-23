@@ -57,11 +57,63 @@ utm_source={platform}&utm_medium=paid&utm_campaign=oct_webinar&utm_content={pers
   "agentId": "campaigns-paid-media",
   "agentHubName": "marketing-os-campaigns-paid-media",
   "agentDisplayName": "Campaigns and Paid Media Agent",
+  "category": "gtm-marketing-os",
+  "tags": [
+    "paid-media",
+    "campaigns",
+    "budget",
+    "guardrails"
+  ],
   "mode": "fixture-backed-local-v1",
   "liveExecution": false,
   "project": "Open Source Cloud Native Project",
   "status": "ready_for_project_leader_review",
   "sourceRequest": "Create a paid media campaign structure for an October webinar with LinkedIn, Google Search, Reddit, UTMs, and pause-scale guardrails.",
+  "workstream": "paid_media",
+  "ownerRole": "Paid Media Owner",
+  "approvalStatus": "ready_for_budget_review",
+  "decisionRequired": "Approve budget, audience, message, platform scope, and pause-scale guardrails.",
+  "blockers": [
+    "Budget approval",
+    "Targeting logic approval",
+    "Platform setup review"
+  ],
+  "nextAction": "Approve budget, message, and guardrails before any paid-media adapter creates or modifies campaigns.",
+  "metrics": [
+    {
+      "key": "creative_variant_count",
+      "label": "Creative variants",
+      "value": 4,
+      "unit": "variants"
+    },
+    {
+      "key": "utm_plan_ready",
+      "label": "UTM plan ready",
+      "value": true
+    },
+    {
+      "key": "pause_scale_guardrails_set",
+      "label": "Pause-scale guardrails set",
+      "value": true
+    }
+  ],
+  "sourceConfidence": "fixture_assumption",
+  "downstreamAgents": [
+    "campaign-performance",
+    "audience-segmentation",
+    "event-promotion"
+  ],
+  "agentHubReadiness": {
+    "packageStatus": "not_packaged",
+    "validationStatus": "not_run",
+    "visibility": "draft_only",
+    "notes": [
+      "Local lab definition only.",
+      "No Guild lifecycle package has been created for this definition.",
+      "Any Agent Hub exemplar remains local-only until packaging is approved.",
+      "Do not save, publish, or change Agent Hub visibility until packaging is approved."
+    ]
+  },
   "signals": {
     "campaign_structure_status": "ready_for_budget_review",
     "budget_pending_approval": true,

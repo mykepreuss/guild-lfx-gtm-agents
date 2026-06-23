@@ -1,10 +1,20 @@
 import type { AgentDefinition } from "../types.js";
+import { localLabAgentHubReadiness } from "../agent-hub-readiness.js";
 
 export const campaignPerformanceAgent: AgentDefinition = {
   id: "campaign-performance",
   hubName: "marketing-os-campaign-performance",
   displayName: "Campaign Performance Agent",
   order: 8,
+  metadata: {
+    category: "gtm-marketing-os",
+    tags: ["performance", "dashboard", "anomaly", "decisioning"],
+    workstream: "performance",
+    primaryUser: "Project Leader",
+    sourceSafetyLevel: "public_fixture_only",
+    visibilityReadiness: "local_lab_only",
+    agentHubReadiness: localLabAgentHubReadiness,
+  },
   aliases: ["campaign performance", "performance", "anomaly", "dashboard", "ab test"],
   keywords: ["campaign", "metrics", "insight", "ga4", "youtube analytics", "sprout", "cvent", "weekly narrative"],
   trigger: "Daily data refresh, with project leader reading the dashboard.",
@@ -54,6 +64,26 @@ export const campaignPerformanceAgent: AgentDefinition = {
     "Analytics owner confirms thresholds and metric definitions.",
     "Campaign owner chooses next action.",
   ],
+  approvalModel: {
+    ownerRole: "Analytics Owner",
+    requiredApprovers: ["Project Leader", "Marketing Owner", "Analytics Owner", "Campaign Owner"],
+    decisionType: "choose_next_action",
+  },
+  dashboard: {
+    workstream: "performance",
+    ownerRole: "Analytics Owner",
+    approvalStatus: "ready_for_review",
+    decisionRequired: "Choose whether to pause, scale, investigate, or keep learning for each flagged channel.",
+    blockers: ["Metric threshold confirmation", "Query quality review", "Landing-page conversion review"],
+    nextAction: "Approve investigate, pause, or scale actions before connecting any live campaign-control adapter.",
+    metrics: [
+      { key: "critical_anomaly_count", label: "Critical anomalies", value: 1, unit: "alerts" },
+      { key: "recommended_action_count", label: "Recommended actions", value: 3, unit: "actions" },
+      { key: "ab_test_winner", label: "A/B winner", value: "subject_line_b" },
+    ],
+    sourceConfidence: "fixture_metric",
+    downstreamAgents: ["event-promotion", "campaigns-paid-media", "audience-segmentation"],
+  },
   dashboardSignals: {
     performance_readout_status: "ready",
     critical_anomaly_count: 1,

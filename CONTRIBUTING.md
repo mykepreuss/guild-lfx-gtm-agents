@@ -16,6 +16,10 @@ Contributions should improve one of these areas:
 
 Use TypeScript for local lab source changes under `work/local-agent-lab/src/`. The generated `dist/` directory is ignored and should not be committed.
 
+The core source contracts live in `work/local-agent-lab/src/types.ts`. Agent changes should preserve the typed `AgentDefinition`, `ApprovalModel`, and `DashboardPayload` contract unless the contract itself is intentionally being upgraded.
+
+Local Agent Hub exemplars live under `work/agent-hub-exemplars/`. They may use `agent.ts` and per-agent package structure to prove the boundary, but they must not add `guild.json` or Guild lifecycle behavior until packaging is approved.
+
 ## Public-Safety Rules
 
 - Do not add private source notes, meeting transcripts, deck-derived details, relationship notes, buyer assumptions, NDA material, credentials, tokens, or client-specific details.
@@ -28,6 +32,7 @@ Use TypeScript for local lab source changes under `work/local-agent-lab/src/`. T
 
 - Do not run remote agent lifecycle commands.
 - Do not add platform lifecycle config files until Agent Hub packaging is approved.
+- Do not add `guild.json` to Agent Hub exemplars until packaging is approved.
 - Do not publish, install, sync, schedule, spend, or modify live systems from this repo.
 - Keep `npm run verify` non-mutating.
 - Use `npm run generate:demos` as the only expected path for rewriting generated demo packets.

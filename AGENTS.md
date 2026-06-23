@@ -26,6 +26,7 @@ This repository is for a local-first GTM Marketing OS agent suite.
 - Eventual live integrations are TBD.
 - The dashboard direction is the logged-in Guild.ai state, not a separate live dashboard in this repo yet.
 - Agent Hub publishing is version-based and validation-gated. Keep this repo local until packaging is explicitly approved.
+- Local Agent Hub exemplars may use `agent.ts` to prove per-agent TypeScript boundaries, but they must not add `guild.json` until packaging is explicitly approved.
 - Do not publish Team-installable or public On-Hub versions from this repo without explicit approval.
 
 ## Verification
@@ -46,6 +47,8 @@ When changing agent definitions, generated assets, routing, or packet format:
 4. Commit the source changes and updated `delivery/local-demo-packets/` together.
 
 Agent definitions and runtime source live in TypeScript under `work/local-agent-lab/src/`. Compiled `dist/` output is generated locally and ignored by Git.
+
+Local per-agent exemplars live under `work/agent-hub-exemplars/`. They import the local lab's compiled contract and must remain local-only until the Guild packaging step is approved.
 
 ## Public-Safety Rules
 
