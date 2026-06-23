@@ -1,5 +1,5 @@
 # Delivery
 
-Optional location for demos, proof-room assets, packaged agent examples, or other delivery artifacts if the opportunity turns into implementation work.
+Optional location for approved shareable delivery artifacts, proof-room assets, packaged agent examples, or handoff materials.
 
 Keep source context and private notes in `../_private/` unless they are explicitly approved for delivery.

@@ -27,7 +27,7 @@ Only after explicit approval:
 
 ```sh
 cd agents/foundation-setup
-guild agent init --name marketing-os-foundation-setup --template LLM --directory .
+guild agent init --name marketing-os-foundation-setup --agent-type GUILD_TYPESCRIPT --template LLM --directory .
 guild agent test
 ```
 

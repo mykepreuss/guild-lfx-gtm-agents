@@ -1,6 +1,6 @@
 # Marketing OS Context Hub
 
-Status: starter fixture
+Status: starter source draft
 
 The Context Hub is the lightweight shared context layer for the Marketing OS agents.
 
