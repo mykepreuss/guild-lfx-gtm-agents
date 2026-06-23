@@ -24,8 +24,6 @@ Working thesis:
 - Eventual live integrations are TBD. Current packets document future adapter handoffs only.
 - The dashboard is expected to become the logged-in state a user sees in Guild.ai.
 
-The V1 release gate is defined in `docs/definition-of-done.md`.
-
 ## Guild References
 
 The Guild CLI is available locally for approved checks and future packaging work. Current observed CLI version: `0.13.0`.
@@ -100,7 +98,6 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 ## Folder Map
 
 - `research/source-pages/` - public source captures only, if needed later.
-- `docs/definition-of-done.md` - V1 local open-source release checklist.
 - `work/` - local implementation workspace.
 - `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
 - `work/agent-hub-exemplars/` - local-only per-agent TypeScript package exemplars for future Guild packaging.

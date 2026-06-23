@@ -28,7 +28,6 @@ This repository is for a local-first GTM Marketing OS agent suite.
 - Agent Hub publishing is version-based and validation-gated. Keep this repo local until packaging is explicitly approved.
 - Local Agent Hub exemplars may use `agent.ts` to prove per-agent TypeScript boundaries, but they must not add `guild.json` until packaging is explicitly approved.
 - Do not publish Team-installable or public On-Hub versions from this repo without explicit approval.
-- Use `docs/definition-of-done.md` as the authoritative checklist for deciding whether V1 local release work is complete.
 
 ## Verification
 

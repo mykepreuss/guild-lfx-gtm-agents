@@ -71,8 +71,6 @@ Commit source changes and generated `delivery/local-demo-packets/` updates toget
 
 The marketplace target is Guild's Agent Hub. The acceptance bar is excellence, but the suite is still iterating.
 
-Use `docs/definition-of-done.md` as the release gate for V1 local open-source work.
-
 Before an agent is considered ready for Agent Hub packaging, it should have:
 
 - A distinct GTM job and clear project-leader trigger.
