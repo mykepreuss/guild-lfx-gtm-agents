@@ -9,7 +9,7 @@ It is not a formal knowledge graph. It is a small set of approved project artifa
 ## Guild Boundary
 
 - Agent Hub agents own reusable behavior.
-- Guild workspace context should hold a short always-on project summary.
+- Guild Workspace Context should hold a short always-on project summary.
 - Context Hub files hold approved project artifacts.
 - Skills can hold reusable methods or approved style guidance.
 - Live systems stay behind explicit integrations and approvals.
@@ -27,3 +27,7 @@ It is not a formal knowledge graph. It is a small set of approved project artifa
 ## Operating Rule
 
 If a fact is not approved here or supplied by the user in the run, agents should ask for it or mark it `TBD`.
+
+## Phase 1 Rule
+
+For Guild-native Phase 1, Foundation Setup drafts or refreshes these artifacts and returns them for human approval. It must not claim that Guild Workspace Context, live tools, channels, dashboards, or external systems were updated unless an approved tool call confirms that change.

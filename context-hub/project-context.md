@@ -8,9 +8,9 @@ Last reviewed: 2026-06-23
 
 Name: Open Source Cloud Native Project
 
-Mode: fixture-backed local v1
+Mode: Guild-native Phase 1 source draft
 
-Live execution: false
+Live execution: not approved by default
 
 ## Primary Users
 

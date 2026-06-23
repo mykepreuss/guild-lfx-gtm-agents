@@ -1,19 +1,12 @@
 {
   "name": "guild-lfx-gtm-agents",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Apache-2.0",
   "private": true,
-  "workspaces": [
-    "work/local-agent-lab",
-    "work/agent-hub-exemplars/*"
-  ],
   "type": "module",
   "scripts": {
-    "check:context": "node scripts/context-hub-check.mjs",
-    "smoke:test": "npm run smoke:test --prefix work/local-agent-lab",
-    "generate:demos": "npm run generate:demos --prefix work/local-agent-lab",
-    "check:demos": "npm run check:demos --prefix work/local-agent-lab",
-    "verify:exemplars": "node work/agent-hub-exemplars/scripts/verify-exemplars.mjs",
-    "verify": "npm run check:context && npm run verify --prefix work/local-agent-lab && npm run verify:exemplars"
+    "check:context": "node scripts/check-guild-native.mjs --context",
+    "check:guild-native": "node scripts/check-guild-native.mjs",
+    "verify": "npm run check:guild-native"
   }
 }

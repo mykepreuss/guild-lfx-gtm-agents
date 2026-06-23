@@ -1,33 +1,27 @@
 # GTM Marketing OS Repo Instructions
 
-This repository is for a local-first GTM Marketing OS agent suite.
+This repository is the local source workspace for Guild-native Marketing OS agents.
 
 ## Current Posture
 
-- Work locally until scope is confirmed.
+- Work locally until the user explicitly approves a Guild lifecycle step.
 - Do not run remote agent lifecycle commands, install into a workspace, publish, or make public without explicit approval.
-- Do not add platform lifecycle config files to this repo until remote packaging is approved.
-- Do not run `guild agent save --publish`, `guild agent publish`, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
-- The Guild CLI may be installed locally. Informational checks such as `guild --version` are acceptable; lifecycle, install, publish, or visibility-changing commands still require explicit approval.
+- Do not run `guild agent init`, `guild agent save`, `guild agent publish`, `guild agent unpublish`, workspace install, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
+- Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
+- The Guild CLI may be installed locally. Informational checks such as `guild --version` and `guild agent init --help` are acceptable.
 - Use https://docs.guild.ai for current Guild platform, CLI, SDK, and Agent Hub behavior. Use https://www.guild.ai/glossary for Guild terminology.
 - Treat transcripts, meeting notes, and client-specific materials as private context.
 - Keep raw private source material in `_private/`, which is ignored by Git.
-- Never commit `_private/` or `_local-guild-agent-prototype/`.
+- Never commit `_private/`, `_local-guild-agent-prototype/`, `dist/`, or generated bundles.
 
-## Deliverable Shape
+## Guild-Native Phase 1 Shape
 
-- Nine separate future marketplace/workspace agents.
-- One orchestrator/router that can help project leaders choose and use the nine agents together.
-- Fixture-backed outputs until live integrations are explicitly in scope.
-- Open source under Apache-2.0.
-- Marketplace target is Guild's Agent Hub.
-- Missing GTM loops may become new agents if they strengthen the operating system.
-- The flagship demo should remain generic open-source cloud native.
-- Eventual live integrations are TBD.
-- The dashboard direction is the logged-in Guild.ai state, not a separate live dashboard in this repo yet.
-- Agent Hub publishing is version-based and validation-gated. Keep this repo local until packaging is explicitly approved.
-- Local Agent Hub exemplars may use `agent.ts` to prove per-agent TypeScript boundaries, but they must not add `guild.json` until packaging is explicitly approved.
-- Do not publish Team-installable or public On-Hub versions from this repo without explicit approval.
+- `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required Context Hub artifacts.
+- `agents/foundation-setup/` is the first Guild-native source package. It intentionally omits `guild.json` until CLI initialization is explicitly approved.
+- `context-hub/` holds lightweight user-owned project context artifacts.
+- `workspace-context/marketing-os-workspace-context.md` is the concise Guild Workspace Context draft. Keep it short because Guild injects workspace context into every agent run.
+- `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
+- The old local lab, generated packets, and local-only Agent Hub exemplars have been removed.
 
 ## Verification
 
@@ -37,31 +31,27 @@ Run from the repo root:
 npm run verify
 ```
 
-`npm run verify` must not create remote agent records. It must also leave `_private/` untracked.
+`npm run verify` must be non-mutating and must not create remote agent records.
 
-When changing agent definitions, generated assets, routing, or packet format:
+The verifier checks:
 
-1. Update files under `work/local-agent-lab/`.
-2. Run `npm run generate:demos`.
-3. Run `npm run verify`.
-4. Commit the source changes and updated `delivery/local-demo-packets/` together.
-
-Agent definitions and runtime source live in TypeScript under `work/local-agent-lab/src/`. Compiled `dist/` output is generated locally and ignored by Git.
-
-Local per-agent exemplars live under `work/agent-hub-exemplars/`. They import the local lab's compiled contract and must remain local-only until the Guild packaging step is approved.
+- Context Hub required files exist and have basic structure.
+- Every agent-declared Context Hub artifact maps to a real `context-hub/<artifact>.md` file.
+- Guild-native agent source directories have the expected local files and do not include `guild.json`.
+- Public source files avoid known private path markers.
+- Removed local-lab directories are not recreated.
 
 ## Context Hub
 
-- Phase 1 shared context files live in `context-hub/`.
 - The Context Hub is lightweight user-owned project context, not a formal knowledge graph.
-- Foundation Setup creates or updates approved Context Hub artifacts; other agents reuse them.
-- Do not embed customer-specific context into future public Agent Hub packages.
+- Foundation Setup creates or updates approved Context Hub artifacts; other agents reuse them through Guild workspace context, user input, approved artifacts, and future skills.
+- Do not embed customer-specific context into public Agent Hub package behavior.
 - Keep customer-specific source material out of public Context Hub files. Put private source material in `_private/` only.
 - Run `npm run check:context` when changing `context-hub/`.
 
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name private calls, transcripts, decks, people, buyers, or unconfirmed client details.
-- Keep `submission/` and `delivery/` free of confidential source material.
+- Keep `submission/`, `delivery/`, `agents/`, `context-hub/`, `workspace-context/`, and `guild-skills/` free of confidential source material.
 - If a detail came from private context, either generalize it or keep it in `_private/`.
 - Prefer fixture project names and generic platform labels over real client systems unless approved.

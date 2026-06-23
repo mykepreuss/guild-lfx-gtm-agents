@@ -7,7 +7,7 @@ Do not place raw transcripts, meeting exports, private relationship notes, clien
 Public submission material should reflect the current scope:
 
 - Open source under Apache-2.0.
-- Local-first lab only.
+- Guild-native Phase 1 source setup.
 - Future marketplace target: Guild's Agent Hub.
 - Flagship demo context: generic open-source cloud native project.
 - Live integrations: TBD and not active in this repo.

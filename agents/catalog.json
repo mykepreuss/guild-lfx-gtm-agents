@@ -1,0 +1,213 @@
+{
+  "phase": "guild-native-phase-1",
+  "sourcePolicy": [
+    "Customer-specific facts belong in Workspace Context, Context Hub artifacts, user input, or approved connected sources.",
+    "Reusable agent packages must not embed customer-specific business context.",
+    "Unknown facts must be requested or marked TBD.",
+    "Risky claims about pricing, privacy, security, compliance, retention, guarantees, live execution, or performance require approved evidence."
+  ],
+  "agents": [
+    {
+      "id": "foundation-setup",
+      "guildName": "marketing-os-foundation-setup",
+      "displayName": "Foundation Setup Agent",
+      "status": "guild_native_source_ready",
+      "packageDir": "agents/foundation-setup",
+      "primaryUser": "Project Leader",
+      "description": "Bootstraps a clean Marketing OS workspace by drafting Context Hub artifacts, a concise Workspace Context update, approval checkpoints, and next-agent routing.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "brand-kit",
+          "audience-segments",
+          "channel-registry",
+          "proof-and-constraints",
+          "dashboard-signals"
+        ],
+        "optionalArtifacts": [],
+        "missingContextBehavior": "Ask for critical missing business context when blocked; otherwise draft with TBD markers."
+      }
+    },
+    {
+      "id": "newsletter-composition",
+      "guildName": "marketing-os-newsletter-composition",
+      "displayName": "Newsletter Composition Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Drafts newsletter issues from approved messaging, audience context, proof constraints, and channel rules.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "audience-segments",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "channel-registry",
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Ask for audience, theme, and proof gaps before drafting claims."
+      }
+    },
+    {
+      "id": "social-content",
+      "guildName": "marketing-os-social-content",
+      "displayName": "Social Content Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Drafts social content using approved messaging, brand direction, channel constraints, and proof policy.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "brand-kit",
+          "channel-registry",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "audience-segments",
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Draft platform-safe options and mark unapproved claims TBD."
+      }
+    },
+    {
+      "id": "event-creation",
+      "guildName": "marketing-os-event-creation",
+      "displayName": "Event Creation Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Project Leader",
+      "description": "Creates event briefs, titles, abstracts, speaker needs, and approval packets from approved GTM context.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "brand-kit",
+          "channel-registry",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "audience-segments",
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Ask for date, audience, speakers, and claims when needed."
+      }
+    },
+    {
+      "id": "event-promotion",
+      "guildName": "marketing-os-event-promotion",
+      "displayName": "Event Promotion Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Builds event promotion plans and copy across approved channels.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "audience-segments",
+          "channel-registry",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "brand-kit",
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Ask for event details and suppressions before recommending sends or posts."
+      }
+    },
+    {
+      "id": "audience-segmentation",
+      "guildName": "marketing-os-audience-segmentation",
+      "displayName": "Audience Segmentation Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Turns approved audience context into reviewable segment logic and suppression rules.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "audience-segments",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "dashboard-signals",
+          "channel-registry"
+        ],
+        "missingContextBehavior": "Request source data and consent constraints before producing usable segment logic."
+      }
+    },
+    {
+      "id": "owned-media-production",
+      "guildName": "marketing-os-owned-media-production",
+      "displayName": "Owned Media Production Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Drafts owned media assets from approved messaging, brand direction, channel registry, and proof policy.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "brand-kit",
+          "channel-registry",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "audience-segments",
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Ask for asset purpose, audience, and evidence gaps before final copy."
+      }
+    },
+    {
+      "id": "campaign-performance",
+      "guildName": "marketing-os-campaign-performance",
+      "displayName": "Campaign Performance Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Project Leader",
+      "description": "Summarizes performance signals, blockers, and next decisions from approved dashboard context.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "proof-and-constraints",
+          "dashboard-signals"
+        ],
+        "optionalArtifacts": [
+          "audience-segments",
+          "channel-registry"
+        ],
+        "missingContextBehavior": "Do not invent metrics; ask for data or report missing live signals."
+      }
+    },
+    {
+      "id": "campaigns-paid-media",
+      "guildName": "marketing-os-campaigns-paid-media",
+      "displayName": "Campaigns And Paid Media Agent",
+      "status": "planned_after_foundation",
+      "packageDir": null,
+      "primaryUser": "Marketing Advisor",
+      "description": "Drafts campaign and paid media plans that stay behind approval and evidence gates.",
+      "contextHub": {
+        "requiredArtifacts": [
+          "project-context",
+          "messaging-source",
+          "audience-segments",
+          "channel-registry",
+          "proof-and-constraints"
+        ],
+        "optionalArtifacts": [
+          "dashboard-signals"
+        ],
+        "missingContextBehavior": "Ask for budget, audience size, destination, consent, and claims before spend recommendations."
+      }
+    }
+  ]
+}
+

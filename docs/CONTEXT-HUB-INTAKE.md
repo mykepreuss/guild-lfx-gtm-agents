@@ -1,6 +1,6 @@
 # Context Hub Intake
 
-Use this when setting up a new project.
+Use this when setting up a new project through the Foundation Setup Agent.
 
 ## Questions
 
@@ -20,3 +20,10 @@ Use this when setting up a new project.
 ## Output
 
 Update the smallest useful set of Context Hub files. Leave unknowns as `TBD`.
+
+Foundation Setup should also produce:
+
+- A concise Guild Workspace Context draft.
+- A list of approval decisions.
+- Recommended next agents.
+- A list of live actions that are explicitly not approved yet.

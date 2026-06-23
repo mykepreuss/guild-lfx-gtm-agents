@@ -2,7 +2,7 @@
 
 The Context Hub is the lightweight shared context layer for Marketing OS agents.
 
-It exists because the GTM strategy expects Foundation Setup to create approved materials that later agents reuse through content hub, workspace context, and skills.
+It exists because Foundation Setup should create approved materials that later agents reuse through Guild Workspace Context, approved context artifacts, and future Skills.
 
 ## What To Edit First
 
@@ -16,10 +16,17 @@ It exists because the GTM strategy expects Foundation Setup to create approved m
 
 Do not over-structure early. Add a new context artifact only when at least two agents need it or a project leader needs to review it.
 
+## Guild Placement
+
+- Put concise always-needed project context in Guild Workspace Context.
+- Put approved project artifacts in the Context Hub.
+- Put reusable methods and review rubrics in Guild Skills.
+- Put live execution behind explicit integrations, credentials, and approvals.
+
 ## Validation
 
 ```sh
 npm run check:context
 ```
 
-This checks that the required Context Hub files exist, include basic headings, and do not reference private source paths.
+This checks that required Context Hub files exist, include basic headings, and match the agent catalog references.

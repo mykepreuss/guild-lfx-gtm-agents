@@ -6,9 +6,9 @@ Last reviewed: 2026-06-23
 
 ## Safe Claims
 
-- The local demo is fixture-backed.
-- The local demo does not publish, spend, sync, schedule, or modify live systems.
+- The Phase 1 source setup does not publish, spend, sync, schedule, or modify live systems.
 - The public fixture uses a generic open-source cloud native project context.
+- Guild Workspace Context, agent records, triggers, and published versions require explicit lifecycle approval.
 
 ## Claims Requiring Approval Or Evidence
 
@@ -27,6 +27,6 @@ Last reviewed: 2026-06-23
 
 If a claim is not approved in the Context Hub or supplied by the user during the run, agents should ask for it or mark it `TBD`.
 
-## Local Boundary
+## Guild Boundary
 
-The current repository is local-first. Future integrations are documented as handoffs until explicitly approved.
+The current repository is a Guild-native local source workspace. Future integrations are documented as handoffs until explicitly approved.

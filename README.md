@@ -1,89 +1,89 @@
 # GTM Marketing OS Agents
 
-Local-first workspace for an open-source Marketing OS agent suite for GTM teams.
+Guild-native source workspace for an open-source Marketing OS agent suite for GTM teams.
 
-This repository is intentionally safe to share: private source notes, meeting context, and client-specific material belong in `_private/`, which is ignored by Git.
-
-## Purpose
-
-Build and test the proposed Marketing OS agents locally before creating any remote agent records.
-
-Working thesis:
-
-> Build nine separate marketing agents plus an orchestrator/router, with fixture-backed outputs that can later be packaged for Guild's Agent Hub.
+This repository is safe to share: private source notes, meeting context, and client-specific material belong in `_private/`, which is ignored by Git.
 
 ## Current Status
 
-- Local only.
-- No remote agent records are created from this repo.
-- No workspace installs or publishing.
-- The local lab models the nine future agents and generates fixture-backed demo packets.
-- All nine local-only Agent Hub exemplars model future per-agent package boundaries without lifecycle config.
-- Phase 1 Context Hub scaffold is present under `context-hub/`.
-- Marketplace target is Guild's Agent Hub, but the project is still iterating toward that acceptance bar.
+- Guild-native Phase 1 local setup.
+- No remote agent records are created from this repo unless explicitly approved.
+- No workspace installs, triggers, publishing, or visibility changes have been run.
+- The first platform-facing package is `agents/foundation-setup/`.
+- The old local lab, generated demo packets, and local-only exemplars have been removed.
+- The Context Hub scaffold is present under `context-hub/`.
 - License: Apache-2.0.
-- Eventual live integrations are TBD. Current packets document future adapter handoffs only.
-- The dashboard is expected to become the logged-in state a user sees in Guild.ai.
 
-## Guild References
+## Phase 1 Goal
 
-The Guild CLI is available locally for approved checks and future packaging work. Current observed CLI version: `0.13.0`.
+Create the smallest useful bridge from a clean Guild workspace to high-quality Marketing OS agents:
 
-Primary references:
+1. A user enters business context into Foundation Setup.
+2. Foundation Setup drafts approved Context Hub artifacts.
+3. The workspace keeps a concise always-on context summary.
+4. Specialized methods later move into Guild Skills.
+5. Additional Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
-- Guild docs: https://docs.guild.ai
-- Agent Hub docs: https://docs.guild.ai/platform/publish-to-agent-hub#agent-hub
-- Guild glossary: https://www.guild.ai/glossary
+## Guild Architecture
 
-Use the docs for platform, CLI, SDK, Agent Hub, workspace, agent, session, credential, and integration behavior. Use the glossary to keep public-facing terminology aligned with Guild language. CLI availability does not change the local-first boundary in this repo.
+Use Guild surfaces this way:
 
-## Agent Hub Readiness
+- **Agent package**: reusable behavior. The source starts in `agents/<agent>/agent.ts`.
+- **Workspace Context**: short project summary and routing instructions that every agent should see.
+- **Context Hub**: approved project artifacts owned by the user or workspace.
+- **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant.
+- **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
-Guild's Agent Hub publishes validated agent versions so other users can install them. This repo is not ready for that lifecycle yet.
+Do not dump the whole Context Hub into Workspace Context. Keep Workspace Context concise because Guild injects it into every agent run.
 
-Source: https://docs.guild.ai/platform/publish-to-agent-hub#agent-hub
+## Important Guild Boundary
 
-Before any Agent Hub packaging work starts:
+The Guild CLI is installed locally for informational checks and future packaging work. Current observed CLI version: `0.13.0`.
 
-- Split the local lab into real agent directories with platform lifecycle files.
-- Confirm each agent directory has the required `guild.json` and `agent.ts` structure.
-- Pass local repo verification and Guild validation.
-- Decide whether each published version should remain Team-installable inside an organization first or become public On-Hub.
-- Confirm the Agent Hub listing fields and metadata source, since the current public docs do not specify that mapping.
-- Keep all fixture, docs, and generated packets public-safe before any save, publish, or visibility change.
+Allowed without additional approval:
 
-## Product Direction
+```sh
+guild --version
+guild agent init --help
+guild agent test --help
+npm run verify
+```
 
-This repo should become more than a collection of workflow demos. The intended Marketing OS loop is:
+Not allowed until explicitly approved:
 
-1. A project leader starts with an outcome, campaign, event, or operating question.
-2. The orchestrator chooses an agent, asks for clarification, or later proposes a multi-agent plan.
-3. The selected agent generates reviewable work using public-safe fixture context.
-4. The project leader or owner approves, edits, rejects, or routes the work.
-5. Future integrations execute only after approval and only when live systems are explicitly in scope.
-6. The Guild.ai dashboard reflects status, blockers, decisions, performance signals, and next actions.
+```sh
+guild agent init
+guild agent save
+guild agent publish
+guild agent unpublish
+guild workspace context publish
+guild trigger create
+```
 
-The flagship demo should stay generic and open-source cloud native. It should still feel specific enough for a serious GTM operator to evaluate.
+`guild.json` is managed by Guild and should not be hand-written in this repo.
 
-## Context Hub Direction
+## Folder Map
 
-The Context Hub is lightweight shared project context, not a formal knowledge graph and not customer-specific content embedded in each Agent Hub package.
-
-Phase 1 shape:
-
-- `context-hub/` holds approved project artifacts created or updated by Foundation Setup.
-- Agent packages remain reusable behavior and consume the relevant shared artifacts at runtime.
-- Guild workspace context should stay focused and summarize only always-needed project context.
-- Skills are reserved for reusable methods, playbooks, and approved style guidance.
-
-Start with:
-
-- `docs/CONTEXT-HUB-START-HERE.md`
-- `docs/CONTEXT-HUB-INTAKE.md`
+- `agents/catalog.json` - suite contract and per-agent Context Hub requirements.
+- `agents/foundation-setup/` - first Guild-native source package.
+- `context-hub/` - lightweight shared project context artifacts.
+- `workspace-context/` - concise Guild Workspace Context draft.
+- `guild-skills/` - source markdown for future Guild Skills.
+- `docs/` - setup and operating docs.
+- `scripts/` - local non-mutating validation.
+- `research/` - public or approved source captures only.
+- `submission/` - sendable material only.
+- `delivery/` - optional future delivery artifacts.
+- `_private/` - local-only private notes, ignored by Git.
 
 ## Agent Suite
 
+Phase 1 package:
+
 1. Foundation Setup Agent
+
+Planned next agents:
+
 2. Newsletter Composition Agent
 3. Social Content Agent
 4. Event Creation Agent
@@ -93,47 +93,33 @@ Start with:
 8. Campaign Performance Agent
 9. Campaigns and Paid Media Agent
 
-The orchestrator/router helps a project leader choose the right agent or clarify ambiguous requests.
-
-Additional GTM loops may become new agents if they are important enough to the operating system. Candidate future loops include proof/customer evidence, market signal and voice-of-customer, web and AEO optimization, lifecycle nurture, and partner or sponsor marketing.
+The orchestrator/router remains a product pattern for later. For Phase 1, the suite contract in `agents/catalog.json` is enough.
 
 ## Commands
 
 ```sh
-cd /Users/mp/Code/guild/marketing-os
-npm install
 npm run verify
-npm run generate:demos
 npm run check:context
 ```
 
-`npm run verify` is non-mutating. It runs smoke tests and checks that generated demo packets are current.
+`npm run verify` is non-mutating. It validates the Guild-native scaffold and Context Hub contract.
 
-`npm run generate:demos` rewrites local demo packets under `delivery/local-demo-packets/`.
+## Future Guild Setup
 
-The generated demo packets are committed on purpose as reviewable artifacts. If agent definitions change, regenerate demos and run `npm run verify` before committing.
+When the user explicitly approves creating the first remote Guild agent record, use the CLI from the Foundation Setup directory and let Guild create `guild.json`. This may generate starter files; preserve the reviewed `agent.ts` source in Git if the CLI rewrites anything:
 
-## Folder Map
+```sh
+cd agents/foundation-setup
+guild agent init --name marketing-os-foundation-setup --template LLM --directory .
+guild agent test
+```
 
-- `research/source-pages/` - public source captures only, if needed later.
-- `docs/` - setup docs, including the Context Hub intake flow.
-- `context-hub/` - lightweight shared project context artifacts.
-- `scripts/` - local context validation checks.
-- `work/` - local implementation workspace.
-- `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
-- `work/agent-hub-exemplars/` - local-only per-agent TypeScript package exemplars for future Guild packaging.
-- `submission/` - sendable material only.
-- `delivery/local-demo-packets/` - generated fixture packets for the orchestrator and nine agents.
-- `_private/` - local-only private notes, ignored by Git.
+Do not save, publish, install, or create triggers until those lifecycle steps are separately approved.
 
-## Working Rules
+## References
 
-- Keep raw transcripts, meeting notes, client materials, and relationship context in `_private/`.
-- Keep confidential source material out of `submission/`, `delivery/`, and public docs.
-- Separate the V1 starter-kit scope from any production deployment.
-- Treat the repo as open source under Apache-2.0.
-- Keep ownership, license, maintenance, and public-use rights explicit before public sharing.
-- Do not run remote agent lifecycle commands until scope and review path are confirmed.
-- Do not add platform lifecycle config files to this repo until remote packaging is approved.
-- Keep Agent Hub exemplars free of `guild.json` until packaging is explicitly approved.
-- Do not publish Team-installable or public On-Hub versions until the Agent Hub acceptance checklist is complete.
+- Guild docs: https://docs.guild.ai
+- Guild CLI reference: https://docs.guild.ai/cli/getting-started
+- Workspace Context: https://docs.guild.ai/platform/context
+- Guild Skills: https://docs.guild.ai/platform/skills
+- Agent Hub publishing: https://docs.guild.ai/platform/publish-to-agent-hub
