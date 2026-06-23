@@ -32,6 +32,16 @@ export const ownedMediaProductionAgent: AgentDefinition = {
     "A 30-minute maintainer interview has been uploaded.",
     "Distribution should reinforce an upcoming release and event.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "brand-kit", "channel-registry", "proof-and-constraints"],
+    optionalArtifacts: ["audience-segments", "dashboard-signals"],
+    missingContextBehavior: "Ask for transcript, topic, quote, or distribution channel details before finalizing.",
+    sourcePolicy: [
+      "Technical claims should cite approved context or user-provided source material.",
+      "Do not claim pages were published or updated in live systems.",
+      "Missing proof should stay TBD.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Show Notes",

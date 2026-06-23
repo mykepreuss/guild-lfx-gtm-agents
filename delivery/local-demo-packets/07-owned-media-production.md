@@ -11,6 +11,25 @@ Transforms an approved topic or recording into show notes, episode descriptions,
 
 Trigger: New recording upload or content plan update.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `brand-kit`
+- `channel-registry`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `audience-segments`
+- `dashboard-signals`
+
+Missing context behavior: Ask for transcript, topic, quote, or distribution channel details before finalizing.
+
+Source policy:
+- Technical claims should cite approved context or user-provided source material.
+- Do not claim pages were published or updated in live systems.
+- Missing proof should stay TBD.
+
 ## Inputs Captured Or Assumed
 - Request: Turn a maintainer interview recording into show notes, episode descriptions, social clips, and a newsletter teaser.
 - Project leader question: What recording, transcript, or topic should be processed?
@@ -99,6 +118,25 @@ New maintainer interview: how teams are evaluating the project, what changed in 
     "social-content",
     "campaign-performance"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "brand-kit",
+      "channel-registry",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "audience-segments",
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for transcript, topic, quote, or distribution channel details before finalizing.",
+    "sourcePolicy": [
+      "Technical claims should cite approved context or user-provided source material.",
+      "Do not claim pages were published or updated in live systems.",
+      "Missing proof should stay TBD."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

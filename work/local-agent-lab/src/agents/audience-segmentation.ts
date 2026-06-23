@@ -32,6 +32,16 @@ export const audienceSegmentationAgent: AgentDefinition = {
     "Segments must reduce repeated outreach to the same individuals.",
     "Personas combine contributor activity and member interest signals.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "audience-segments", "proof-and-constraints"],
+    optionalArtifacts: ["dashboard-signals", "channel-registry"],
+    missingContextBehavior: "Ask for missing source data, consent rules, or segment goals before recommending sync.",
+    sourcePolicy: [
+      "Missing segment data becomes an explicit question.",
+      "Do not infer audience priority without approved context.",
+      "Mark unproven segment assumptions as fixture assumptions or TBD.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Persona Drafts",

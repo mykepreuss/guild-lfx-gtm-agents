@@ -33,6 +33,16 @@ export const eventCreationAgent: AgentDefinition = {
     "The event is a regional meetup with 150-person capacity.",
     "Registration and sponsor review must happen before promotion starts.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "brand-kit", "channel-registry", "proof-and-constraints"],
+    optionalArtifacts: ["audience-segments", "dashboard-signals"],
+    missingContextBehavior: "Ask for event date, location, capacity, sponsor, and approval details before finalizing.",
+    sourcePolicy: [
+      "Event facts that require confirmation stay TBD.",
+      "Do not claim registration, attendance, or scheduled event records without approved context.",
+      "Review packets remain local-only until live execution is approved.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Event Record Draft",

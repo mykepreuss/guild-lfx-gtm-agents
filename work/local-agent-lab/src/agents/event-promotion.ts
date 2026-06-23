@@ -33,6 +33,16 @@ export const eventPromotionAgent: AgentDefinition = {
     "The event is 12 weeks away with a 400-registration target.",
     "Paid support is limited and requires project leader approval.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "audience-segments", "channel-registry", "proof-and-constraints"],
+    optionalArtifacts: ["brand-kit", "dashboard-signals"],
+    missingContextBehavior: "Ask for event URL, date, goals, budget, and audience priorities before finalizing.",
+    sourcePolicy: [
+      "Promotion claims require event facts or stay TBD.",
+      "Do not claim posts, emails, or partner distribution were scheduled without approved context.",
+      "Use proof-backed reasons to attend.",
+    ],
+  },
   assetBlocks: [
     {
       title: "12-Week Promotion Calendar",

@@ -11,6 +11,23 @@ Reads campaign fixtures and returns plain-English insights, anomaly flags, weekl
 
 Trigger: Daily data refresh, with project leader reading the dashboard.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `proof-and-constraints`
+- `dashboard-signals`
+
+Optional artifacts:
+- `audience-segments`
+- `channel-registry`
+
+Missing context behavior: If live metrics are unavailable, label the readout fixture-backed and ask for the data source.
+
+Source policy:
+- Fixture metrics are not live performance.
+- Live numbers require approved context, dashboard data, or integrations.
+- Recommendations that imply spend or platform action require approval.
+
 ## Inputs Captured Or Assumed
 - Request: Run the Campaign Performance Agent for the Monday readout and call out anomalies, A/B winners, and recommended pause or scale actions.
 - Project leader question: Which campaign or channel needs the readout?
@@ -96,6 +113,23 @@ A/B winner: subject line B, 'What changed this week in the project', wins on cli
     "campaigns-paid-media",
     "audience-segmentation"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "proof-and-constraints",
+      "dashboard-signals"
+    ],
+    "optionalArtifacts": [
+      "audience-segments",
+      "channel-registry"
+    ],
+    "missingContextBehavior": "If live metrics are unavailable, label the readout fixture-backed and ask for the data source.",
+    "sourcePolicy": [
+      "Fixture metrics are not live performance.",
+      "Live numbers require approved context, dashboard data, or integrations.",
+      "Recommendations that imply spend or platform action require approval."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

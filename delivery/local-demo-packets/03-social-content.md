@@ -11,6 +11,25 @@ Turns current project activity into platform-specific social drafts, mentions, h
 
 Trigger: Weekly, with a Monday queue of five to ten post drafts.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `brand-kit`
+- `channel-registry`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `audience-segments`
+- `dashboard-signals`
+
+Missing context behavior: Ask for missing channel, mention, or approval details before scheduling language is used.
+
+Source policy:
+- Use channel constraints from the Context Hub.
+- Do not claim posts were published, scheduled, or boosted without approved context.
+- Technical claims need approved source support.
+
 ## Inputs Captured Or Assumed
 - Request: Create this week's social queue for a release update, maintainer quote, and October webinar CTA.
 - Project leader question: Which announcement or community milestone matters most this week?
@@ -96,6 +115,25 @@ Risk note: sponsor mentions require explicit approval before scheduling.
     "event-promotion",
     "campaign-performance"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "brand-kit",
+      "channel-registry",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "audience-segments",
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for missing channel, mention, or approval details before scheduling language is used.",
+    "sourcePolicy": [
+      "Use channel constraints from the Context Hub.",
+      "Do not claim posts were published, scheduled, or boosted without approved context.",
+      "Technical claims need approved source support."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

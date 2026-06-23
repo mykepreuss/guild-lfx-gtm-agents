@@ -80,6 +80,13 @@ export interface ApprovalModel {
   decisionType: DecisionType;
 }
 
+export interface AgentContextHub {
+  requiredArtifacts: string[];
+  optionalArtifacts: string[];
+  missingContextBehavior: string;
+  sourcePolicy: string[];
+}
+
 export interface DashboardMetric {
   key: string;
   label: string;
@@ -112,6 +119,7 @@ export interface AgentDefinition {
   demoPrompt: string;
   questions: string[];
   assumptions: string[];
+  contextHub: AgentContextHub;
   assetBlocks: AssetBlock[];
   approvalModel: ApprovalModel;
   approvalChecklist: string[];
@@ -152,6 +160,7 @@ export interface DashboardPayload {
   metrics: DashboardMetric[];
   sourceConfidence: SourceConfidence;
   downstreamAgents: AgentId[];
+  contextHub: AgentContextHub;
   agentHubReadiness: AgentHubReadiness;
   signals: DashboardSignals;
 }

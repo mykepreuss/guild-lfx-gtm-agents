@@ -11,6 +11,24 @@ Defines paid and organic campaign hierarchy around market segment, ICP, message,
 
 Trigger: Project leader sets budget and goal, then reviews the proposed campaign structure.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `audience-segments`
+- `channel-registry`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `dashboard-signals`
+
+Missing context behavior: Ask for budget, goal, approval threshold, and platform scope before execution language is used.
+
+Source policy:
+- Do not claim spend, budget shifts, paused campaigns, conversions, or live platform changes without approved context.
+- Paid media plans require budget review before execution.
+- Missing performance data stays TBD.
+
 ## Inputs Captured Or Assumed
 - Request: Create a paid media campaign structure for an October webinar with LinkedIn, Google Search, Reddit, UTMs, and pause-scale guardrails.
 - Project leader question: What goal and budget should the campaign use?
@@ -103,6 +121,24 @@ utm_source={platform}&utm_medium=paid&utm_campaign=oct_webinar&utm_content={pers
     "audience-segmentation",
     "event-promotion"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "audience-segments",
+      "channel-registry",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for budget, goal, approval threshold, and platform scope before execution language is used.",
+    "sourcePolicy": [
+      "Do not claim spend, budget shifts, paused campaigns, conversions, or live platform changes without approved context.",
+      "Paid media plans require budget review before execution.",
+      "Missing performance data stays TBD."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

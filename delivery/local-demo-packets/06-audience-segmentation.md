@@ -11,6 +11,24 @@ Drafts personas and segment definitions from contributor and member signals, the
 
 Trigger: New event, new campaign, or quarterly target-market review.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `audience-segments`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `dashboard-signals`
+- `channel-registry`
+
+Missing context behavior: Ask for missing source data, consent rules, or segment goals before recommending sync.
+
+Source policy:
+- Missing segment data becomes an explicit question.
+- Do not infer audience priority without approved context.
+- Mark unproven segment assumptions as fixture assumptions or TBD.
+
 ## Inputs Captured Or Assumed
 - Request: Create audience segments for a contributor re-engagement campaign and October webinar promotion.
 - Project leader question: Which campaign, event, or quarterly review is this segment for?
@@ -96,6 +114,24 @@ Route ambiguous consent records to data owner review before use.
     "event-promotion",
     "campaigns-paid-media"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "audience-segments",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "dashboard-signals",
+      "channel-registry"
+    ],
+    "missingContextBehavior": "Ask for missing source data, consent rules, or segment goals before recommending sync.",
+    "sourcePolicy": [
+      "Missing segment data becomes an explicit question.",
+      "Do not infer audience priority without approved context.",
+      "Mark unproven segment assumptions as fixture assumptions or TBD."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

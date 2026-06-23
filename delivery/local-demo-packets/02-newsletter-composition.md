@@ -11,6 +11,24 @@ Aggregates activity and drafts a ready-to-review newsletter with subject lines, 
 
 Trigger: Weekly or on demand when the project leader asks for this week's newsletter.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `audience-segments`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `channel-registry`
+- `dashboard-signals`
+
+Missing context behavior: Ask for the missing story, segment, or approval detail before finalizing the send plan.
+
+Source policy:
+- Use source-backed claims for proof points.
+- Do not claim sends, list size, open rates, or schedules without approved context.
+- Missing audience or offer details stay TBD.
+
 ## Inputs Captured Or Assumed
 - Request: Draft this week's newsletter for contributors and technical evaluators with a release update, event CTA, and community highlight.
 - Project leader question: What is the primary story this week?
@@ -100,6 +118,24 @@ Recommended send: Tuesday 09:30 recipient-local time.
     "event-promotion",
     "campaign-performance"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "audience-segments",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "channel-registry",
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for the missing story, segment, or approval detail before finalizing the send plan.",
+    "sourcePolicy": [
+      "Use source-backed claims for proof points.",
+      "Do not claim sends, list size, open rates, or schedules without approved context.",
+      "Missing audience or offer details stay TBD."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

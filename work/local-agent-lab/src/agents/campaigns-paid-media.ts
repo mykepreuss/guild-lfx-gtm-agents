@@ -33,6 +33,22 @@ export const campaignsPaidMediaAgent: AgentDefinition = {
     "Budget is small enough that approval thresholds matter.",
     "Campaign should include both organic and paid tactics.",
   ],
+  contextHub: {
+    requiredArtifacts: [
+      "project-context",
+      "messaging-source",
+      "audience-segments",
+      "channel-registry",
+      "proof-and-constraints",
+    ],
+    optionalArtifacts: ["dashboard-signals"],
+    missingContextBehavior: "Ask for budget, goal, approval threshold, and platform scope before execution language is used.",
+    sourcePolicy: [
+      "Do not claim spend, budget shifts, paused campaigns, conversions, or live platform changes without approved context.",
+      "Paid media plans require budget review before execution.",
+      "Missing performance data stays TBD.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Campaign Hierarchy",

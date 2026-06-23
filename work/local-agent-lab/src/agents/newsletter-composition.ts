@@ -32,6 +32,16 @@ export const newsletterCompositionAgent: AgentDefinition = {
     "The release update is the lead story.",
     "The send should go to contributors and technical evaluators, excluding recent event-only registrants.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "audience-segments", "proof-and-constraints"],
+    optionalArtifacts: ["channel-registry", "dashboard-signals"],
+    missingContextBehavior: "Ask for the missing story, segment, or approval detail before finalizing the send plan.",
+    sourcePolicy: [
+      "Use source-backed claims for proof points.",
+      "Do not claim sends, list size, open rates, or schedules without approved context.",
+      "Missing audience or offer details stay TBD.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Subject Line Options",
