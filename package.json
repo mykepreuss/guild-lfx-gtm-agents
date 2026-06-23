@@ -12,7 +12,7 @@
     "smoke:test": "npm run smoke:test --prefix work/local-agent-lab",
     "generate:demos": "npm run generate:demos --prefix work/local-agent-lab",
     "check:demos": "npm run check:demos --prefix work/local-agent-lab",
-    "verify:exemplars": "npm run verify --prefix work/agent-hub-exemplars/campaign-performance",
+    "verify:exemplars": "node work/agent-hub-exemplars/scripts/verify-exemplars.mjs",
     "verify": "npm run verify --prefix work/local-agent-lab && npm run verify:exemplars"
   }
 }

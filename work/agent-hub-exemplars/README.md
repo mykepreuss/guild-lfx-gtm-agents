@@ -6,3 +6,21 @@ These packages are not publishable Guild agent packages yet. They intentionally 
 
 Use these exemplars to prove the package boundary, runtime contract, smoke tests, and dashboard payload before creating real Agent Hub packages.
 
+## Packages
+
+- `foundation-setup/`
+- `newsletter-composition/`
+- `social-content/`
+- `event-creation/`
+- `event-promotion/`
+- `audience-segmentation/`
+- `owned-media-production/`
+- `campaign-performance/`
+- `campaigns-paid-media/`
+
+Run all exemplar checks from the repository root:
+
+```sh
+npm run verify:exemplars
+```
+

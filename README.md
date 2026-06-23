@@ -18,11 +18,13 @@ Working thesis:
 - No remote agent records are created from this repo.
 - No workspace installs or publishing.
 - The local lab models the nine future agents and generates fixture-backed demo packets.
-- A first local-only Agent Hub exemplar models the Campaign Performance Agent package boundary without lifecycle config.
+- All nine local-only Agent Hub exemplars model future per-agent package boundaries without lifecycle config.
 - Marketplace target is Guild's Agent Hub, but the project is still iterating toward that acceptance bar.
 - License: Apache-2.0.
 - Eventual live integrations are TBD. Current packets document future adapter handoffs only.
 - The dashboard is expected to become the logged-in state a user sees in Guild.ai.
+
+The V1 release gate is defined in `docs/definition-of-done.md`.
 
 ## Guild References
 
@@ -98,6 +100,7 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 ## Folder Map
 
 - `research/source-pages/` - public source captures only, if needed later.
+- `docs/definition-of-done.md` - V1 local open-source release checklist.
 - `work/` - local implementation workspace.
 - `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
 - `work/agent-hub-exemplars/` - local-only per-agent TypeScript package exemplars for future Guild packaging.

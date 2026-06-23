@@ -2,7 +2,7 @@
 
 Local-only TypeScript package for the Campaign Performance Agent.
 
-This is the first migration slice from the monolithic local lab toward per-agent Guild packages. It is intentionally not a publishable Guild package yet:
+This exemplar proves the future per-agent package boundary without creating a publishable Guild package:
 
 - No `guild.json`.
 - No Guild lifecycle commands.
