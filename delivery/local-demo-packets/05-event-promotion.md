@@ -11,6 +11,25 @@ Creates a 12-week backwards promotion plan with email waves, social cadence, pai
 
 Trigger: Project leader provides event date, event URL, goals, and budget.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `audience-segments`
+- `channel-registry`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `brand-kit`
+- `dashboard-signals`
+
+Missing context behavior: Ask for event URL, date, goals, budget, and audience priorities before finalizing.
+
+Source policy:
+- Promotion claims require event facts or stay TBD.
+- Do not claim posts, emails, or partner distribution were scheduled without approved context.
+- Use proof-backed reasons to attend.
+
 ## Inputs Captured Or Assumed
 - Request: Run the Event Promotion Agent for an October webinar with 400 registrations as the goal and a small paid media budget.
 - Project leader question: What is the event date and URL?
@@ -105,6 +124,25 @@ Red flag: fewer than 120 registrations by week -5 or conversion rate below 9% fr
     "campaigns-paid-media",
     "campaign-performance"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "audience-segments",
+      "channel-registry",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "brand-kit",
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for event URL, date, goals, budget, and audience priorities before finalizing.",
+    "sourcePolicy": [
+      "Promotion claims require event facts or stay TBD.",
+      "Do not claim posts, emails, or partner distribution were scheduled without approved context.",
+      "Use proof-backed reasons to attend."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

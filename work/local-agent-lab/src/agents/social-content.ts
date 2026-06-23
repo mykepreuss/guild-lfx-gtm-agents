@@ -32,6 +32,16 @@ export const socialContentAgent: AgentDefinition = {
     "LinkedIn and X are priority channels.",
     "One maintainer quote is approved for use in public copy.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "messaging-source", "brand-kit", "channel-registry", "proof-and-constraints"],
+    optionalArtifacts: ["audience-segments", "dashboard-signals"],
+    missingContextBehavior: "Ask for missing channel, mention, or approval details before scheduling language is used.",
+    sourcePolicy: [
+      "Use channel constraints from the Context Hub.",
+      "Do not claim posts were published, scheduled, or boosted without approved context.",
+      "Technical claims need approved source support.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Social Queue",

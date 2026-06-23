@@ -11,6 +11,26 @@ Creates the initial marketing foundation: brand direction, messaging source, sit
 
 Trigger: First login or major project refresh.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `brand-kit`
+- `audience-segments`
+- `channel-registry`
+- `proof-and-constraints`
+- `dashboard-signals`
+
+Optional artifacts:
+- (none)
+
+Missing context behavior: Create or update the missing Context Hub artifact and leave unknown customer facts as TBD.
+
+Source policy:
+- Customer-specific facts missing from the Context Hub stay TBD.
+- Risky trust, pricing, compliance, retention, or guarantee claims require approved evidence.
+- Fixture-backed packets must not claim live execution.
+
 ## Inputs Captured Or Assumed
 - Request: Run the Foundation Setup Agent for a cloud native project that needs clearer messaging, a refreshed project site, and a first dashboard for project leaders.
 - Project leader question: What is the project mission in one sentence?
@@ -106,6 +126,24 @@ Launch blockers: approved logo, final one-sentence mission, trademark review, ma
     "social-content",
     "event-creation"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "brand-kit",
+      "audience-segments",
+      "channel-registry",
+      "proof-and-constraints",
+      "dashboard-signals"
+    ],
+    "optionalArtifacts": [],
+    "missingContextBehavior": "Create or update the missing Context Hub artifact and leave unknown customer facts as TBD.",
+    "sourcePolicy": [
+      "Customer-specific facts missing from the Context Hub stay TBD.",
+      "Risky trust, pricing, compliance, retention, or guarantee claims require approved evidence.",
+      "Fixture-backed packets must not claim live execution."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

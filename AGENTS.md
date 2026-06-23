@@ -50,6 +50,15 @@ Agent definitions and runtime source live in TypeScript under `work/local-agent-
 
 Local per-agent exemplars live under `work/agent-hub-exemplars/`. They import the local lab's compiled contract and must remain local-only until the Guild packaging step is approved.
 
+## Context Hub
+
+- Phase 1 shared context files live in `context-hub/`.
+- The Context Hub is lightweight user-owned project context, not a formal knowledge graph.
+- Foundation Setup creates or updates approved Context Hub artifacts; other agents reuse them.
+- Do not embed customer-specific context into future public Agent Hub packages.
+- Keep customer-specific source material out of public Context Hub files. Put private source material in `_private/` only.
+- Run `npm run check:context` when changing `context-hub/`.
+
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name private calls, transcripts, decks, people, buyers, or unconfirmed client details.

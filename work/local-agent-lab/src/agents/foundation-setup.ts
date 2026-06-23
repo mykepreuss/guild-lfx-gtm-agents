@@ -33,6 +33,24 @@ export const foundationSetupAgent: AgentDefinition = {
     "Project has an active community but inconsistent public messaging.",
     "The first dashboard should emphasize readiness, blockers, and weekly marketing momentum.",
   ],
+  contextHub: {
+    requiredArtifacts: [
+      "project-context",
+      "messaging-source",
+      "brand-kit",
+      "audience-segments",
+      "channel-registry",
+      "proof-and-constraints",
+      "dashboard-signals",
+    ],
+    optionalArtifacts: [],
+    missingContextBehavior: "Create or update the missing Context Hub artifact and leave unknown customer facts as TBD.",
+    sourcePolicy: [
+      "Customer-specific facts missing from the Context Hub stay TBD.",
+      "Risky trust, pricing, compliance, retention, or guarantee claims require approved evidence.",
+      "Fixture-backed packets must not claim live execution.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Messaging Source",

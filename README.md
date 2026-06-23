@@ -19,6 +19,7 @@ Working thesis:
 - No workspace installs or publishing.
 - The local lab models the nine future agents and generates fixture-backed demo packets.
 - All nine local-only Agent Hub exemplars model future per-agent package boundaries without lifecycle config.
+- Phase 1 Context Hub scaffold is present under `context-hub/`.
 - Marketplace target is Guild's Agent Hub, but the project is still iterating toward that acceptance bar.
 - License: Apache-2.0.
 - Eventual live integrations are TBD. Current packets document future adapter handoffs only.
@@ -64,6 +65,22 @@ This repo should become more than a collection of workflow demos. The intended M
 
 The flagship demo should stay generic and open-source cloud native. It should still feel specific enough for a serious GTM operator to evaluate.
 
+## Context Hub Direction
+
+The Context Hub is lightweight shared project context, not a formal knowledge graph and not customer-specific content embedded in each Agent Hub package.
+
+Phase 1 shape:
+
+- `context-hub/` holds approved project artifacts created or updated by Foundation Setup.
+- Agent packages remain reusable behavior and consume the relevant shared artifacts at runtime.
+- Guild workspace context should stay focused and summarize only always-needed project context.
+- Skills are reserved for reusable methods, playbooks, and approved style guidance.
+
+Start with:
+
+- `docs/CONTEXT-HUB-START-HERE.md`
+- `docs/CONTEXT-HUB-INTAKE.md`
+
 ## Agent Suite
 
 1. Foundation Setup Agent
@@ -87,6 +104,7 @@ cd /Users/mp/Code/guild/marketing-os
 npm install
 npm run verify
 npm run generate:demos
+npm run check:context
 ```
 
 `npm run verify` is non-mutating. It runs smoke tests and checks that generated demo packets are current.
@@ -98,6 +116,9 @@ The generated demo packets are committed on purpose as reviewable artifacts. If 
 ## Folder Map
 
 - `research/source-pages/` - public source captures only, if needed later.
+- `docs/` - setup docs, including the Context Hub intake flow.
+- `context-hub/` - lightweight shared project context artifacts.
+- `scripts/` - local context validation checks.
 - `work/` - local implementation workspace.
 - `work/local-agent-lab/` - local-only TypeScript agent definitions, orchestrator, tests, and demo generation.
 - `work/agent-hub-exemplars/` - local-only per-agent TypeScript package exemplars for future Guild packaging.

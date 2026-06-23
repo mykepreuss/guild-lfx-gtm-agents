@@ -11,6 +11,25 @@ Builds the event creation packet: event record, registration page copy, capacity
 
 Trigger: Project leader starts a create-new-event mission.
 
+## Context Hub
+Required artifacts:
+- `project-context`
+- `messaging-source`
+- `brand-kit`
+- `channel-registry`
+- `proof-and-constraints`
+
+Optional artifacts:
+- `audience-segments`
+- `dashboard-signals`
+
+Missing context behavior: Ask for event date, location, capacity, sponsor, and approval details before finalizing.
+
+Source policy:
+- Event facts that require confirmation stay TBD.
+- Do not claim registration, attendance, or scheduled event records without approved context.
+- Review packets remain local-only until live execution is approved.
+
 ## Inputs Captured Or Assumed
 - Request: Create a new regional meetup event with 150-person capacity, sponsor options, and a registration page.
 - Project leader question: What is the event name, date, location, and format?
@@ -102,6 +121,25 @@ Learning supporter: logo, table space, and post-event resource inclusion.
     "audience-segmentation",
     "campaigns-paid-media"
   ],
+  "contextHub": {
+    "requiredArtifacts": [
+      "project-context",
+      "messaging-source",
+      "brand-kit",
+      "channel-registry",
+      "proof-and-constraints"
+    ],
+    "optionalArtifacts": [
+      "audience-segments",
+      "dashboard-signals"
+    ],
+    "missingContextBehavior": "Ask for event date, location, capacity, sponsor, and approval details before finalizing.",
+    "sourcePolicy": [
+      "Event facts that require confirmation stay TBD.",
+      "Do not claim registration, attendance, or scheduled event records without approved context.",
+      "Review packets remain local-only until live execution is approved."
+    ]
+  },
   "agentHubReadiness": {
     "packageStatus": "not_packaged",
     "validationStatus": "not_run",

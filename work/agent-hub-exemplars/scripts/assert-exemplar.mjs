@@ -38,11 +38,13 @@ export async function assertLocalExemplar({
   assert.equal(output.type, "text");
   assert.equal(output.liveExecution, false);
   assert.match(output.text, new RegExp(`# ${escapeRegExp(exemplar.displayName)} Local V1 Packet`));
+  assert.match(output.text, /## Context Hub/);
   assert.match(output.text, /"agentHubReadiness":/);
   assert.equal(output.dashboardPayload.agentId, expectedId);
   assert.equal(output.dashboardPayload.agentHubName, expectedHubName);
   assert.equal(output.dashboardPayload.liveExecution, false);
   assert.equal(output.dashboardPayload.workstream, expectedWorkstream);
+  assert(Array.isArray(output.dashboardPayload.contextHub.requiredArtifacts));
   assert.equal(output.dashboardPayload.agentHubReadiness.packageStatus, "not_packaged");
   assert.equal(output.dashboardPayload.agentHubReadiness.validationStatus, "not_run");
   assert.equal(output.dashboardPayload.agentHubReadiness.visibility, "draft_only");

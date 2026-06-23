@@ -2,7 +2,7 @@
 
 # Marketing OS Local Agent Lab
 
-Choose one local agent. This lab models nine separate marketplace/workspace agents plus an orchestrator, without creating remote agent records.
+Choose one local agent. This lab models nine separate marketplace/workspace agents plus an orchestrator, without creating remote agent records. Each agent declares the shared Context Hub artifacts it expects.
 
 1. Foundation Setup Agent - future hub name: `marketing-os-foundation-setup`
 2. Newsletter Composition Agent - future hub name: `marketing-os-newsletter-composition`

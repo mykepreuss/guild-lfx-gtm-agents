@@ -53,10 +53,30 @@ function listItems(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
 }
 
+function listItemsOrNone(items: string[]): string {
+  if (!items.length) return "- (none)";
+  return listItems(items);
+}
+
 function adapterItems(adapters: AdapterNote[]): string {
   return adapters
     .map(([system, action]) => `- ${system}: V1 documents the handoff. Future live action: ${action}`)
     .join("\n");
+}
+
+function contextHubItems(agent: AgentDefinition): string {
+  return [
+    "Required artifacts:",
+    listItemsOrNone(agent.contextHub.requiredArtifacts.map((artifact) => `\`${artifact}\``)),
+    "",
+    "Optional artifacts:",
+    listItemsOrNone(agent.contextHub.optionalArtifacts.map((artifact) => `\`${artifact}\``)),
+    "",
+    `Missing context behavior: ${agent.contextHub.missingContextBehavior}`,
+    "",
+    "Source policy:",
+    listItems(agent.contextHub.sourcePolicy),
+  ].join("\n");
 }
 
 function assetBlocks(agent: AgentDefinition): string {
@@ -104,6 +124,7 @@ export function buildDashboardPayload(agent: AgentDefinition, requestText: strin
     metrics: agent.dashboard.metrics,
     sourceConfidence: agent.dashboard.sourceConfidence,
     downstreamAgents: agent.dashboard.downstreamAgents,
+    contextHub: agent.contextHub,
     agentHubReadiness: agent.metadata.agentHubReadiness,
     signals: agent.dashboardSignals,
   };
@@ -124,6 +145,9 @@ export function runAgent(agentId: string, requestText: string): string {
     agent.summary,
     "",
     `Trigger: ${agent.trigger}`,
+    "",
+    "## Context Hub",
+    contextHubItems(agent),
     "",
     "## Inputs Captured Or Assumed",
     listItems([
@@ -155,7 +179,7 @@ export function buildMenu(): string {
   return [
     "# Marketing OS Local Agent Lab",
     "",
-    "Choose one local agent. This lab models nine separate marketplace/workspace agents plus an orchestrator, without creating remote agent records.",
+    "Choose one local agent. This lab models nine separate marketplace/workspace agents plus an orchestrator, without creating remote agent records. Each agent declares the shared Context Hub artifacts it expects.",
     "",
     ...agents.map(agentMenuLine),
   ].join("\n");

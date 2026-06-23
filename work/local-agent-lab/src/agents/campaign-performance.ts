@@ -32,6 +32,16 @@ export const campaignPerformanceAgent: AgentDefinition = {
     "Paid search conversions are down while event registrations are ahead of pace.",
     "The project leader needs a concise Monday readout.",
   ],
+  contextHub: {
+    requiredArtifacts: ["project-context", "proof-and-constraints", "dashboard-signals"],
+    optionalArtifacts: ["audience-segments", "channel-registry"],
+    missingContextBehavior: "If live metrics are unavailable, label the readout fixture-backed and ask for the data source.",
+    sourcePolicy: [
+      "Fixture metrics are not live performance.",
+      "Live numbers require approved context, dashboard data, or integrations.",
+      "Recommendations that imply spend or platform action require approval.",
+    ],
+  },
   assetBlocks: [
     {
       title: "Metric Snapshot",

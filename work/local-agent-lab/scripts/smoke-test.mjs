@@ -10,6 +10,7 @@ const srcDir = resolve(currentDir, "../src");
 
 const packetSectionPatterns = [
   /## Workflow Summary/,
+  /## Context Hub/,
   /## Inputs Captured Or Assumed/,
   /## Generated Assets/,
   /## Approval Checklist/,
@@ -19,6 +20,7 @@ const packetSectionPatterns = [
   /"workstream":/,
   /"approvalStatus":/,
   /"decisionRequired":/,
+  /"contextHub":/,
   /"agentHubReadiness":/,
   /"mode": "fixture-backed-local-v1"/,
   /"liveExecution": false/,
@@ -92,6 +94,10 @@ function assertAgentContract(agent) {
   assertNonEmptyArray(agent.metadata.tags, `${agent.id} should include Agent Hub tags`);
   assertNonEmptyString(agent.metadata.primaryUser, `${agent.id} should identify primary user`);
 
+  assertNonEmptyArray(agent.contextHub.requiredArtifacts, `${agent.id} should declare required Context Hub artifacts`);
+  assertNonEmptyString(agent.contextHub.missingContextBehavior, `${agent.id} should describe missing context behavior`);
+  assertNonEmptyArray(agent.contextHub.sourcePolicy, `${agent.id} should declare source policy`);
+
   assertNonEmptyString(agent.approvalModel.ownerRole, `${agent.id} should identify approval owner role`);
   assertNonEmptyArray(agent.approvalModel.requiredApprovers, `${agent.id} should list required approvers`);
   assertNonEmptyString(agent.approvalModel.decisionType, `${agent.id} should identify decision type`);
@@ -136,6 +142,7 @@ for (const agent of agents) {
   assert.equal(payload.approvalStatus, agent.dashboard.approvalStatus, `${agent.id} payload should include approval`);
   assertNonEmptyString(payload.decisionRequired, `${agent.id} payload should include decision required`);
   assertNonEmptyArray(payload.metrics, `${agent.id} payload should include dashboard metrics`);
+  assert.deepEqual(payload.contextHub.requiredArtifacts, agent.contextHub.requiredArtifacts, `${agent.id} payload should include Context Hub artifacts`);
   assert.equal(payload.agentHubReadiness.packageStatus, "not_packaged", `${agent.id} payload should stay local`);
 
   const output = runAgent(agent.id, agent.demoPrompt);
