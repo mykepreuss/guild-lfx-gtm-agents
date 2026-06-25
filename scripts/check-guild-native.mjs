@@ -6,6 +6,9 @@ import process from "node:process";
 const rootDir = process.cwd();
 const contextOnly = process.argv.includes("--context");
 const errors = [];
+const packageOwner = "michaelpreuss";
+const scopedPackagePrefix = `@guildai/${packageOwner}~`;
+const ignoredWalkEntries = new Set(["node_modules", ".git", "dist"]);
 
 const requiredContextFiles = [
   "README.md",
@@ -53,6 +56,8 @@ const expectedAgentIds = [
   "campaigns-paid-media",
 ];
 
+const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
+
 function fail(message) {
   errors.push(message);
 }
@@ -82,7 +87,7 @@ function walkFiles(relativePath) {
 
   const files = [];
   for (const entry of fs.readdirSync(fullPath)) {
-    if (entry === "node_modules" || entry === ".git" || entry === "dist") continue;
+    if (ignoredWalkEntries.has(entry)) continue;
     files.push(...walkFiles(path.join(relativePath, entry)));
   }
   return files;
@@ -194,7 +199,6 @@ function validateAgentCatalog() {
 
 function validateAgentPackage(agent) {
   const packageDir = agent.packageDir;
-  const requiredFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 
   if (!packageDir.startsWith("agents/")) {
     fail(`${agent.id} packageDir must stay under agents/.`);
@@ -205,7 +209,7 @@ function validateAgentPackage(agent) {
     return;
   }
 
-  for (const file of requiredFiles) {
+  for (const file of requiredAgentPackageFiles) {
     if (!exists(path.join(packageDir, file))) {
       fail(`${packageDir}/${file} is missing.`);
     }
@@ -214,12 +218,12 @@ function validateAgentPackage(agent) {
   const packageJsonPath = path.join(packageDir, "package.json");
   if (exists(packageJsonPath)) {
     const packageJson = readJson(packageJsonPath);
-    const allowedNames = new Set([
+    const allowedPackageNames = [
       agent.guildName,
-      `@guildai/michaelpreuss~${agent.guildName}`,
-    ]);
-    if (packageJson && !allowedNames.has(packageJson.name)) {
-      fail(`${packageJsonPath} name must be ${agent.guildName} or @guildai/michaelpreuss~${agent.guildName}.`);
+      `${scopedPackagePrefix}${agent.guildName}`,
+    ];
+    if (packageJson && !allowedPackageNames.includes(packageJson.name)) {
+      fail(`${packageJsonPath} name must be ${allowedPackageNames.join(" or ")}.`);
     }
   }
 
