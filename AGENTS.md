@@ -54,6 +54,6 @@ The verifier checks:
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name confidential source artifacts, private people, buyers, or unconfirmed client details.
-- Keep `submission/`, `delivery/`, `agents/`, `context-hub/`, `workspace-context/`, and `guild-skills/` free of confidential source material.
+- Keep `agents/`, `context-hub/`, `workspace-context/`, and `guild-skills/` free of confidential source material.
 - If a detail came from private context, either generalize it or keep it in `_private/`.
 - Prefer fixture project names and generic platform labels over real client systems unless approved.

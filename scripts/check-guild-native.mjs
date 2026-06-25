@@ -27,12 +27,9 @@ const publicScanRoots = [
   "README.md",
   "agents",
   "context-hub",
-  "delivery",
   "docs",
   "guild-skills",
-  "research",
   "scripts",
-  "submission",
   "workspace-context",
 ];
 
@@ -243,7 +240,7 @@ function validateAgentPackage(agent) {
     if (!source.includes("@guildai/agents-sdk")) {
       fail(`${packageDir}/agent.ts should use the Guild Agent SDK.`);
     }
-    if (/local-agent-lab|agent-hub-exemplars|delivery\/local-demo-packets/.test(source)) {
+    if (/local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
       fail(`${packageDir}/agent.ts must not depend on removed local lab or demo packet code.`);
     }
   }
@@ -299,7 +296,7 @@ function validateRemovedLocalLab() {
   const removedPaths = [
     "work/local-agent-lab",
     "work/agent-hub-exemplars",
-    "delivery/local-demo-packets",
+    "local-demo-packets",
   ];
 
   for (const relativePath of removedPaths) {

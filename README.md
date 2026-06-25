@@ -77,9 +77,6 @@ guild trigger create
 - `guild-skills/` - source markdown for future Guild Skills.
 - `docs/` - setup, operating docs, and canonical delivery plan.
 - `scripts/` - local non-mutating validation.
-- `research/` - public or approved source captures only.
-- `submission/` - sendable material only.
-- `delivery/` - optional future delivery artifacts.
 - `_private/` - local-only private notes, ignored by Git.
 
 ## Agent Suite
