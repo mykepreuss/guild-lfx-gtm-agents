@@ -8,7 +8,7 @@ Last reviewed: 2026-06-25
 
 Build the Guild Marketing OS as eight Guild-native, team-installable TypeScript LLM agents using the Guild CLI, Guild Agent SDK, Agent Hub lifecycle, and Workspace Context model.
 
-The implementation uses `guild-marketing-os-*` as the Guild-facing package prefix and stops after package initialization and testing. Saving, publishing, workspace install, public visibility, credentials, triggers, live integrations, and production automations require separate approval.
+The implementation uses `guild-marketing-os-*` as the Guild-facing package prefix, initializes package records under `michaelpreuss`, and tests against `michaelpreuss/guild-marketing-os`. Saving, publishing, workspace install, public visibility, credentials, triggers, live integrations, and production automations require separate approval.
 
 ## Agent Suite
 
@@ -28,8 +28,8 @@ The implementation uses `guild-marketing-os-*` as the Guild-facing package prefi
 Use Guild natively for source package initialization and local testing:
 
 ```sh
-guild agent init --template LLM --agent-type GUILD_TYPESCRIPT --name <package-name> --directory <agent-dir>
-guild agent test --workspace guild-marketing-os-starter-pack
+guild agent init --template LLM --agent-type GUILD_TYPESCRIPT --owner michaelpreuss --name <package-name> --directory <agent-dir>
+guild agent test --workspace michaelpreuss/guild-marketing-os
 ```
 
 Do not run these lifecycle steps until separately approved:
@@ -121,4 +121,4 @@ guild auth status
 guild doctor
 ```
 
-Run `guild agent test --workspace guild-marketing-os-starter-pack` for each package when workspace access allows it. Stop before `save`, `publish`, workspace install, credentials, triggers, or visibility changes.
+Run `guild agent test --workspace michaelpreuss/guild-marketing-os` for each package when workspace access allows it. Stop before `save`, `publish`, workspace install, credentials, triggers, or visibility changes.

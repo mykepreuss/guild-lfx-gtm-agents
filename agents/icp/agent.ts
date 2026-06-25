@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Mark personas and segments as hypotheses unless supported by approved evidence.
 - Keep ICP strategy separate from live CRM, paid media, or list activation.
 - Include AEO answer priorities when audience questions or objections are clear.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

@@ -8,6 +8,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 
 - Guild-native V1 source build.
 - Guild package initialization and testing are approved for this implementation.
+- Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
+- Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
 - All eight V1 agents are committed deliverables.
 - The old local lab, generated demo packets, and local-only exemplars have been removed.
@@ -47,7 +49,7 @@ guild --version
 guild auth status
 guild doctor
 guild agent init
-guild agent test
+guild agent test --workspace michaelpreuss/guild-marketing-os
 npm run verify
 ```
 
@@ -111,8 +113,8 @@ npm run check:context
 Initialize package directories with the Guild CLI and let Guild create `guild.json`:
 
 ```sh
-guild agent init --name guild-marketing-os-company-context-builder --agent-type GUILD_TYPESCRIPT --template LLM --directory agents/foundation-setup
-guild agent test
+guild agent init --name guild-marketing-os-company-context-builder --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/foundation-setup
+guild agent test --workspace michaelpreuss/guild-marketing-os
 ```
 
 Do not save, publish, install, configure credentials, or create triggers until those lifecycle steps are separately approved.

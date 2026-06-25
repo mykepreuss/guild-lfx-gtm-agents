@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Keep campaign plans, paid-media recommendations, and optimization loops reviewable.
 - Require budget, destination, target KPI, audience, proof, consent, and reporting context before activation-ready recommendations.
 - Treat performance analysis as a recommendation and status loop, not an autonomous executor.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

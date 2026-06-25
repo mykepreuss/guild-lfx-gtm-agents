@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Keep segmentation as reviewable logic and instructions; do not activate CRM lists, ad audiences, enrichment jobs, or email sends.
 - Require explicit consent, suppression, privacy, and data-source review before activation-ready recommendations.
 - Mark every segment rule as approved, inferred, or TBD.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

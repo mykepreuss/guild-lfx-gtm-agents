@@ -216,10 +216,10 @@ function validateAgentPackage(agent) {
     const packageJson = readJson(packageJsonPath);
     const allowedNames = new Set([
       agent.guildName,
-      `@guildai/developers-at-guild~${agent.guildName}`,
+      `@guildai/michaelpreuss~${agent.guildName}`,
     ]);
     if (packageJson && !allowedNames.has(packageJson.name)) {
-      fail(`${packageJsonPath} name must be ${agent.guildName} or @guildai/developers-at-guild~${agent.guildName}.`);
+      fail(`${packageJsonPath} name must be ${agent.guildName} or @guildai/michaelpreuss~${agent.guildName}.`);
     }
   }
 

@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Distinguish message strategy from final legal, executive, brand, or product approval.
 - Treat AEO as a first-class output: answer-ready language must be clear, source-backed, and entity-aware.
 - Preserve the user's tone of voice when supplied; otherwise use concise, plain, evidence-led business language.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

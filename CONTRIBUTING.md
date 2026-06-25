@@ -35,6 +35,7 @@ Do not recreate the old local lab, generated demo packets, or local-only exempla
 ## Guild Lifecycle Rules
 
 - `guild agent init` and `guild agent test` are approved for this V1 implementation.
+- Use `michaelpreuss/guild-marketing-os` for Guild agent tests unless the project owner changes the active workspace.
 - Do not run `guild agent save`, `guild agent publish`, `guild agent unpublish`, install agents into workspaces, create triggers, publish workspace context, configure credentials, or change visibility without explicit approval.
 - Do not hand-write or hand-edit `guild.json`. It is managed by the Guild CLI.
 - Keep `npm run verify` non-mutating.

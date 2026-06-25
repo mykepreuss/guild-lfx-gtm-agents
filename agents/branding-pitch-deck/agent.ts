@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Produce design-ready briefs and story structure, not final brand authority.
 - Use Guild's public marketing-site style as the default visual direction for Guild Marketing OS demo surfaces unless the user supplies an approved customer brand system.
 - Treat web and AEO recommendations as inputs for human review, not deployed changes.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

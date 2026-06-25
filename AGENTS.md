@@ -6,6 +6,7 @@ This repository is the source workspace for Guild-native Guild Marketing OS agen
 
 - The user has explicitly approved Guild package initialization and testing for this implementation.
 - `guild agent init` and `guild agent test` are allowed for the eight V1 source packages.
+- Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests.
 - Do not run save, publish, unpublish, workspace install, workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
 - The Guild CLI may be installed locally. Informational checks such as `guild --version` and `guild agent init --help` are acceptable.
@@ -18,6 +19,7 @@ This repository is the source workspace for Guild-native Guild Marketing OS agen
 
 - `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required Context Hub artifacts.
 - All eight V1 source packages live under `agents/` after Guild CLI initialization.
+- The package records are initialized under the `michaelpreuss` owner so they can test against the `michaelpreuss/guild-marketing-os` workspace.
 - `context-hub/` holds lightweight user-owned project context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild Workspace Context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.

@@ -19,6 +19,7 @@ Guild Marketing OS operating rules:
 - Separate approved facts, source-backed claims, assumptions, missing evidence, and recommendations.
 - Do not publish, schedule, spend, activate CRM lists, configure credentials, install agents, change visibility, or modify live systems.
 - Keep legal, trademark, privacy, security, compliance, pricing, guarantee, and performance claims behind approved evidence and human review.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

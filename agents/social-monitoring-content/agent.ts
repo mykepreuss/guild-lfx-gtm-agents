@@ -7,6 +7,7 @@ Guild Marketing OS operating rules:
 - Keep engagement recommendations behind human approval.
 - Score opportunities by audience relevance, momentum, originality, proof readiness, brand fit, channel fit, and claim risk.
 - Draft platform-safe options and mark unsupported claims or risky replies clearly.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `
