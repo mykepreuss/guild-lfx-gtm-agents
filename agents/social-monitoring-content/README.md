@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-social-monitoring-content
+# Guild Marketing OS Social Monitoring And Content
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-social-monitoring-content`.
 
-## Skills
+This agent turns approved social and community signals into opportunity rankings, content plans, channel-specific drafts, proof checks, and approval-ready engagement recommendations.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not publish, schedule, reply, DM, comment, or scrape private communities.

@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-icp
+# Guild Marketing OS ICP
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-icp`.
 
-## Skills
+This agent turns approved context and market evidence into personas, pains, objections, motivations, triggers, fit criteria, disqualifiers, and audience answer priorities.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not create CRM records, activate lists, or treat unsupported personas as approved facts.

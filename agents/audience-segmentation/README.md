@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-audience-segmentation
+# Guild Marketing OS Audience Segmentation
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-audience-segmentation`.
 
-## Skills
+This agent converts approved ICP strategy into segment definitions, inclusion and exclusion rules, suppression logic, channel applicability, and list-building instructions.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not activate CRM lists, ad audiences, enrichment jobs, or email sends.

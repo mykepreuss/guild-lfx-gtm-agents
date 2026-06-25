@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-campaigns-paid-media
+# Guild Marketing OS Campaigns And Paid Media
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-campaigns-paid-media`.
 
-## Skills
+This agent builds campaign briefs, paid-media plans, audience-message matrices, creative test plans, landing-page recommendations, and performance loops.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not change spend, launch ads, activate audiences, publish landing pages, or claim performance results without approved data.

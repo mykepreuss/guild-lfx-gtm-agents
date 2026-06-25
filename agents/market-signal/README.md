@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-market-signal
+# Guild Marketing OS Market Signal
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-market-signal`.
 
-## Skills
+This agent turns approved source material into evidence-labeled market, search, answer-engine, developer, community, and social signals for downstream ICP, messaging, content, AEO, and campaign work.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not crawl, publish, contact people, change systems, or claim comprehensive market coverage.

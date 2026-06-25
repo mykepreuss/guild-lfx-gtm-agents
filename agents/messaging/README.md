@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-messaging
+# Guild Marketing OS Messaging
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-messaging`.
 
-## Skills
+This agent produces positioning, narrative, message pillars, proof-backed claims, answer-ready blocks, boilerplate, tone guidance, claim constraints, and objection handling.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: legal, brand, executive, web, and campaign use require human approval.

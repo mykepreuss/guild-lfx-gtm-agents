@@ -1,9 +1,7 @@
-# developers-at-guild~guild-marketing-os-branding-pitch-deck
+# Guild Marketing OS Branding And Pitch Deck
 
-Agent created via CLI
+Guild-native TypeScript LLM agent package for `guild-marketing-os-branding-pitch-deck`.
 
-## Skills
+This agent converts approved messaging into brand architecture, voice and visual direction, Guild-style web/AEO recommendations, pitch narrative, slide story, and design production briefs.
 
-This LLM agent starts with Guild skills enabled by default through
-`...skillsTools` in `agent.ts`. Remove that spread if this agent should not
-search or activate account-scoped skills.
+V1 is review-only: it does not claim final logo, legal, trademark, production identity, production website, or executive approval.

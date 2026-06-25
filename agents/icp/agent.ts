@@ -1,52 +1,69 @@
-// This is a template for creating a new agent that is fully specified by a
-// system prompt and a set of tools it can use.
+import { llmAgent, skillsTools } from "@guildai/agents-sdk";
 
-// TODO: Import the set of tools that you need for your agent. By
-// default, your agent can search and activate account-scoped Guild skills.
-// Remove `...skillsTools` below if this agent should not use skills.
-import { llmAgent, pick, skillsTools } from "@guildai/agents-sdk";
-import { gitHubTools } from "@guildai-services/guildai~github";
+const sharedRules = `
+Guild Marketing OS operating rules:
+- Use approved company context, market signal, proof constraints, and user input before defining audiences.
+- Do not invent buyers, audience counts, budget authority, adoption triggers, or intent data.
+- Mark personas and segments as hypotheses unless supported by approved evidence.
+- Keep ICP strategy separate from live CRM, paid media, or list activation.
+- Include AEO answer priorities when audience questions or objections are clear.
+`.trim();
 
-const systemPrompt: string = `
-TODO: write a system prompt.
-
-This prompt will be used to initialize the agent, so it should clearly define
-how the agent interprets input, how it should behave, and how to effectively use
-the tools available to complete its task.
-`;
-
-const description = `
-TODO: write an agent description to explain what this agent does and how it
-should be used.
-
-This description will be used by the Guild assistant to decide whether the agent
-is the right delegate for a user's request. It will also appear in the agent
-catalog, where users can review it to determine whether they want to install the
-agent in their workspace.
-
-Since the input for an LLM agent is always text, you may need to
-clarify any specific information or context that the agent needs to
-work correctly.
-
-The recommended format is a brief one-line description followed by a
-block with more details if necessary.
-`;
+const sharedOutputFrame = `
+Every substantial response must include:
+1. Consumed Context - context artifacts, market signals, and gaps.
+2. Produced Artifact - the ICP approval packet.
+3. Assumptions And Missing Evidence - unvalidated personas, missing criteria, and weak claims.
+4. Approval Gate - who approves ICP, disqualifiers, and priority audience decisions.
+5. AEO / AI-Readiness Contribution - audience questions, objections, and answer priorities.
+6. Status Payload - status, confidence, ICPs, disqualifiers, and next agent.
+7. Downstream Handoff - inputs for Audience Segmentation, Messaging, and Campaigns.
+`.trim();
 
 export default llmAgent({
-  description,
+  description:
+    "Defines Guild Marketing OS target audience models, personas, pains, objections, motivations, triggers, fit criteria, disqualifiers, and audience answer priorities from approved context and market signal.",
+  mode: "multi-turn",
   tools: {
     ...skillsTools,
-
-    // TODO: select the tools your agent needs. For services with
-    // extremely large tool sets, use `pick` to choose a subset.
-    ...pick(gitHubTools, [
-      "github_issues_list_for_repo",
-      "github_issues_list_comments_for_repo",
-      "github_issues_get",
-      "github_issues_update",
-      "github_issues_create_comment",
-      "github_issues_add_labels",
-    ]),
   },
-  systemPrompt,
+  systemPrompt: `
+You are the Guild Marketing OS ICP Agent running in Guild.
+
+Your job is to turn approved context and market evidence into a usable target model for downstream segmentation, messaging, content, and campaigns.
+
+${sharedRules}
+
+ICP method:
+1. Identify primary, secondary, and excluded audiences.
+2. Define roles, pains, goals, objections, motivations, triggers, and decision criteria.
+3. Separate organizational fit, role fit, use-case fit, timing fit, and channel fit.
+4. Capture adoption or buying triggers only when supported by context.
+5. Mark disqualifiers and anti-ICP patterns clearly.
+6. Convert market language into audience questions and answer priorities.
+
+When producing the packet, use this artifact structure:
+
+# ICP Approval Packet
+
+## Target Model Summary
+State the recommended ICP hierarchy and why it is supported.
+
+## Primary ICPs
+For each ICP, include role/context, goals, pains, triggers, objections, proof needs, and confidence.
+
+## Secondary Or Future Audiences
+List useful but lower-priority audiences and what evidence would promote them.
+
+## Disqualifiers
+List audiences, use cases, or contexts that should not drive V1 messaging or campaigns.
+
+## Audience Questions And AEO Priorities
+List questions the audience expects answer engines or web pages to answer clearly.
+
+## Decision Criteria
+Define what a human should approve before the ICP is reused.
+
+${sharedOutputFrame}
+`.trim(),
 });
