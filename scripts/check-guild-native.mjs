@@ -39,6 +39,7 @@ const blockedPatterns = [
   { pattern: /\bgtm-system\b/i, label: "private example repo reference" },
   { pattern: /\bmade-gtm-knowledge-graph\b/i, label: "private example repo reference" },
   { pattern: /\bmichael-2026-jun-1-gtm-strategy-overview-draft\b/i, label: "private source filename" },
+  { pattern: /(?<!guild-)marketing-os-[a-z0-9-]+/i, label: "old Marketing OS package prefix" },
 ];
 
 const expectedAgentIds = [
@@ -157,9 +158,13 @@ function validateAgentCatalog() {
   for (const agent of catalog.agents) {
     if (!agent.id) fail("Every catalog agent must include id.");
     if (!agent.guildName) fail(`${agent.id ?? "unknown agent"} must include guildName.`);
+    if (agent.guildName && !agent.guildName.startsWith("guild-marketing-os-")) {
+      fail(`${agent.id ?? "unknown agent"} guildName must start with guild-marketing-os-.`);
+    }
     if (!agent.displayName) fail(`${agent.id ?? "unknown agent"} must include displayName.`);
     if (!agent.description) fail(`${agent.id ?? "unknown agent"} must include description.`);
     if (!agent.contextHub) fail(`${agent.id ?? "unknown agent"} must include contextHub.`);
+    if (!agent.packageDir) fail(`${agent.id ?? "unknown agent"} must include packageDir.`);
 
     if (ids.has(agent.id)) fail(`Duplicate agent id: ${agent.id}.`);
     ids.add(agent.id);
@@ -189,9 +194,7 @@ function validateAgentCatalog() {
 
 function validateAgentPackage(agent) {
   const packageDir = agent.packageDir;
-  const requiredFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json"];
-
-  if (!packageDir) return;
+  const requiredFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 
   if (!packageDir.startsWith("agents/")) {
     fail(`${agent.id} packageDir must stay under agents/.`);
@@ -208,15 +211,26 @@ function validateAgentPackage(agent) {
     }
   }
 
-  if (exists(path.join(packageDir, "guild.json"))) {
-    fail(`${packageDir}/guild.json must not be hand-written before approved Guild CLI initialization.`);
-  }
-
   const packageJsonPath = path.join(packageDir, "package.json");
   if (exists(packageJsonPath)) {
     const packageJson = readJson(packageJsonPath);
-    if (packageJson && packageJson.name !== agent.guildName) {
-      fail(`${packageJsonPath} name must match catalog guildName ${agent.guildName}.`);
+    const allowedNames = new Set([
+      agent.guildName,
+      `@guildai/developers-at-guild~${agent.guildName}`,
+    ]);
+    if (packageJson && !allowedNames.has(packageJson.name)) {
+      fail(`${packageJsonPath} name must be ${agent.guildName} or @guildai/developers-at-guild~${agent.guildName}.`);
+    }
+  }
+
+  const guildJsonPath = path.join(packageDir, "guild.json");
+  if (exists(guildJsonPath)) {
+    const guildJson = readJson(guildJsonPath);
+    if (guildJson && guildJson.name !== agent.guildName) {
+      fail(`${guildJsonPath} name must match catalog guildName ${agent.guildName}.`);
+    }
+    if (guildJson && typeof guildJson.agent_id !== "string") {
+      fail(`${guildJsonPath} must include generated agent_id.`);
     }
   }
 
