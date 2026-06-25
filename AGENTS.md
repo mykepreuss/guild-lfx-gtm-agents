@@ -1,11 +1,11 @@
 # Guild Marketing OS Repo Instructions
 
-This repository is the source workspace for Guild-native Guild Marketing OS agents.
+This repository is the source workspace for the Guild-native Guild Marketing OS agent suite.
 
 ## Current Posture
 
-- The user has explicitly approved Guild package initialization and testing for this implementation.
-- `guild agent init` and `guild agent test` are allowed for the eight V1 source packages.
+- The user has explicitly approved Guild package initialization and testing for the eight V1 source packages.
+- Re-running `guild agent init` and `guild agent test` is allowed only when maintaining these existing package records.
 - Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests.
 - Do not run save, publish, unpublish, workspace install, workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
@@ -23,7 +23,7 @@ This repository is the source workspace for Guild-native Guild Marketing OS agen
 - `context-hub/` holds lightweight user-owned project context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild Workspace Context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
-- The old local lab, generated packets, and local-only Agent Hub exemplars have been removed.
+- Old local labs, generated delivery packets, and local-only Agent Hub exemplars have been removed.
 
 ## Verification
 
@@ -46,7 +46,7 @@ The verifier checks:
 ## Context Hub
 
 - The Context Hub is lightweight user-owned project context, not a formal knowledge graph.
-- Foundation Setup creates or updates approved Context Hub artifacts; other agents reuse them through Guild workspace context, user input, approved artifacts, and future skills.
+- The Company Context Builder creates or updates approved Context Hub artifacts; other agents reuse them through Guild workspace context, user input, approved artifacts, and future skills.
 - Do not embed customer-specific context into public Agent Hub package behavior.
 - Keep customer-specific source material out of public Context Hub files. Put private source material in `_private/` only.
 - Run `npm run check:context` when changing `context-hub/`.

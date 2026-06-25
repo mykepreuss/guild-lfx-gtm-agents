@@ -1,7 +1,20 @@
 # Guild Marketing OS Social Monitoring And Content
 
-Guild-native TypeScript LLM agent package for `guild-marketing-os-social-monitoring-content`.
+Guild package: `guild-marketing-os-social-monitoring-content`
+Package owner: `michaelpreuss`
 
-This agent turns approved social and community signals into opportunity rankings, content plans, channel-specific drafts, proof checks, and approval-ready engagement recommendations.
+## Purpose
 
-V1 is review-only: it does not publish, schedule, reply, DM, comment, or scrape private communities.
+Turns approved social and community signals into opportunity rankings, content plans, channel-specific drafts, proof checks, and approval-ready engagement recommendations.
+
+## V1 Boundary
+
+Review-only. This agent does not publish, schedule, reply, DM, comment, or scrape private communities.
+
+## Test
+
+From this package directory:
+
+```sh
+guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
+```

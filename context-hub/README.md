@@ -1,8 +1,8 @@
-# Marketing OS Context Hub
+# Guild Marketing OS Context Hub
 
 Status: starter source draft
 
-The Context Hub is the lightweight shared context layer for the Marketing OS agents.
+The Context Hub is the lightweight shared context layer for the Guild Marketing OS agents.
 
 It is not a formal database-backed knowledge graph. It is a small set of approved project artifacts that the Company Context Builder creates or updates, and the other agents reuse as a practical context graph.
 
@@ -28,6 +28,6 @@ It is not a formal database-backed knowledge graph. It is a small set of approve
 
 If a fact is not approved here or supplied by the user in the run, agents should ask for it or mark it `TBD`.
 
-## Phase 1 Rule
+## V1 Rule
 
-For Guild-native Phase 1, the Company Context Builder drafts or refreshes these artifacts and returns them for human approval. It must not claim that Guild Workspace Context, live tools, channels, dashboards, or external systems were updated unless an approved tool call confirms that change.
+For Guild-native V1, the Company Context Builder drafts or refreshes these artifacts and returns them for human approval. It must not claim that Guild Workspace Context, live tools, channels, dashboards, or external systems were updated unless an approved tool call confirms that change.

@@ -10,13 +10,14 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild package initialization and testing are approved for this implementation.
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
+- All eight package directories include Guild-managed `guild.json` records and source-ready `agent.ts` prompts.
 - No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
 - All eight V1 agents are committed deliverables.
-- The old local lab, generated demo packets, and local-only exemplars have been removed.
+- Old local labs, generated demo packets, and local-only exemplars have been removed.
 - The Context Hub scaffold is present under `context-hub/`.
 - License: Apache-2.0.
 
-## Phase 1 Goal
+## V1 Goal
 
 Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
 
@@ -24,7 +25,7 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 2. The Company Context Builder drafts approved Context Hub artifacts.
 3. The workspace keeps a concise always-on context summary.
 4. Specialized methods later move into Guild Skills.
-5. Additional Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
+5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
 ## Guild Architecture
 
@@ -42,21 +43,25 @@ Do not dump the whole Context Hub into Workspace Context. Keep Workspace Context
 
 The Guild CLI is installed locally for package initialization and testing. Current observed CLI version: `0.14.0`.
 
-Allowed for this implementation:
+Allowed for this implementation and package maintenance:
 
 ```sh
 guild --version
 guild auth status
 guild doctor
-guild agent init
-guild agent test --workspace michaelpreuss/guild-marketing-os
+guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 npm run verify
 ```
 
-Not allowed until explicitly approved:
+Allowed only when intentionally reinitializing one of the existing V1 package records:
 
 ```sh
-guild agent init
+guild agent init --name <guild-marketing-os-name> --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/<agent>
+```
+
+Not allowed until separately approved:
+
+```sh
 guild agent save
 guild agent publish
 guild agent unpublish
@@ -94,24 +99,25 @@ Confirmed V1 suite order:
 
 All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
 
-The orchestrator/router remains a product pattern for later. For Phase 1, the suite contract in `agents/catalog.json` is enough.
+The orchestrator/router remains a product pattern for later. For V1, the suite contract in `agents/catalog.json` is enough.
 
 ## Commands
 
 ```sh
 npm run verify
 npm run check:context
+node scripts/context-hub-check.mjs
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and Context Hub contract.
 
 ## Guild Setup
 
-Initialize package directories with the Guild CLI and let Guild create `guild.json`:
+Initialize or repair package directories with the Guild CLI and let Guild create `guild.json`:
 
 ```sh
 guild agent init --name guild-marketing-os-company-context-builder --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/foundation-setup
-guild agent test --workspace michaelpreuss/guild-marketing-os
+guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 ```
 
 Do not save, publish, install, configure credentials, or create triggers until those lifecycle steps are separately approved.

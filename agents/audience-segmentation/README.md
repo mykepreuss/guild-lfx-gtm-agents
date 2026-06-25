@@ -1,7 +1,20 @@
 # Guild Marketing OS Audience Segmentation
 
-Guild-native TypeScript LLM agent package for `guild-marketing-os-audience-segmentation`.
+Guild package: `guild-marketing-os-audience-segmentation`
+Package owner: `michaelpreuss`
 
-This agent converts approved ICP strategy into segment definitions, inclusion and exclusion rules, suppression logic, channel applicability, and list-building instructions.
+## Purpose
 
-V1 is review-only: it does not activate CRM lists, ad audiences, enrichment jobs, or email sends.
+Converts approved ICP strategy into segment definitions, inclusion and exclusion rules, suppression logic, channel applicability, and list-building instructions.
+
+## V1 Boundary
+
+Review-only. This agent does not activate CRM lists, ad audiences, enrichment jobs, or email sends.
+
+## Test
+
+From this package directory:
+
+```sh
+guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
+```
