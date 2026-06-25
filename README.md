@@ -80,7 +80,6 @@ guild trigger create
 - `context-hub/` - lightweight shared project context artifacts.
 - `workspace-context/` - concise Guild Workspace Context draft.
 - `guild-skills/` - source markdown for future Guild Skills.
-- `docs/` - setup, operating docs, and canonical delivery plan.
 - `scripts/` - local non-mutating validation.
 - `_private/` - local-only private notes, ignored by Git.
 
@@ -106,7 +105,6 @@ The orchestrator/router remains a product pattern for later. For V1, the suite c
 ```sh
 npm run verify
 npm run check:context
-node scripts/context-hub-check.mjs
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and Context Hub contract.

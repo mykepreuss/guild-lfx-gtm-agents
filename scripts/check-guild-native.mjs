@@ -22,12 +22,14 @@ const requiredContextFiles = [
 ];
 
 const publicScanRoots = [
+  ".gitignore",
+  ".npmrc",
   "AGENTS.md",
   "CONTRIBUTING.md",
+  "package.json",
   "README.md",
   "agents",
   "context-hub",
-  "docs",
   "guild-skills",
   "scripts",
   "workspace-context",
