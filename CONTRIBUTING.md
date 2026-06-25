@@ -1,6 +1,6 @@
 # Contributing
 
-This project is intended to become an open-source Guild-native Marketing OS agent suite.
+This project is intended to become an open-source Guild-native Guild Marketing OS agent suite.
 
 This project is licensed under Apache-2.0. See `LICENSE`.
 
@@ -17,9 +17,9 @@ Contributions should improve one of these areas:
 ## Source Layout
 
 - `agents/catalog.json` is the suite contract.
-- `agents/foundation-setup/agent.ts` is the first Guild-native agent source.
+- `agents/<agent>/agent.ts` files are the Guild-native agent sources.
 - `context-hub/` contains starter project context artifacts.
-- `workspace-context/marketing-os-workspace-context.md` is the draft always-on Guild Workspace Context.
+- `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild Workspace Context.
 - `guild-skills/` contains source markdown for future Guild Skills.
 
 Do not recreate the old local lab, generated demo packets, or local-only exemplar packages.
@@ -34,9 +34,9 @@ Do not recreate the old local lab, generated demo packets, or local-only exempla
 
 ## Guild Lifecycle Rules
 
-- Do not run remote agent lifecycle commands unless explicitly approved.
-- Do not run `guild agent init`, `guild agent save`, `guild agent publish`, `guild agent unpublish`, install agents into workspaces, create triggers, publish workspace context, or change visibility without explicit approval.
-- Do not hand-write `guild.json`. It is managed by the Guild CLI.
+- `guild agent init` and `guild agent test` are approved for this V1 implementation.
+- Do not run `guild agent save`, `guild agent publish`, `guild agent unpublish`, install agents into workspaces, create triggers, publish workspace context, configure credentials, or change visibility without explicit approval.
+- Do not hand-write or hand-edit `guild.json`. It is managed by the Guild CLI.
 - Keep `npm run verify` non-mutating.
 
 ## Development Workflow

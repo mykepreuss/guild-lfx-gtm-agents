@@ -241,7 +241,7 @@ function validateAgentPackages() {
 }
 
 function validateWorkspaceContext() {
-  const file = "workspace-context/marketing-os-workspace-context.md";
+  const file = "workspace-context/guild-marketing-os-workspace-context.md";
   if (!exists(file)) {
     fail(`${file} is missing.`);
     return;
@@ -262,7 +262,7 @@ function validateWorkspaceContext() {
 }
 
 function validateSkillSource() {
-  const file = "guild-skills/marketing-os-foundation-method.md";
+  const file = "guild-skills/guild-marketing-os-foundation-method.md";
   if (!exists(file)) {
     fail(`${file} is missing.`);
     return;

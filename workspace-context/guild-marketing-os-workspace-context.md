@@ -1,4 +1,4 @@
-# Marketing OS Workspace Context
+# Guild Marketing OS Workspace Context
 
 Status: draft source
 Owner: Project Leader
@@ -8,11 +8,11 @@ Last reviewed: 2026-06-23
 
 Project name: Open Source Cloud Native Project
 
-Operating mode: Guild-native Marketing OS setup with no live publishing, scheduling, paid media, or external system changes unless explicitly approved.
+Operating mode: Guild-native Guild Marketing OS setup with no live publishing, scheduling, paid media, or external system changes unless explicitly approved.
 
 Primary users: project leaders, executive directors, board members, marketing advisors, and delegated reviewers.
 
-## Marketing OS Rule
+## Guild Marketing OS Rule
 
 Agents draft reviewable work. A human approves, edits, rejects, or routes it before execution.
 
@@ -52,4 +52,4 @@ If sources conflict, ask the project leader which source should win.
 
 ## First Agent
 
-Use `marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce Context Hub drafts, a Workspace Context update, an approval checklist, and recommended next agents.
+Use `guild-marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce Context Hub drafts, a Workspace Context update, an approval checklist, and recommended next agents.
