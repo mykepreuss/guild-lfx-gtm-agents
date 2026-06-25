@@ -2,11 +2,11 @@
 
 Guild-native source packages live here.
 
-Phase 1 starts with one package:
+Phase 1 starts with one source package:
 
-- `foundation-setup/`
+- `foundation-setup/` - source directory for the Knowledge Graph / Company Context Builder
 
-The rest of the suite remains represented in `catalog.json` until the Foundation Setup pattern is validated in Guild.
+All eight confirmed V1 agents are committed deliverables. The rest of the suite remains represented in `catalog.json` until local source packages are added.
 
 ## Rules
 
@@ -14,4 +14,3 @@ The rest of the suite remains represented in `catalog.json` until the Foundation
 - Do not run `guild agent init`, `guild agent save`, or `guild agent publish` until the user explicitly approves that lifecycle step.
 - Keep customer-specific facts out of agent package code.
 - Put reusable behavior in `agent.ts`, concise always-on project context in Guild Workspace Context, and approved project artifacts in the Context Hub.
-

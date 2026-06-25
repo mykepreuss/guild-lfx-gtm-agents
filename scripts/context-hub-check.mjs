@@ -1,2 +1,6 @@
 #!/usr/bin/env node
-import "./check-guild-native.mjs";
+if (!process.argv.includes("--context")) {
+  process.argv.push("--context");
+}
+
+await import("./check-guild-native.mjs");

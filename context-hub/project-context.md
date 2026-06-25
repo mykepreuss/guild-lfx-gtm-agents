@@ -12,6 +12,14 @@ Mode: Guild-native Phase 1 source draft
 
 Live execution: not approved by default
 
+## Entity Facts
+
+- Official project name: TBD.
+- Primary category: open source cloud native project.
+- Canonical website or repository: TBD.
+- Approved one-sentence description: TBD.
+- Related communities, foundations, or ecosystems: TBD.
+
 ## Primary Users
 
 - Executive directors.
@@ -38,5 +46,6 @@ Every agent follows the same loop:
 
 - Real project name: TBD.
 - Real approved product or project claims: TBD.
+- Approved entity facts and canonical URLs: TBD.
 - Live integrations: TBD.
 - Approval owners by workflow: TBD.

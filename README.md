@@ -9,7 +9,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild-native Phase 1 local setup.
 - No remote agent records are created from this repo unless explicitly approved.
 - No workspace installs, triggers, publishing, or visibility changes have been run.
-- The first platform-facing package is `agents/foundation-setup/`.
+- The first source-ready package is `agents/foundation-setup/`.
+- All eight V1 agents are committed deliverables; the remaining source packages will be added locally before any approved Guild lifecycle step.
 - The old local lab, generated demo packets, and local-only exemplars have been removed.
 - The Context Hub scaffold is present under `context-hub/`.
 - License: Apache-2.0.
@@ -18,8 +19,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 
 Create the smallest useful bridge from a clean Guild workspace to high-quality Marketing OS agents:
 
-1. A user enters business context into Foundation Setup.
-2. Foundation Setup drafts approved Context Hub artifacts.
+1. A user enters business context into the Company Context Builder.
+2. The Company Context Builder drafts approved Context Hub artifacts.
 3. The workspace keeps a concise always-on context summary.
 4. Specialized methods later move into Guild Skills.
 5. Additional Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
@@ -78,20 +79,21 @@ guild trigger create
 
 ## Agent Suite
 
-Phase 1 package:
+Phase 1 source-ready package:
 
-1. Foundation Setup Agent
+1. Knowledge Graph / Company Context Builder
 
-Planned next agents:
+Confirmed V1 suite order:
 
-2. Newsletter Composition Agent
-3. Social Content Agent
-4. Event Creation Agent
-5. Event Promotion Agent
-6. Audience Segmentation Agent
-7. Owned Media Production Agent
-8. Campaign Performance Agent
-9. Campaigns and Paid Media Agent
+2. Market Signal Agent
+3. ICP Agent
+4. Audience Segmentation Agent
+5. Messaging Agent
+6. Branding And Pitch Deck Agent
+7. Social Monitoring And Content Agent
+8. Campaigns And Paid Media Agent
+
+All eight agents are committed V1 deliverables. The current local state starts with the Company Context Builder package and uses `agents/catalog.json` as the source of truth while the remaining packages are implemented.
 
 The orchestrator/router remains a product pattern for later. For Phase 1, the suite contract in `agents/catalog.json` is enough.
 
@@ -106,11 +108,11 @@ npm run check:context
 
 ## Future Guild Setup
 
-When the user explicitly approves creating the first remote Guild agent record, use the CLI from the Foundation Setup directory and let Guild create `guild.json`. This may generate starter files; preserve the reviewed `agent.ts` source in Git if the CLI rewrites anything:
+When the user explicitly approves creating the first remote Guild agent record, use the CLI from the Company Context Builder source directory and let Guild create `guild.json`. This may generate starter files; preserve the reviewed `agent.ts` source in Git if the CLI rewrites anything:
 
 ```sh
 cd agents/foundation-setup
-guild agent init --name marketing-os-foundation-setup --agent-type GUILD_TYPESCRIPT --template LLM --directory .
+guild agent init --name marketing-os-company-context-builder --agent-type GUILD_TYPESCRIPT --template LLM --directory .
 guild agent test
 ```
 

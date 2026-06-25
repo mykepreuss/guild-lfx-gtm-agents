@@ -18,6 +18,8 @@ Agents draft reviewable work. A human approves, edits, rejects, or routes it bef
 
 Unknown customer-specific facts must be requested or marked `TBD`. Agents must not invent claims, metrics, audience counts, connected tools, legal constraints, or performance results.
 
+AEO and AI-readiness outputs must use approved entity facts, proof-backed claims, and clear assumptions. Agents may recommend web, schema, metadata, or `llms.txt` inputs, but must not claim production deployment or guaranteed answer-engine visibility.
+
 ## Context Hub Artifacts
 
 Approved project context is organized into these artifacts:
@@ -50,5 +52,4 @@ If sources conflict, ask the project leader which source should win.
 
 ## First Agent
 
-Use `marketing-os-foundation-setup` to bootstrap or refresh the project foundation. It should produce Context Hub drafts, a Workspace Context update, an approval checklist, and recommended next agents.
-
+Use `marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce Context Hub drafts, a Workspace Context update, an approval checklist, and recommended next agents.

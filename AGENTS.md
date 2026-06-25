@@ -10,7 +10,7 @@ This repository is the local source workspace for Guild-native Marketing OS agen
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
 - The Guild CLI may be installed locally. Informational checks such as `guild --version` and `guild agent init --help` are acceptable.
 - Use https://docs.guild.ai for current Guild platform, CLI, SDK, and Agent Hub behavior. Use https://www.guild.ai/glossary for Guild terminology.
-- Treat transcripts, meeting notes, and client-specific materials as private context.
+- Treat confidential source materials and client-specific context as private.
 - Keep raw private source material in `_private/`, which is ignored by Git.
 - Never commit `_private/`, `_local-guild-agent-prototype/`, `dist/`, or generated bundles.
 
@@ -37,7 +37,7 @@ The verifier checks:
 
 - Context Hub required files exist and have basic structure.
 - Every agent-declared Context Hub artifact maps to a real `context-hub/<artifact>.md` file.
-- Guild-native agent source directories have the expected local files and do not include `guild.json`.
+- Guild-native agent source directories declared in `agents/catalog.json` have the expected local files and do not include `guild.json`.
 - Public source files avoid known private path markers.
 - Removed local-lab directories are not recreated.
 
@@ -51,7 +51,7 @@ The verifier checks:
 
 ## Public-Safety Rules
 
-- Keep public docs generic: do not name private calls, transcripts, decks, people, buyers, or unconfirmed client details.
+- Keep public docs generic: do not name confidential source artifacts, private people, buyers, or unconfirmed client details.
 - Keep `submission/`, `delivery/`, `agents/`, `context-hub/`, `workspace-context/`, and `guild-skills/` free of confidential source material.
 - If a detail came from private context, either generalize it or keep it in `_private/`.
 - Prefer fixture project names and generic platform labels over real client systems unless approved.

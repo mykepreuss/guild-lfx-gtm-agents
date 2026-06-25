@@ -41,6 +41,17 @@ const blockedPatterns = [
   { pattern: /\bmichael-2026-jun-1-gtm-strategy-overview-draft\b/i, label: "private source filename" },
 ];
 
+const expectedAgentIds = [
+  "foundation-setup",
+  "market-signal",
+  "icp",
+  "audience-segmentation",
+  "messaging",
+  "branding-pitch-deck",
+  "social-monitoring-content",
+  "campaigns-paid-media",
+];
+
 function fail(message) {
   errors.push(message);
 }
@@ -126,10 +137,19 @@ function validateAgentCatalog() {
   if (catalog.phase !== "guild-native-phase-1") {
     fail("agents/catalog.json phase must be guild-native-phase-1.");
   }
-  if (!Array.isArray(catalog.agents) || catalog.agents.length < 9) {
-    fail("agents/catalog.json must include the nine-agent suite.");
+  if (!Array.isArray(catalog.agents) || catalog.agents.length !== expectedAgentIds.length) {
+    fail("agents/catalog.json must include the eight-agent V1 suite.");
     return;
   }
+
+  catalog.agents.forEach((agent, index) => {
+    if (agent.id !== expectedAgentIds[index]) {
+      fail(`agents/catalog.json agent ${index + 1} must be ${expectedAgentIds[index]}.`);
+    }
+    if (agent.phaseOrder !== index + 1) {
+      fail(`${agent.id ?? `agent ${index + 1}`} phaseOrder must be ${index + 1}.`);
+    }
+  });
 
   const ids = new Set();
   const guildNames = new Set();
@@ -164,14 +184,18 @@ function validateAgentCatalog() {
     }
   }
 
-  if (!ids.has("foundation-setup")) {
-    fail("agents/catalog.json must include foundation-setup.");
-  }
+  if (!ids.has("foundation-setup")) fail("agents/catalog.json must include foundation-setup.");
 }
 
-function validateFoundationPackage() {
-  const packageDir = "agents/foundation-setup";
+function validateAgentPackage(agent) {
+  const packageDir = agent.packageDir;
   const requiredFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json"];
+
+  if (!packageDir) return;
+
+  if (!packageDir.startsWith("agents/")) {
+    fail(`${agent.id} packageDir must stay under agents/.`);
+  }
 
   if (!exists(packageDir)) {
     fail(`${packageDir}/ is missing.`);
@@ -188,6 +212,14 @@ function validateFoundationPackage() {
     fail(`${packageDir}/guild.json must not be hand-written before approved Guild CLI initialization.`);
   }
 
+  const packageJsonPath = path.join(packageDir, "package.json");
+  if (exists(packageJsonPath)) {
+    const packageJson = readJson(packageJsonPath);
+    if (packageJson && packageJson.name !== agent.guildName) {
+      fail(`${packageJsonPath} name must match catalog guildName ${agent.guildName}.`);
+    }
+  }
+
   if (exists(path.join(packageDir, "agent.ts"))) {
     const source = readText(path.join(packageDir, "agent.ts"));
     if (!source.includes("@guildai/agents-sdk")) {
@@ -196,6 +228,15 @@ function validateFoundationPackage() {
     if (/local-agent-lab|agent-hub-exemplars|delivery\/local-demo-packets/.test(source)) {
       fail(`${packageDir}/agent.ts must not depend on removed local lab or demo packet code.`);
     }
+  }
+}
+
+function validateAgentPackages() {
+  const catalog = readJson("agents/catalog.json");
+  if (!catalog || !Array.isArray(catalog.agents)) return;
+
+  for (const agent of catalog.agents) {
+    validateAgentPackage(agent);
   }
 }
 
@@ -255,7 +296,7 @@ validateAgentCatalog();
 scanPublicFiles();
 
 if (!contextOnly) {
-  validateFoundationPackage();
+  validateAgentPackages();
   validateWorkspaceContext();
   validateSkillSource();
   validateRemovedLocalLab();

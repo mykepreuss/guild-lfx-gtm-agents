@@ -26,7 +26,7 @@ Do not recreate the old local lab, generated demo packets, or local-only exempla
 
 ## Public-Safety Rules
 
-- Do not add private source notes, meeting transcripts, deck-derived details, relationship notes, buyer assumptions, NDA material, credentials, tokens, or client-specific details.
+- Do not add confidential source notes, relationship notes, buyer assumptions, NDA material, credentials, tokens, or client-specific details.
 - Keep private local context in `_private/` only.
 - Keep local prototype material in `_local-guild-agent-prototype/` only.
 - Do not inspect, summarize, quote, stage, or depend on ignored private folders unless explicitly asked by the repository owner.

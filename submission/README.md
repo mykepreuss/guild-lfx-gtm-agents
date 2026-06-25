@@ -2,7 +2,7 @@
 
 Sendable material only.
 
-Do not place raw transcripts, meeting exports, private relationship notes, client decks, or confidential source material here. Anything in this folder should be safe to share externally after review.
+Do not place confidential source material, private relationship notes, or client-specific details here. Anything in this folder should be safe to share externally after review.
 
 Public submission material should reflect the current scope:
 

@@ -1,17 +1,17 @@
-# Foundation Setup Agent
+# Knowledge Graph / Company Context Builder
 
-First Guild-native Marketing OS source package.
+First Guild-native Marketing OS source package. The directory is still named `foundation-setup` because it predates the confirmed V1 agent naming, but the intended Agent Hub-facing name is `marketing-os-company-context-builder`.
 
 This directory intentionally omits `guild.json`. Guild creates and manages that file when the user explicitly approves CLI initialization.
 
 ## Purpose
 
-Foundation Setup turns a clean workspace and a user's raw business context into a reviewable Marketing OS foundation:
+The Company Context Builder turns a clean workspace and a user's raw business context into a reviewable Marketing OS context graph:
 
 - Context Hub artifact drafts.
 - A concise Guild Workspace Context draft.
 - Missing-context and approval checklist.
-- Recommended next agents.
+- Recommended next agents in the confirmed V1 order.
 
 ## Local Checks
 
@@ -27,7 +27,7 @@ Only after explicit approval:
 
 ```sh
 cd agents/foundation-setup
-guild agent init --name marketing-os-foundation-setup --agent-type GUILD_TYPESCRIPT --template LLM --directory .
+guild agent init --name marketing-os-company-context-builder --agent-type GUILD_TYPESCRIPT --template LLM --directory .
 guild agent test
 ```
 

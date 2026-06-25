@@ -23,6 +23,12 @@ Last reviewed: 2026-06-23
 - Audience counts.
 - Registration, attendance, send, or publish status.
 
+## AEO And AI-Readiness Constraints
+
+- Do not claim guaranteed SEO, GEO, answer-engine citation, or ranking outcomes.
+- Do not present schema.org, `llms.txt`, metadata, or website deployment as complete unless an approved production change confirms it.
+- Keep answer-ready language tied to approved entity facts and proof-backed claims.
+
 ## Missing Context Rule
 
 If a claim is not approved in the Context Hub or supplied by the user during the run, agents should ask for it or mark it `TBD`.

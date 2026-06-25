@@ -2,7 +2,7 @@
 
 Status: source draft
 
-Use when a Marketing OS agent needs to bootstrap or refresh a project's GTM foundation from raw user context.
+Use when a Marketing OS agent needs to bootstrap or refresh a project's GTM foundation from raw user context, especially inside the Company Context Builder.
 
 ## Method
 
@@ -29,4 +29,3 @@ Every foundation packet should include:
 ## Claim Rules
 
 Require approved evidence for pricing, privacy, security, compliance, retention, guarantees, live execution, campaign performance numbers, audience counts, registration status, attendance status, send status, or publish status.
-

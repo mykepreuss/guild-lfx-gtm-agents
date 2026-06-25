@@ -2,7 +2,7 @@
 
 The Context Hub is the lightweight shared context layer for Marketing OS agents.
 
-It exists because Foundation Setup should create approved materials that later agents reuse through Guild Workspace Context, approved context artifacts, and future Skills.
+It exists because the Company Context Builder should create approved materials that later agents reuse through Guild Workspace Context, approved context artifacts, and future Skills.
 
 ## What To Edit First
 
