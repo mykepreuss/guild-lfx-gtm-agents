@@ -2,12 +2,15 @@
 
 Guild-native source packages live here. Each package is a standalone Guild TypeScript agent initialized under the `michaelpreuss` owner and testable against `michaelpreuss/guild-marketing-os`.
 
-The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, and a Markdown approval packet.
+The Intake package is the chat-native default entrypoint. It routes first-run setup requests, collects minimum missing company context, and recommends the right specialist without automatically calling other agents.
 
-The other seven V1 packages run as prompt-only one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns. They also set `useWorkspaceAgents: false`. V1 agent chaining is a human-guided workflow, not implicit workspace-agent orchestration.
+The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, and a chat-renderable Markdown approval packet.
 
-V1 contains eight source packages:
+The other seven V1 packages run as prompt-only one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns. Intake and the seven prompt-only agents set `useWorkspaceAgents: false`. V1 agent chaining is a human-guided workflow, not implicit workspace-agent orchestration.
 
+V1 contains one intake entrypoint plus eight deliverable source packages:
+
+- `intake/` - chat-native first-run router and default workspace entrypoint
 - `foundation-setup/` - source directory for the Knowledge Graph / Company Context Builder
 - `market-signal/`
 - `icp/`

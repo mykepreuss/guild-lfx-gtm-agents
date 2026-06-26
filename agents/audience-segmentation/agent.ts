@@ -1,4 +1,4 @@
-import { llmAgent, userInterfaceTools } from "@guildai/agents-sdk";
+import { llmAgent } from "@guildai/agents-sdk";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -18,7 +18,8 @@ Guild Marketing OS operating rules:
 - Keep segmentation as reviewable logic and instructions; do not activate CRM lists, ad audiences, enrichment jobs, or email sends.
 - Require explicit consent, suppression, privacy, and data-source review before activation-ready recommendations.
 - Mark every segment rule as approved, inferred, or TBD.
-- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
+- If the user asks to build company context, set up the Marketing OS, choose the right agent, start onboarding, create the initial source of truth, or make a workspace focused on a company, do not produce your specialist artifact. Respond in the shared output frame, route the user to Company Context Builder or Guild Marketing OS Intake, and ask only for company/project name, approved description, target audiences, goals, proof-backed claims, and channel scope.
+- Valid Guild Marketing OS agents are Guild Marketing OS Intake, Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `
@@ -39,7 +40,7 @@ export default llmAgent({
   identifier: "guild_marketing_os_audience_segmentation",
   description:
     "Turns approved Guild Marketing OS ICP strategy into reviewable segment definitions, inclusion and exclusion logic, suppressions, channel applicability, and list-building instructions.",
-  tools: { ...userInterfaceTools },
+  tools: {},
   useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Audience Segmentation Agent running in Guild.

@@ -54,6 +54,7 @@ const expectedAgentIds = [
   "social-monitoring-content",
   "campaigns-paid-media",
 ];
+const expectedEntrypointId = "intake";
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 const requiredGuildSdkVersion = "0.2.58";
@@ -83,6 +84,21 @@ const requiredStructuredFoundationSnippets = [
   "renderMarkdownPacket",
   "forbiddenLiveActionClaims",
   "markdownPacket",
+  "## Consumed Context",
+  "## Produced Artifact",
+  "## Assumptions And Missing Evidence",
+  "## Approval Gate",
+  "## AEO / AI-Readiness Contribution",
+  "## Status Payload",
+  "## Downstream Handoff",
+];
+const requiredIntakeSourceSnippets = [
+  "llmAgent({",
+  "identifier:",
+  "useWorkspaceAgents: false",
+  "Guild Marketing OS Intake Agent",
+  "Company Context Builder",
+  "recommended_agent",
   "## Consumed Context",
   "## Produced Artifact",
   "## Assumptions And Missing Evidence",
@@ -174,6 +190,12 @@ function validateAgentCatalog() {
   const catalog = readJson("agents/catalog.json");
   if (!catalog) return;
 
+  if (!catalog.entrypoint || catalog.entrypoint.id !== expectedEntrypointId) {
+    fail(`agents/catalog.json must include ${expectedEntrypointId} as the chat-native entrypoint.`);
+  } else {
+    validateCatalogPackageFields(catalog.entrypoint, { requireContextHub: false });
+  }
+
   if (catalog.phase !== "guild-native-phase-1") {
     fail("agents/catalog.json phase must be guild-native-phase-1.");
   }
@@ -195,15 +217,7 @@ function validateAgentCatalog() {
   const guildNames = new Set();
 
   for (const agent of catalog.agents) {
-    if (!agent.id) fail("Every catalog agent must include id.");
-    if (!agent.guildName) fail(`${agent.id ?? "unknown agent"} must include guildName.`);
-    if (agent.guildName && !agent.guildName.startsWith("guild-marketing-os-")) {
-      fail(`${agent.id ?? "unknown agent"} guildName must start with guild-marketing-os-.`);
-    }
-    if (!agent.displayName) fail(`${agent.id ?? "unknown agent"} must include displayName.`);
-    if (!agent.description) fail(`${agent.id ?? "unknown agent"} must include description.`);
-    if (!agent.contextHub) fail(`${agent.id ?? "unknown agent"} must include contextHub.`);
-    if (!agent.packageDir) fail(`${agent.id ?? "unknown agent"} must include packageDir.`);
+    validateCatalogPackageFields(agent, { requireContextHub: true });
 
     if (ids.has(agent.id)) fail(`Duplicate agent id: ${agent.id}.`);
     ids.add(agent.id);
@@ -211,24 +225,40 @@ function validateAgentCatalog() {
     if (guildNames.has(agent.guildName)) fail(`Duplicate guildName: ${agent.guildName}.`);
     guildNames.add(agent.guildName);
 
-    const requiredArtifacts = agent.contextHub?.requiredArtifacts;
-    const optionalArtifacts = agent.contextHub?.optionalArtifacts ?? [];
-    if (!Array.isArray(requiredArtifacts) || requiredArtifacts.length === 0) {
-      fail(`${agent.id} must declare required approved context artifacts.`);
-    }
-    if (!Array.isArray(optionalArtifacts)) {
-      fail(`${agent.id} optionalArtifacts must be an array.`);
-    }
-
-    for (const artifact of [...(requiredArtifacts ?? []), ...optionalArtifacts]) {
-      const artifactPath = path.join("context-hub", `${artifact}.md`);
-      if (!exists(artifactPath)) {
-        fail(`${agent.id} references missing approved context artifact ${artifactPath}.`);
-      }
-    }
+    validateContextHubReferences(agent);
   }
 
   if (!ids.has("foundation-setup")) fail("agents/catalog.json must include foundation-setup.");
+}
+
+function validateCatalogPackageFields(agent, { requireContextHub }) {
+  if (!agent.id) fail("Every catalog package must include id.");
+  if (!agent.guildName) fail(`${agent.id ?? "unknown package"} must include guildName.`);
+  if (agent.guildName && !agent.guildName.startsWith("guild-marketing-os-")) {
+    fail(`${agent.id ?? "unknown package"} guildName must start with guild-marketing-os-.`);
+  }
+  if (!agent.displayName) fail(`${agent.id ?? "unknown package"} must include displayName.`);
+  if (!agent.description) fail(`${agent.id ?? "unknown package"} must include description.`);
+  if (!agent.packageDir) fail(`${agent.id ?? "unknown package"} must include packageDir.`);
+  if (requireContextHub && !agent.contextHub) fail(`${agent.id ?? "unknown package"} must include contextHub.`);
+}
+
+function validateContextHubReferences(agent) {
+  const requiredArtifacts = agent.contextHub?.requiredArtifacts;
+  const optionalArtifacts = agent.contextHub?.optionalArtifacts ?? [];
+  if (!Array.isArray(requiredArtifacts) || requiredArtifacts.length === 0) {
+    fail(`${agent.id} must declare required approved context artifacts.`);
+  }
+  if (!Array.isArray(optionalArtifacts)) {
+    fail(`${agent.id} optionalArtifacts must be an array.`);
+  }
+
+  for (const artifact of [...(requiredArtifacts ?? []), ...optionalArtifacts]) {
+    const artifactPath = path.join("context-hub", `${artifact}.md`);
+    if (!exists(artifactPath)) {
+      fail(`${agent.id} references missing approved context artifact ${artifactPath}.`);
+    }
+  }
 }
 
 function validateAgentPackage(agent) {
@@ -265,6 +295,9 @@ function validateAgentPackage(agent) {
     if (agent.id === "foundation-setup" && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for the structured foundation agent.`);
     }
+    if (agent.id !== "foundation-setup" && packageJson?.dependencies?.zod) {
+      fail(`${packageJsonPath} should not depend on zod unless the package has a structured schema boundary.`);
+    }
     for (const [dependency, version] of Object.entries(requiredDevDependencies)) {
       if (packageJson?.devDependencies?.[dependency] !== version) {
         fail(`${packageJsonPath} must pin ${dependency} to ${version}.`);
@@ -292,9 +325,11 @@ function validateAgentPackage(agent) {
       fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
     }
 
-    const requiredSnippets = agent.id === "foundation-setup"
-      ? requiredStructuredFoundationSnippets
-      : requiredReviewAgentSourceSnippets;
+    const requiredSnippets = agent.id === expectedEntrypointId
+      ? requiredIntakeSourceSnippets
+      : agent.id === "foundation-setup"
+        ? requiredStructuredFoundationSnippets
+        : requiredReviewAgentSourceSnippets;
     for (const snippet of requiredSnippets) {
       if (!source.includes(snippet)) {
         fail(`${packageDir}/agent.ts must include required V1 contract snippet: ${snippet}`);
@@ -315,6 +350,10 @@ function validateAgentPackage(agent) {
 function validateAgentPackages() {
   const catalog = readJson("agents/catalog.json");
   if (!catalog || !Array.isArray(catalog.agents)) return;
+
+  if (catalog.entrypoint) {
+    validateAgentPackage(catalog.entrypoint);
+  }
 
   for (const agent of catalog.agents) {
     validateAgentPackage(agent);

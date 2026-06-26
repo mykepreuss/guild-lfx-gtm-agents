@@ -7,6 +7,16 @@
     "Risky claims about pricing, privacy, security, compliance, retention, guarantees, live execution, or performance require approved evidence.",
     "AEO and AI-readiness outputs must distinguish approved entity facts, proof-backed claims, recommendations, assumptions, and unknowns."
   ],
+  "entrypoint": {
+    "id": "intake",
+    "guildName": "guild-marketing-os-intake",
+    "displayName": "Guild Marketing OS Intake",
+    "status": "guild_native_source_ready",
+    "packageDir": "agents/intake",
+    "primaryUser": "Project Leader",
+    "description": "Chat-native default entrypoint that triages setup requests, collects minimum company context, and routes users to the right Guild Marketing OS specialist without inventing facts or implying live execution.",
+    "defaultWorkspaceAgent": true
+  },
   "agents": [
     {
       "id": "foundation-setup",

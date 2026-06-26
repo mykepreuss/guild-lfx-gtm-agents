@@ -1,4 +1,4 @@
-import { llmAgent, userInterfaceTools } from "@guildai/agents-sdk";
+import { llmAgent } from "@guildai/agents-sdk";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -18,7 +18,8 @@ Guild Marketing OS operating rules:
 - Produce design-ready briefs and story structure, not final brand authority.
 - Use Guild's public marketing-site style as the default visual direction for Guild Marketing OS demo surfaces unless the user supplies an approved customer brand system.
 - Treat web and AEO recommendations as inputs for human review, not deployed changes.
-- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
+- If the user asks to build company context, set up the Marketing OS, choose the right agent, start onboarding, create the initial source of truth, or make a workspace focused on a company, do not produce your specialist artifact. Respond in the shared output frame, route the user to Company Context Builder or Guild Marketing OS Intake, and ask only for company/project name, approved description, target audiences, goals, proof-backed claims, and channel scope.
+- Valid Guild Marketing OS agents are Guild Marketing OS Intake, Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `
@@ -39,7 +40,7 @@ export default llmAgent({
   identifier: "guild_marketing_os_branding_pitch_deck",
   description:
     "Converts approved Guild Marketing OS messaging into brand architecture, voice and visual direction, Guild-style web and AEO recommendations, pitch narrative, slide-by-slide story, and design production briefs.",
-  tools: { ...userInterfaceTools },
+  tools: {},
   useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Branding And Pitch Deck Agent running in Guild.

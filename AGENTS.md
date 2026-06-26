@@ -4,7 +4,7 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 
 ## Current Posture
 
-- The user has explicitly approved Guild package initialization and testing for the eight V1 source packages.
+- The user has explicitly approved Guild package initialization and testing for the eight V1 deliverable source packages plus the intake entrypoint.
 - Re-running `guild agent init` and `guild agent test` is allowed only when maintaining these existing package records.
 - Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests.
 - Do not run save, publish, unpublish, workspace install, workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
@@ -18,10 +18,11 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 ## Guild-Native V1 Shape
 
 - `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required approved context artifacts.
-- All eight V1 source packages live under `agents/` after Guild CLI initialization.
+- All eight V1 deliverable source packages plus `agents/intake/` live under `agents/` after Guild CLI initialization.
+- `agents/intake/` is the chat-native default entrypoint and first-run router. It does not call other agents automatically.
 - The package records are initialized under the `michaelpreuss` owner so they can test against the `michaelpreuss/guild-marketing-os` workspace.
 - The Company Context Builder is the structured Zod-backed `agent()` root. Keep its input/output schemas explicit and keep its output reviewable.
-- The seven downstream prompt-only review agents must set `useWorkspaceAgents: false` to avoid implicit agent-to-agent calls before orchestration is explicitly designed.
+- The intake entrypoint and seven downstream prompt-only review agents must set `useWorkspaceAgents: false` to avoid implicit agent-to-agent calls before orchestration is explicitly designed.
 - `context-hub/` holds starter templates for approved user-owned project context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.

@@ -10,12 +10,13 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild package initialization and testing are approved for this implementation.
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
-- All eight package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a Markdown approval packet.
+- All eight deliverable package directories plus the chat-native intake entrypoint include Guild-managed `guild.json` records and source-ready `agent.ts` files.
+- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it routes setup requests to the right specialist and collects minimum missing context without inventing facts.
+- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a chat-renderable Markdown approval packet.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
-- The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before orchestration is designed.
+- The intake and seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
-- No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
+- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, workspace context publish, or public visibility changes have been run.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
@@ -57,13 +58,13 @@ guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mo
 npm run verify
 ```
 
-Allowed only when intentionally reinitializing one of the existing V1 package records:
+Allowed only when intentionally reinitializing one of the existing V1 package records or the intake entrypoint:
 
 ```sh
 guild agent init --name <guild-marketing-os-name> --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/<agent>
 ```
 
-Not allowed until separately approved:
+Not allowed until separately approved for the specific lifecycle change:
 
 ```sh
 guild agent save
@@ -104,7 +105,7 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The orchestrator/router remains a product pattern for later. For V1, the suite contract in `agents/catalog.json` is enough.
+The Intake package is the current chat-native entrypoint and first-run router. It does not call other agents automatically. Autonomous orchestration remains a future product pattern.
 
 ## Production Readiness Boundary
 
@@ -148,7 +149,7 @@ guild agent init --name guild-marketing-os-company-context-builder --agent-type 
 guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 ```
 
-Do not save, publish, install, configure credentials, or create triggers until those lifecycle steps are separately approved.
+Do not save, publish, install, configure credentials, publish workspace context, change visibility, or create triggers unless that lifecycle step is explicitly approved for the current change.
 
 ## References
 

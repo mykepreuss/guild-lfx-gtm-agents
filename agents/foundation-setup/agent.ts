@@ -1,4 +1,4 @@
-import { agent, userInterfaceTools } from "@guildai/agents-sdk";
+import { agent } from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -68,6 +68,8 @@ const approvalGateSchema = z.object({
 });
 
 const outputSchema = z.object({
+  type: z.literal("text"),
+  text: z.string(),
   status: packetStatusSchema,
   consumedContext: z.object({
     used: z.array(z.string()),
@@ -152,7 +154,9 @@ const outputSchema = z.object({
   markdownPacket: z.string(),
 });
 
-const llmOutputSchema = outputSchema.omit({ markdownPacket: true }).extend({
+const llmOutputSchema = outputSchema.omit({ type: true, text: true, markdownPacket: true }).extend({
+  type: z.literal("text").optional(),
+  text: z.string().optional(),
   markdownPacket: z.string().optional(),
 });
 
@@ -198,8 +202,7 @@ export default agent({
     "Builds a structured Guild Marketing OS context foundation by converting raw company or project context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
   inputSchema,
   outputSchema,
-  tools: { ...userInterfaceTools },
-
+  tools: {},
   async run(input, task) {
     const rawContext = getRawContext(input);
     const fallback = buildFallbackOutput(input, []);
@@ -217,14 +220,25 @@ export default agent({
     } else {
       const parsedOutput = llmOutputSchema.safeParse(cleanParsedOutput(parsed));
       if (parsedOutput.success) {
-        candidate = { ...parsedOutput.data, markdownPacket: parsedOutput.data.markdownPacket ?? "" };
+        candidate = {
+          ...parsedOutput.data,
+          type: "text",
+          text: parsedOutput.data.text ?? "",
+          markdownPacket: parsedOutput.data.markdownPacket ?? "",
+        };
       } else {
         parseWarnings.push(`The LLM response did not match the structured output schema: ${formatSchemaIssues(parsedOutput.error.issues)}.`);
       }
     }
 
     const guarded = enforceDeterministicGuards(candidate, input, parseWarnings);
-    const withMarkdown = { ...guarded, markdownPacket: renderMarkdownPacket(guarded) };
+    const markdownPacket = renderMarkdownPacket(guarded);
+    const withMarkdown = {
+      ...guarded,
+      type: "text" as const,
+      text: markdownPacket,
+      markdownPacket,
+    };
 
     return outputSchema.parse(withMarkdown);
   },
@@ -338,6 +352,8 @@ function cleanParsedOutput(value: unknown): unknown {
   cleanClaimArray(output, "assumptionsAndMissingEvidence");
   cleanClaimArray(proofAndConstraints, "approvedClaims");
   cleanClaimArray(proofAndConstraints, "blockedClaims");
+  cleanArtifactArray(output, "statusPayload", "requiredArtifacts");
+  cleanHandoffArray(output);
   return output;
 }
 
@@ -346,6 +362,26 @@ function cleanClaimArray(container: unknown, key: string): void {
   const claims = container[key];
   if (!Array.isArray(claims)) return;
   container[key] = claims.filter((claim: unknown) => isRecord(claim) && typeof claim.claim === "string" && claim.claim.trim());
+}
+
+function cleanArtifactArray(container: unknown, nestedKey: string, arrayKey: string): void {
+  if (!isRecord(container)) return;
+  const nested = container[nestedKey];
+  if (!isRecord(nested)) return;
+  const values = nested[arrayKey];
+  if (!Array.isArray(values)) return;
+  nested[arrayKey] = values.map((value) => normalizeArtifactName(String(value))).filter(Boolean);
+}
+
+function cleanHandoffArray(container: unknown): void {
+  if (!isRecord(container) || !Array.isArray(container.downstreamHandoff)) return;
+  container.downstreamHandoff = container.downstreamHandoff.map((handoff: unknown) => {
+    if (!isRecord(handoff) || !Array.isArray(handoff.receives)) return handoff;
+    return {
+      ...handoff,
+      receives: handoff.receives.map((value) => normalizeArtifactName(String(value))).filter(Boolean),
+    };
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -498,8 +534,46 @@ function isSparse(rawContext: string): boolean {
 }
 
 function normalizeArtifacts(values: readonly string[]): Array<(typeof artifactValues)[number]> {
-  const normalized = values.filter((value): value is (typeof artifactValues)[number] => artifactValues.includes(value as (typeof artifactValues)[number]));
+  const normalized = values
+    .map(normalizeArtifactName)
+    .filter((value): value is (typeof artifactValues)[number] => value !== undefined);
   return normalized.length ? [...new Set(normalized)] : [...defaultRequestedArtifacts];
+}
+
+function normalizeArtifactName(value: string): (typeof artifactValues)[number] | undefined {
+  const normalized = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[_\s]+/g, "-")
+    .toLowerCase();
+
+  const aliases: Record<string, (typeof artifactValues)[number]> = {
+    "project": "project-context",
+    "project-context": "project-context",
+    "projectcontext": "project-context",
+    "context": "project-context",
+    "messaging": "messaging-source",
+    "messaging-source": "messaging-source",
+    "messagingsource": "messaging-source",
+    "brand": "brand-kit",
+    "brand-kit": "brand-kit",
+    "brandkit": "brand-kit",
+    "audience": "audience-segments",
+    "audience-segments": "audience-segments",
+    "audiencesegments": "audience-segments",
+    "channel": "channel-registry",
+    "channel-registry": "channel-registry",
+    "channelregistry": "channel-registry",
+    "proof": "proof-and-constraints",
+    "proof-constraints": "proof-and-constraints",
+    "proof-and-constraints": "proof-and-constraints",
+    "proofandconstraints": "proof-and-constraints",
+    "dashboard": "dashboard-signals",
+    "dashboard-signals": "dashboard-signals",
+    "dashboardsignals": "dashboard-signals",
+  };
+
+  return aliases[normalized] ?? (artifactValues.includes(normalized as (typeof artifactValues)[number]) ? normalized as (typeof artifactValues)[number] : undefined);
 }
 
 function normalizeAgents(values: readonly string[]): Array<(typeof agentValues)[number]> {
@@ -670,6 +744,8 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
 
   const output: Output = {
     status,
+    type: "text",
+    text: "",
     consumedContext: {
       used: rawContext ? ["User-provided raw context"] : [],
       missing,
@@ -780,7 +856,8 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
     markdownPacket: "",
   };
 
-  return { ...output, markdownPacket: renderMarkdownPacket(output) };
+  const markdownPacket = renderMarkdownPacket(output);
+  return { ...output, text: markdownPacket, markdownPacket };
 }
 
 function inferMissingInputs(rawContext: string, projectName: string): string[] {
@@ -794,10 +871,29 @@ function inferMissingInputs(rawContext: string, projectName: string): string[] {
 }
 
 function extractProjectName(rawContext: string): string | undefined {
-  const match = rawContext.match(/project(?: name)?[:\s]+([^.;\n]+)/i);
-  const value = match?.[1]?.trim();
+  const patterns = [
+    /\b(?:company|project|brand|organization|org|product)(?:\s+(?:is|called|named))?\s*[:,]\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
+    /\b(?:company|project|brand|organization|org|product)\s+(?:is|called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
+    /\b(?:for|focused on|about)\s+(?:my|our|the)?\s*(?:company|project|brand|organization|org|product)?\s*,?\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
+    /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
+  ];
+  const value = patterns
+    .map((pattern) => rawContext.match(pattern)?.[1]?.trim())
+    .find((candidate) => candidate && !isGenericExtractedName(candidate));
   if (!value || /^tbd$/i.test(value)) return undefined;
-  return value;
+  return value.replace(/\s+(so|to|because|that|for)\b.*$/i, "").replace(/[.。]+$/, "").trim();
+}
+
+function isGenericExtractedName(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return [
+    "marketing os",
+    "guild marketing os",
+    "company context",
+    "context",
+    "project",
+    "company",
+  ].includes(normalized);
 }
 
 function extractListAfterLabel(rawContext: string, label: string): string[] {

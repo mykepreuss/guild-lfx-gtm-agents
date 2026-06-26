@@ -1,4 +1,4 @@
-import { llmAgent, userInterfaceTools } from "@guildai/agents-sdk";
+import { llmAgent } from "@guildai/agents-sdk";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -18,7 +18,8 @@ Guild Marketing OS operating rules:
 - Keep engagement recommendations behind human approval.
 - Score opportunities by audience relevance, momentum, originality, proof readiness, brand fit, channel fit, and claim risk.
 - Draft platform-safe options and mark unsupported claims or risky replies clearly.
-- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
+- If the user asks to build company context, set up the Marketing OS, choose the right agent, start onboarding, create the initial source of truth, or make a workspace focused on a company, do not produce your specialist artifact. Respond in the shared output frame, route the user to Company Context Builder or Guild Marketing OS Intake, and ask only for company/project name, approved description, target audiences, goals, proof-backed claims, and channel scope.
+- Valid Guild Marketing OS agents are Guild Marketing OS Intake, Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `
@@ -39,7 +40,7 @@ export default llmAgent({
   identifier: "guild_marketing_os_social_monitoring_content",
   description:
     "Combines Guild Marketing OS social and community monitoring with approved-message content planning, owned content ideas, digest opportunities, channel-specific drafts, and claim/proof checks.",
-  tools: { ...userInterfaceTools },
+  tools: {},
   useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Social Monitoring And Content Agent running in Guild.

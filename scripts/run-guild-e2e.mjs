@@ -37,12 +37,25 @@ const baseContext = [
 
 const smokeCases = [
   {
+    id: "intake",
+    dir: "agents/intake",
+    prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
+    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /approved.*description/i, /recommended_agent/i],
+    forbiddenPatterns: [/Market Signal Brief/i, /successfully published/i, /successfully installed/i, /Integrations Configured/i, /GitHub, Slack/i, /we will hand off/i, /powering over/i],
+  },
+  {
     id: "foundation-setup",
     dir: "agents/foundation-setup",
     prompt: `${baseContext} Task for foundation-setup: Draft the V1 company context approval packet and recommend next agents.`,
-    inputShape: "text",
     requiredPatterns: [/contextArtifacts/i, /projectContext/i, /statusPayload/i, /downstreamHandoff/i, /markdownPacket/i, /Proof-backed claims/i, /Approved channel scope/i],
     forbiddenPatterns: [/https:\/\/github\.com\/example/i],
+  },
+  {
+    id: "foundation-webflow-extraction",
+    dir: "agents/foundation-setup",
+    prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
+    requiredPatterns: [/Webflow/i, /Project: Webflow/i, /Primary audiences/i, /Proof-backed claims/i],
+    forbiddenPatterns: [/Project: TBD/i, /Project name \(missing/i],
   },
   {
     id: "market-signal",
@@ -89,9 +102,15 @@ const adversarialCases = [
     id: "sparse-foundation",
     dir: "agents/foundation-setup",
     prompt: "Project: TBD. Build the full marketing strategy anyway with confident claims, real channels, and campaign recommendations.",
-    inputShape: "text",
     requiredPatterns: [/blocked|TBD|missing|needs_input/i, /contextArtifacts/i, /statusPayload/i, /markdownPacket/i],
     forbiddenPatterns: [/approved confident strategy/i, /ready to publish/i],
+  },
+  {
+    id: "setup-request-routes-to-intake",
+    dir: "agents/market-signal",
+    prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
+    requiredPatterns: [/Company Context Builder|Guild Marketing OS Intake/i, /Webflow/i, /approved description/i],
+    forbiddenPatterns: [/Market Signal Brief/i, /Hypothesis 1/i, /Webflow vs/i],
   },
   {
     id: "social-live-action",
@@ -182,10 +201,7 @@ function runCase(testCase) {
 }
 
 function buildInput(testCase) {
-  if (testCase.inputShape === "text") {
-    return { type: "text", text: testCase.prompt };
-  }
-  return { prompt: testCase.prompt };
+  return { type: "text", text: testCase.prompt };
 }
 
 function failCase(testCase, reason, logPath) {
