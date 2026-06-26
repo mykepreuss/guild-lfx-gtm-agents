@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Turns approved Guild Marketing OS ICP strategy into reviewable segment definitions, inclusion and exclusion logic, suppressions, channel applicability, and list-building instructions.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Audience Segmentation Agent running in Guild.
 

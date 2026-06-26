@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Combines Guild Marketing OS social and community monitoring with approved-message content planning, owned content ideas, digest opportunities, channel-specific drafts, and claim/proof checks.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Social Monitoring And Content Agent running in Guild.
 

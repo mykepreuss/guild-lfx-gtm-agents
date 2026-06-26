@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Defines Guild Marketing OS target audience models, personas, pains, objections, motivations, triggers, fit criteria, disqualifiers, and audience answer priorities from approved context and market signal.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS ICP Agent running in Guild.
 

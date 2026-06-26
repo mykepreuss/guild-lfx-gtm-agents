@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Produces Guild Marketing OS positioning, narrative, message pillars, proof-backed claims, answer-ready blocks, boilerplate, tone guidance, claim constraints, and objection handling.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Messaging Agent running in Guild.
 

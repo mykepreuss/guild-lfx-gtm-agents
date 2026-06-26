@@ -57,6 +57,40 @@ const expectedAgentIds = [
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 const requiredGuildSdkVersion = "0.2.58";
+const requiredDevDependencies = {
+  esbuild: "0.28.0",
+  typescript: "5.0.4",
+};
+const requiredReviewAgentSourceSnippets = [
+  "useWorkspaceAgents: false",
+  "Every substantial response must use these exact Markdown headings in this order:",
+  "## Consumed Context",
+  "## Produced Artifact",
+  "## Assumptions And Missing Evidence",
+  "## Approval Gate",
+  "## AEO / AI-Readiness Contribution",
+  "## Status Payload",
+  "## Downstream Handoff",
+  "Do not rename, remove, or reorder these headings.",
+];
+const requiredStructuredFoundationSnippets = [
+  "agent({",
+  "inputSchema",
+  "outputSchema",
+  "task.llm.generateText",
+  "parseJsonObject",
+  "enforceDeterministicGuards",
+  "renderMarkdownPacket",
+  "forbiddenLiveActionClaims",
+  "markdownPacket",
+  "## Consumed Context",
+  "## Produced Artifact",
+  "## Assumptions And Missing Evidence",
+  "## Approval Gate",
+  "## AEO / AI-Readiness Contribution",
+  "## Status Payload",
+  "## Downstream Handoff",
+];
 
 function fail(message) {
   errors.push(message);
@@ -228,6 +262,14 @@ function validateAgentPackage(agent) {
     if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
       fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
     }
+    if (agent.id === "foundation-setup" && packageJson?.dependencies?.zod !== "4.4.3") {
+      fail(`${packageJsonPath} must pin zod to 4.4.3 for the structured foundation agent.`);
+    }
+    for (const [dependency, version] of Object.entries(requiredDevDependencies)) {
+      if (packageJson?.devDependencies?.[dependency] !== version) {
+        fail(`${packageJsonPath} must pin ${dependency} to ${version}.`);
+      }
+    }
   }
 
   const guildJsonPath = path.join(packageDir, "guild.json");
@@ -248,6 +290,21 @@ function validateAgentPackage(agent) {
     }
     if (!source.includes("identifier:")) {
       fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
+    }
+
+    const requiredSnippets = agent.id === "foundation-setup"
+      ? requiredStructuredFoundationSnippets
+      : requiredReviewAgentSourceSnippets;
+    for (const snippet of requiredSnippets) {
+      if (!source.includes(snippet)) {
+        fail(`${packageDir}/agent.ts must include required V1 contract snippet: ${snippet}`);
+      }
+    }
+    if (agent.id === "foundation-setup" && !source.includes('from "zod"')) {
+      fail(`${packageDir}/agent.ts must import zod for structured validation.`);
+    }
+    if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {
+      fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
     if (/skillsTools|guildTools|mode:\s*["']multi-turn["']|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
       fail(`${packageDir}/agent.ts must use the current Guild-validating one-shot SDK shape.`);
@@ -315,6 +372,21 @@ function validateRemovedLocalLab() {
   }
 }
 
+function validateTestHarness() {
+  const file = "scripts/run-guild-e2e.mjs";
+  if (!exists(file)) {
+    fail(`${file} is missing.`);
+    return;
+  }
+
+  const content = readText(file);
+  for (const snippet of ["smokeCases", "adversarialCases", "Test complete", "requiredHeadings", "contextArtifacts", "statusPayload", "markdownPacket"]) {
+    if (!content.includes(snippet)) {
+      fail(`${file} must include ${snippet}.`);
+    }
+  }
+}
+
 validateContextHub();
 validateAgentCatalog();
 scanPublicFiles();
@@ -324,6 +396,7 @@ if (!contextOnly) {
   validateWorkspaceContext();
   validateSkillSource();
   validateRemovedLocalLab();
+  validateTestHarness();
 }
 
 if (errors.length) {

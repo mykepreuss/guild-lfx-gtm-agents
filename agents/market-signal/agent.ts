@@ -41,6 +41,7 @@ export default llmAgent({
   description:
     "Summarizes external market, community, search, answer-engine, developer, and social signals so Guild Marketing OS strategy starts from evidence rather than internal opinion.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Market Signal Agent running in Guild.
 

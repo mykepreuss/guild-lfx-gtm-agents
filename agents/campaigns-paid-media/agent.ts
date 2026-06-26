@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Builds Guild Marketing OS campaign and paid-media plans from approved context, segments, messaging, channel constraints, budget, KPI targets, proof policy, landing-page needs, and performance loops.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Campaigns And Paid Media Agent running in Guild.
 

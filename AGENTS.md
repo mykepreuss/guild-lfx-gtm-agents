@@ -20,6 +20,8 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 - `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required approved context artifacts.
 - All eight V1 source packages live under `agents/` after Guild CLI initialization.
 - The package records are initialized under the `michaelpreuss` owner so they can test against the `michaelpreuss/guild-marketing-os` workspace.
+- The Company Context Builder is the structured Zod-backed `agent()` root. Keep its input/output schemas explicit and keep its output reviewable.
+- The seven downstream prompt-only review agents must set `useWorkspaceAgents: false` to avoid implicit agent-to-agent calls before orchestration is explicitly designed.
 - `context-hub/` holds starter templates for approved user-owned project context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
@@ -40,8 +42,13 @@ The verifier checks:
 - Required approved context artifact files exist and have basic structure.
 - Every agent-declared approved context artifact maps to a real `context-hub/<artifact>.md` file.
 - Guild-native agent source directories declared in `agents/catalog.json` have the expected local files, including CLI-generated `guild.json`.
+- Agent sources preserve the required structured foundation contract or review-agent output frame and deterministic workspace-agent boundary.
 - Public source files avoid known private path markers.
 - Removed local-lab directories are not recreated.
+
+## Production Boundary
+
+Treat this repo as a Guild-native starter pack until explicit production-autonomous work is added. The Company Context Builder now has a structured output contract; the suite still drafts, recommends, asks for missing evidence, and blocks unsafe live action requests. It must not be described as an autonomous production system for broad user rollout until durable context storage, broader structured contracts, orchestration, connector permissions, observability, and load/security validation are implemented.
 
 ## Context Artifacts
 

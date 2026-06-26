@@ -16,11 +16,12 @@
     "format:check": "prettier --log-level warn --check ."
   },
   "devDependencies": {
-    "esbuild": "^0.28.0",
-    "typescript": "^5.0.0"
+    "esbuild": "0.28.0",
+    "typescript": "5.0.4"
   },
   "dependencies": {
-    "@guildai/agents-sdk": "0.2.58"
+    "@guildai/agents-sdk": "0.2.58",
+    "zod": "4.4.3"
   },
   "files": [
     "./dist/**/*.js",

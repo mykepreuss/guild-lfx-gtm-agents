@@ -50,6 +50,13 @@ npm run verify
 
 When changing approved context artifacts, agent catalog entries, platform context, skill source, or Guild-native agent source, run verification before committing.
 
+For agent prompt or behavior changes, also run the Guild smoke and adversarial checks when Guild authentication is available:
+
+```sh
+npm run test:guild-smoke
+npm run test:guild-adversarial
+```
+
 ## Quality Bar
 
 Before an agent is considered ready for Guild validation, it should have:
@@ -59,6 +66,8 @@ Before an agent is considered ready for Guild validation, it should have:
 - No customer-specific facts embedded in reusable package behavior.
 - Clear approved context artifacts it expects.
 - Missing-context behavior that asks or marks `TBD` instead of inventing facts.
+- Structured contracts where they materially reduce ambiguity; the Company Context Builder is the first Zod-backed root agent.
+- Deterministic prompt-only review-agent behavior with `useWorkspaceAgents: false` unless orchestration has been explicitly designed.
 - Approval checks that map to real stakeholder workflows.
 - Output that is specific, reviewable, and safe to approve or edit.
 

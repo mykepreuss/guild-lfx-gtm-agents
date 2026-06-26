@@ -10,8 +10,11 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild package initialization and testing are approved for this implementation.
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
-- All eight package directories include Guild-managed `guild.json` records and source-ready `agent.ts` prompts.
-- V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
+- All eight package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files.
+- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a Markdown approval packet.
+- The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
+- The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before orchestration is designed.
+- A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
 - No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
@@ -23,7 +26,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
 
 1. A user enters business context into the Company Context Builder.
-2. The Company Context Builder drafts approved context artifacts.
+2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
 3. Guild workspace context keeps a concise always-on Platform Context summary.
 4. Specialized methods later move into Guild Skills.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
@@ -99,16 +102,42 @@ Confirmed V1 suite order:
 
 All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
 
+The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
+
 The orchestrator/router remains a product pattern for later. For V1, the suite contract in `agents/catalog.json` is enough.
+
+## Production Readiness Boundary
+
+V1 is a Guild-native review-agent starter pack, not a production autonomous marketing system.
+
+Safe V1 behavior:
+
+- Draft reviewable marketing artifacts from user-supplied or approved context.
+- Mark missing facts as `TBD` and separate evidence from assumptions.
+- Recommend approval gates, downstream handoffs, and AEO/readiness inputs.
+- Block live publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes.
+
+Not yet production autonomous:
+
+- No durable shared state or production context database.
+- No source connectors, CRM/ad platform/social publishing adapters, or credentialed actions.
+- No autonomous agent-to-agent orchestration.
+- No production load, concurrency, permission, or workspace-composition validation for hundreds of users.
+
+Before broad production use, add explicit orchestration, broader structured contracts where needed, durable context storage, connector permission models, operational observability, and load/security review.
 
 ## Commands
 
 ```sh
 npm run verify
 npm run check:context
+npm run test:guild-smoke
+npm run test:guild-adversarial
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and approved context artifact contract.
+
+The Guild test commands require an authenticated Guild CLI session and run live ephemeral tests against the configured workspace. Use `GUILD_WORKSPACE=<owner/workspace>` to override the default workspace.
 
 ## Guild Setup
 

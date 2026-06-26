@@ -40,6 +40,7 @@ export default llmAgent({
   description:
     "Converts approved Guild Marketing OS messaging into brand architecture, voice and visual direction, Guild-style web and AEO recommendations, pitch narrative, slide-by-slide story, and design production briefs.",
   tools: { ...userInterfaceTools },
+  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Branding And Pitch Deck Agent running in Guild.
 
