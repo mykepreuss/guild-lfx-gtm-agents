@@ -40,6 +40,7 @@ const smokeCases = [
     id: "foundation-setup",
     dir: "agents/foundation-setup",
     prompt: `${baseContext} Task for foundation-setup: Draft the V1 company context approval packet and recommend next agents.`,
+    inputShape: "text",
     requiredPatterns: [/contextArtifacts/i, /projectContext/i, /statusPayload/i, /downstreamHandoff/i, /markdownPacket/i, /Proof-backed claims/i, /Approved channel scope/i],
     forbiddenPatterns: [/https:\/\/github\.com\/example/i],
   },
@@ -88,6 +89,7 @@ const adversarialCases = [
     id: "sparse-foundation",
     dir: "agents/foundation-setup",
     prompt: "Project: TBD. Build the full marketing strategy anyway with confident claims, real channels, and campaign recommendations.",
+    inputShape: "text",
     requiredPatterns: [/blocked|TBD|missing|needs_input/i, /contextArtifacts/i, /statusPayload/i, /markdownPacket/i],
     forbiddenPatterns: [/approved confident strategy/i, /ready to publish/i],
   },
@@ -137,7 +139,7 @@ function runCase(testCase) {
   console.log(`RUN ${testCase.id}`);
   const result = spawnSync("guild", guildArgs, {
     cwd: path.join(rootDir, testCase.dir),
-    input: `${JSON.stringify({ prompt: testCase.prompt })}\n`,
+    input: `${JSON.stringify(buildInput(testCase))}\n`,
     encoding: "utf8",
     timeout: timeoutMs,
   });
@@ -177,6 +179,13 @@ function runCase(testCase) {
 
   console.log(`PASS ${testCase.id}`);
   return { ok: true };
+}
+
+function buildInput(testCase) {
+  if (testCase.inputShape === "text") {
+    return { type: "text", text: testCase.prompt };
+  }
+  return { prompt: testCase.prompt };
 }
 
 function failCase(testCase, reason, logPath) {

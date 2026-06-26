@@ -13,7 +13,7 @@ This is the first structured Guild Marketing OS agent. It uses Zod-backed input 
 
 Accepted input:
 
-- `type: "text"` and `text` for Guild workspace chat compatibility.
+- required `type: "text"` and `text` for Guild workspace chat compatibility.
 - `prompt` for Guild CLI compatibility.
 - `projectName`, `rawContext`, `sourceLabels`, `requestedArtifacts`, and `operatingConstraints` for structured use.
 
