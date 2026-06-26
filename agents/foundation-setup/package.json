@@ -8,9 +8,8 @@
     ".": "./dist/agent.js"
   },
   "scripts": {
-    "build": "npm run build:compile && npm run build:copy",
+    "build": "npm run build:compile",
     "build:compile": "tsc --build",
-    "build:copy": "cp *.md dist/",
     "bundle": "npm run build && esbuild dist/agent.js --bundle --loader:.md=text --platform=node --format=esm --external:@guildai/agents-sdk | gzip | base64 > agent.js.gz",
     "clean": "tsc --build --clean && rm -rf dist node_modules package-lock.json",
     "format": "prettier --log-level warn --write .",
@@ -21,11 +20,10 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@guildai/agents-sdk": "*"
+    "@guildai/agents-sdk": "0.2.58"
   },
   "files": [
     "./dist/**/*.js",
-    "./dist/**/*.d.ts",
-    "./dist/**/*.md"
+    "./dist/**/*.d.ts"
   ]
 }

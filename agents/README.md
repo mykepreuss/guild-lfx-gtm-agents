@@ -2,6 +2,8 @@
 
 Guild-native source packages live here. Each package is a standalone Guild TypeScript LLM agent initialized under the `michaelpreuss` owner and testable against `michaelpreuss/guild-marketing-os`.
 
+Current V1 packages run as one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns.
+
 V1 contains eight source packages:
 
 - `foundation-setup/` - source directory for the Knowledge Graph / Company Context Builder

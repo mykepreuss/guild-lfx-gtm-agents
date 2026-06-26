@@ -56,6 +56,7 @@ const expectedAgentIds = [
 ];
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
+const requiredGuildSdkVersion = "0.2.58";
 
 function fail(message) {
   errors.push(message);
@@ -224,6 +225,9 @@ function validateAgentPackage(agent) {
     if (packageJson && !allowedPackageNames.includes(packageJson.name)) {
       fail(`${packageJsonPath} name must be ${allowedPackageNames.join(" or ")}.`);
     }
+    if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
+      fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
+    }
   }
 
   const guildJsonPath = path.join(packageDir, "guild.json");
@@ -242,8 +246,11 @@ function validateAgentPackage(agent) {
     if (!source.includes("@guildai/agents-sdk")) {
       fail(`${packageDir}/agent.ts should use the Guild Agent SDK.`);
     }
-    if (/local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
-      fail(`${packageDir}/agent.ts must not depend on removed local lab or demo packet code.`);
+    if (!source.includes("identifier:")) {
+      fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
+    }
+    if (/skillsTools|guildTools|mode:\s*["']multi-turn["']|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
+      fail(`${packageDir}/agent.ts must use the current Guild-validating one-shot SDK shape.`);
     }
   }
 }

@@ -11,6 +11,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight package directories include Guild-managed `guild.json` records and source-ready `agent.ts` prompts.
+- V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
