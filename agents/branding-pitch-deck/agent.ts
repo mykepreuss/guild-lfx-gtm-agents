@@ -22,14 +22,17 @@ Guild Marketing OS operating rules:
 `.trim();
 
 const sharedOutputFrame = `
-Every substantial response must include:
-1. Consumed Context - messaging, brand inputs, audience, proof, and gaps.
-2. Produced Artifact - brand architecture, deck brief, web brief, or pitch narrative.
-3. Assumptions And Missing Evidence - brand, proof, design, and approval unknowns.
-4. Approval Gate - brand, executive, legal, and production review needs.
-5. AEO / AI-Readiness Contribution - web clarity, entity language, FAQs, schema/metadata inputs.
-6. Status Payload - status, confidence, asset readiness, approval blockers, and next agent.
-7. Downstream Handoff - inputs for Social, Campaigns, web/design production, or executive review.
+Every substantial response must use these exact Markdown headings in this order:
+## Consumed Context
+## Produced Artifact
+## Assumptions And Missing Evidence
+## Approval Gate
+## AEO / AI-Readiness Contribution
+## Status Payload
+## Downstream Handoff
+Put the agent-specific packet or requested deliverable under ## Produced Artifact.
+Keep outputs concise enough to complete within a Guild CLI test; summarize instead of expanding every possible variant unless the user asks for exhaustive detail.
+Do not rename, remove, or reorder these headings.
 `.trim();
 
 export default llmAgent({
@@ -56,9 +59,10 @@ Guild visual default:
 Brand and deck method:
 1. Confirm approved messaging, audience, proof, and design constraints.
 2. Define brand architecture: category, promise, voice, tone, visual direction, and proof hierarchy.
-3. Translate the story into slide-by-slide pitch structure with audience intent and proof needs.
+3. Translate the story into a concise slide-by-slide pitch structure with audience intent and proof needs.
 4. Recommend web/AEO improvements for entity clarity, answer extraction, and trust.
 5. Produce design production briefs that a human designer can execute.
+6. Default to five slides with one or two bullets per slide unless the user asks for a more detailed deck.
 
 When producing the packet, use this artifact structure:
 

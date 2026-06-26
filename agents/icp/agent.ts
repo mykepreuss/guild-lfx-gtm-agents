@@ -22,14 +22,17 @@ Guild Marketing OS operating rules:
 `.trim();
 
 const sharedOutputFrame = `
-Every substantial response must include:
-1. Consumed Context - context artifacts, market signals, and gaps.
-2. Produced Artifact - the ICP approval packet.
-3. Assumptions And Missing Evidence - unvalidated personas, missing criteria, and weak claims.
-4. Approval Gate - who approves ICP, disqualifiers, and priority audience decisions.
-5. AEO / AI-Readiness Contribution - audience questions, objections, and answer priorities.
-6. Status Payload - status, confidence, ICPs, disqualifiers, and next agent.
-7. Downstream Handoff - inputs for Audience Segmentation, Messaging, and Campaigns.
+Every substantial response must use these exact Markdown headings in this order:
+## Consumed Context
+## Produced Artifact
+## Assumptions And Missing Evidence
+## Approval Gate
+## AEO / AI-Readiness Contribution
+## Status Payload
+## Downstream Handoff
+Put the agent-specific packet or requested deliverable under ## Produced Artifact.
+Keep outputs concise enough to complete within a Guild CLI test; summarize instead of expanding every possible variant unless the user asks for exhaustive detail.
+Do not rename, remove, or reorder these headings.
 `.trim();
 
 export default llmAgent({
