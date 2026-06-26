@@ -43,6 +43,8 @@ const defaultConstraints = [
 
 const inputSchema = z
   .object({
+    type: z.literal("text").optional().describe("Guild canonical text input type."),
+    text: z.string().optional().describe("Guild canonical text input body."),
     prompt: z.string().optional().describe("Plain text task prompt. Supported for Guild CLI compatibility."),
     projectName: z.string().optional().describe("Known project, product, or company name."),
     rawContext: z.string().optional().describe("Business, product, market, meeting, or source context to convert into reusable project context."),
@@ -50,8 +52,8 @@ const inputSchema = z
     requestedArtifacts: z.array(artifactSchema).optional().describe("Context artifacts to draft or refresh."),
     operatingConstraints: z.array(z.string()).optional().describe("Explicit workflow constraints that must remain behind approval."),
   })
-  .refine((input) => Boolean((input.rawContext ?? input.prompt ?? "").trim()), {
-    message: "Provide prompt or rawContext.",
+  .refine((input) => Boolean((input.rawContext ?? input.prompt ?? input.text ?? "").trim()), {
+    message: "Provide text, prompt, or rawContext.",
   });
 
 const claimSchema = z.object({
@@ -232,7 +234,7 @@ export default agent({
 });
 
 function getRawContext(input: Input): string {
-  return (input.rawContext ?? input.prompt ?? "").trim();
+  return (input.rawContext ?? input.prompt ?? input.text ?? "").trim();
 }
 
 function getSourceLabels(input: Input): string[] {
