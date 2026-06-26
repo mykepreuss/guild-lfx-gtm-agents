@@ -15,7 +15,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - No workspace installs, triggers, publishing, save steps, credentials, or visibility changes have been run.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
-- The Context Hub scaffold is present under `context-hub/`.
+- Approved context artifact templates are present under `context-hub/`.
 - License: Apache-2.0.
 
 ## V1 Goal
@@ -23,8 +23,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
 
 1. A user enters business context into the Company Context Builder.
-2. The Company Context Builder drafts approved Context Hub artifacts.
-3. The workspace keeps a concise always-on context summary.
+2. The Company Context Builder drafts approved context artifacts.
+3. Guild workspace context keeps a concise always-on Platform Context summary.
 4. Specialized methods later move into Guild Skills.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
@@ -33,12 +33,12 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 Use Guild surfaces this way:
 
 - **Agent package**: reusable behavior. The source starts in `agents/<agent>/agent.ts`.
-- **Workspace Context**: short project summary and routing instructions that every agent should see.
-- **Context Hub**: approved project artifacts owned by the user or workspace.
+- **Guild workspace context**: short Platform Context summary and routing instructions that every agent receives at runtime.
+- **Approved Context Artifacts**: reviewable project artifacts owned by the user or workspace; the starter source lives in `context-hub/`.
 - **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant.
 - **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
-Do not dump the whole Context Hub into Workspace Context. Keep Workspace Context concise because Guild injects it into every agent run.
+Do not dump full context artifacts into Guild workspace context. Keep it concise because Guild injects workspace context into every agent run.
 
 ## Important Guild Boundary
 
@@ -76,10 +76,10 @@ guild trigger create
 
 ## Folder Map
 
-- `agents/catalog.json` - suite contract and per-agent Context Hub requirements.
+- `agents/catalog.json` - suite contract and per-agent approved context artifact requirements.
 - `agents/<agent>/` - Guild-native source packages.
-- `context-hub/` - lightweight shared project context artifacts.
-- `workspace-context/` - concise Guild Workspace Context draft.
+- `context-hub/` - approved context artifact starter templates, not the always-injected runtime context.
+- `workspace-context/` - concise Guild workspace context draft.
 - `guild-skills/` - source markdown for future Guild Skills.
 - `scripts/` - local non-mutating validation.
 - `_private/` - local-only private notes, ignored by Git.
@@ -108,7 +108,7 @@ npm run verify
 npm run check:context
 ```
 
-`npm run verify` is non-mutating. It validates the Guild-native scaffold and Context Hub contract.
+`npm run verify` is non-mutating. It validates the Guild-native scaffold and approved context artifact contract.
 
 ## Guild Setup
 
@@ -125,6 +125,6 @@ Do not save, publish, install, configure credentials, or create triggers until t
 
 - Guild docs: https://docs.guild.ai
 - Guild CLI reference: https://docs.guild.ai/cli/getting-started
-- Workspace Context: https://docs.guild.ai/platform/context
+- Guild Platform Context / workspace context: https://docs.guild.ai/platform/context
 - Guild Skills: https://docs.guild.ai/platform/skills
 - Agent Hub publishing: https://docs.guild.ai/platform/publish-to-agent-hub

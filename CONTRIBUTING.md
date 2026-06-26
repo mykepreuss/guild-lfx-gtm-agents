@@ -9,7 +9,7 @@ This project is licensed under Apache-2.0. See `LICENSE`.
 Contributions should improve one of these areas:
 
 - Guild-native agent quality: clearer prompts, better approval packets, safer source policy, and stronger user review loops.
-- Context quality: useful Context Hub artifacts, concise Workspace Context, and clear missing-context behavior.
+- Context quality: useful approved context artifacts, concise Guild workspace context, and clear missing-context behavior.
 - Operating-system coherence: stronger cross-agent flow, project-leader experience, or weekly GTM cadence.
 - Marketplace readiness: clearer Guild packaging boundaries, acceptance criteria, and future Agent Hub metadata.
 - Public-share hygiene: generic examples that remain safe to share.
@@ -18,8 +18,8 @@ Contributions should improve one of these areas:
 
 - `agents/catalog.json` is the suite contract.
 - `agents/<agent>/agent.ts` files are the Guild-native agent sources.
-- `context-hub/` contains starter project context artifacts.
-- `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild Workspace Context.
+- `context-hub/` contains starter templates for approved project context artifacts.
+- `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild workspace context.
 - `guild-skills/` contains source markdown for future Guild Skills.
 
 Do not recreate the old local lab, generated demo packets, or local-only exemplar packages.
@@ -48,7 +48,7 @@ From the repo root:
 npm run verify
 ```
 
-When changing Context Hub artifacts, agent catalog entries, workspace context, skill source, or Guild-native agent source, run verification before committing.
+When changing approved context artifacts, agent catalog entries, platform context, skill source, or Guild-native agent source, run verification before committing.
 
 ## Quality Bar
 
@@ -57,7 +57,7 @@ Before an agent is considered ready for Guild validation, it should have:
 - A distinct GTM job and clear project-leader trigger.
 - A concise Guild-native `agent.ts` source file.
 - No customer-specific facts embedded in reusable package behavior.
-- Clear Context Hub artifacts it expects.
+- Clear approved context artifacts it expects.
 - Missing-context behavior that asks or marks `TBD` instead of inventing facts.
 - Approval checks that map to real stakeholder workflows.
 - Output that is specific, reviewable, and safe to approve or edit.

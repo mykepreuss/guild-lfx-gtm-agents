@@ -8,7 +8,7 @@ Last reviewed: 2026-06-23
 
 - The Phase 1 source setup does not publish, spend, sync, schedule, or modify live systems.
 - The public fixture uses a generic open-source cloud native project context.
-- Guild Workspace Context, agent records, triggers, and published versions require explicit lifecycle approval.
+- Guild workspace context, agent records, triggers, and published versions require explicit lifecycle approval.
 
 ## Claims Requiring Approval Or Evidence
 
@@ -31,7 +31,7 @@ Last reviewed: 2026-06-23
 
 ## Missing Context Rule
 
-If a claim is not approved in the Context Hub or supplied by the user during the run, agents should ask for it or mark it `TBD`.
+If a claim is not approved in the context artifacts or supplied by the user during the run, agents should ask for it or mark it `TBD`.
 
 ## Guild Boundary
 

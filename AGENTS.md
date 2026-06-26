@@ -17,11 +17,11 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 
 ## Guild-Native V1 Shape
 
-- `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required Context Hub artifacts.
+- `agents/catalog.json` is the suite contract: agent ids, intended Guild names, status, package directories, and required approved context artifacts.
 - All eight V1 source packages live under `agents/` after Guild CLI initialization.
 - The package records are initialized under the `michaelpreuss` owner so they can test against the `michaelpreuss/guild-marketing-os` workspace.
-- `context-hub/` holds lightweight user-owned project context artifacts.
-- `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild Workspace Context draft. Keep it short because Guild injects workspace context into every agent run.
+- `context-hub/` holds starter templates for approved user-owned project context artifacts.
+- `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
 - Old local labs, generated delivery packets, and local-only Agent Hub exemplars have been removed.
 
@@ -37,18 +37,19 @@ npm run verify
 
 The verifier checks:
 
-- Context Hub required files exist and have basic structure.
-- Every agent-declared Context Hub artifact maps to a real `context-hub/<artifact>.md` file.
+- Required approved context artifact files exist and have basic structure.
+- Every agent-declared approved context artifact maps to a real `context-hub/<artifact>.md` file.
 - Guild-native agent source directories declared in `agents/catalog.json` have the expected local files, including CLI-generated `guild.json`.
 - Public source files avoid known private path markers.
 - Removed local-lab directories are not recreated.
 
-## Context Hub
+## Context Artifacts
 
-- The Context Hub is lightweight user-owned project context, not a formal knowledge graph.
-- The Company Context Builder creates or updates approved Context Hub artifacts; other agents reuse them through Guild workspace context, user input, approved artifacts, and future skills.
+- Guild workspace context is the Platform Context runtime layer injected into every agent run.
+- `context-hub/` is a source-controlled starter set of approved context artifact templates, not the runtime injection layer.
+- The Company Context Builder creates or updates approved context artifacts; other agents reuse them through Guild workspace context summaries, user input, approved artifacts, and future skills.
 - Do not embed customer-specific context into public Agent Hub package behavior.
-- Keep customer-specific source material out of public Context Hub files. Put private source material in `_private/` only.
+- Keep customer-specific source material out of public context artifact files. Put private source material in `_private/` only.
 - Run `npm run check:context` when changing `context-hub/`.
 
 ## Public-Safety Rules

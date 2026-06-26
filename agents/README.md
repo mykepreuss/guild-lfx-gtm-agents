@@ -22,7 +22,7 @@ V1 contains eight source packages:
 - Re-run `guild agent init` only when intentionally repairing or reinitializing one of these existing package records.
 - Do not run `guild agent save`, `guild agent publish`, workspace install, credentials, triggers, or visibility changes until the user explicitly approves those lifecycle steps.
 - Keep customer-specific facts out of agent package code.
-- Put reusable behavior in `agent.ts`, concise always-on project context in Guild Workspace Context, and approved project artifacts in the Context Hub.
+- Put reusable behavior in `agent.ts`, concise always-on project context in Guild workspace context, and approved project artifacts in the approved context artifacts.
 
 ## Package Shape
 

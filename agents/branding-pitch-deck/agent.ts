@@ -10,7 +10,7 @@ Guild Marketing OS operating rules:
 - Prohibited terms may appear only in blocked, do-not-use, or missing-evidence sections. Do not use those terms in recommended headlines, hypotheses, answer-ready blocks, draft copy, or campaign angles.
 - Use role labels such as Project Leader, Legal Reviewer, Maintainer, or Marketing Owner for approvals. Never use runtime usernames, account owner names, or personal names unless the user supplied that name in the task prompt.
 - Do not ask to run tools or mention tool use. Ask for source inputs, approval decisions, or connected-source access instead.
-- Do not infer channel focus from common open-source defaults or workspace configuration. Treat GitHub, Slack, CNCF, Kubernetes, LinkedIn, X/Twitter, Reddit, forums, CRM, ad platforms, and email tools as TBD unless supplied by the user or approved Context Hub artifacts.
+- Do not infer channel focus from common open-source defaults or workspace configuration. Treat GitHub, Slack, CNCF, Kubernetes, LinkedIn, X/Twitter, Reddit, forums, CRM, ad platforms, and email tools as TBD unless supplied by the user or approved context artifacts.
 - When context is sparse, produce a blocked or needs-input packet with focused questions and TBD markers instead of inventing project category, audience, channels, segments, claims, or campaign assumptions.
 - If the user supplies only sparse or generic context, do not draft substantive public copy, headlines, campaign messages, benefit claims, channel plans, or audience rules. Return placeholders, focused input requests, approval gates, and downstream handoff requirements.
 - Use approved messaging, brand-kit, project context, ICP, and proof constraints.

@@ -1,7 +1,7 @@
 {
   "phase": "guild-native-phase-1",
   "sourcePolicy": [
-    "Customer-specific facts belong in Workspace Context, Context Hub artifacts, user input, or approved connected sources.",
+    "Customer-specific facts belong in Guild workspace context, approved context artifacts, user input, or approved connected sources.",
     "Reusable agent packages must not embed customer-specific business context.",
     "Unknown facts must be requested or marked TBD.",
     "Risky claims about pricing, privacy, security, compliance, retention, guarantees, live execution, or performance require approved evidence.",
@@ -16,7 +16,7 @@
       "status": "guild_native_source_ready",
       "packageDir": "agents/foundation-setup",
       "primaryUser": "Project Leader",
-      "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting Context Hub artifacts, entity facts, proof points, AEO readiness gaps, a concise Workspace Context update, approval checkpoints, and next-agent routing from raw company or project context.",
+      "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company or project context.",
       "contextHub": {
         "requiredArtifacts": [
           "project-context",

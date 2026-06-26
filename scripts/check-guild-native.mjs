@@ -180,7 +180,7 @@ function validateAgentCatalog() {
     const requiredArtifacts = agent.contextHub?.requiredArtifacts;
     const optionalArtifacts = agent.contextHub?.optionalArtifacts ?? [];
     if (!Array.isArray(requiredArtifacts) || requiredArtifacts.length === 0) {
-      fail(`${agent.id} must declare required Context Hub artifacts.`);
+      fail(`${agent.id} must declare required approved context artifacts.`);
     }
     if (!Array.isArray(optionalArtifacts)) {
       fail(`${agent.id} optionalArtifacts must be an array.`);
@@ -189,7 +189,7 @@ function validateAgentCatalog() {
     for (const artifact of [...(requiredArtifacts ?? []), ...optionalArtifacts]) {
       const artifactPath = path.join("context-hub", `${artifact}.md`);
       if (!exists(artifactPath)) {
-        fail(`${agent.id} references missing Context Hub artifact ${artifactPath}.`);
+        fail(`${agent.id} references missing approved context artifact ${artifactPath}.`);
       }
     }
   }
@@ -281,7 +281,7 @@ function validateWorkspaceContext() {
 
   const lines = content.split(/\r?\n/);
   if (lines.length > 120) {
-    fail(`${file} should stay concise for always-on Guild Workspace Context.`);
+    fail(`${file} should stay concise for always-on Guild workspace context.`);
   }
 }
 
@@ -332,5 +332,5 @@ if (errors.length) {
   process.exit(1);
 }
 
-const scope = contextOnly ? "Context Hub" : "Guild-native Phase 1";
+const scope = contextOnly ? "Approved context artifacts" : "Guild-native Phase 1";
 console.log(`${scope} check OK.`);

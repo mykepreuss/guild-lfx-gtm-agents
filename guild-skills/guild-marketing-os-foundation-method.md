@@ -10,8 +10,8 @@ Use when a Guild Marketing OS agent needs to bootstrap or refresh a project's GT
 2. Separate approved facts from assumptions.
 3. Ask for missing critical context only when the work would otherwise become misleading.
 4. Mark useful but non-blocking unknowns as `TBD`.
-5. Draft the smallest useful set of Context Hub artifacts.
-6. Produce a concise Workspace Context update that includes only always-needed information.
+5. Draft the smallest useful set of approved context artifacts.
+6. Produce a concise Guild workspace context update that includes only always-needed information.
 7. List approval decisions before any downstream agent should reuse the context.
 
 ## Output Standard
@@ -20,8 +20,8 @@ Every foundation packet should include:
 
 - Source confidence.
 - Decisions needed.
-- Context Hub artifact drafts.
-- Workspace Context draft.
+- Approved context artifact drafts.
+- Guild workspace context draft.
 - Approval checklist.
 - Recommended next agents.
 - Deferred live actions.

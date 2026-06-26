@@ -1,4 +1,4 @@
-# Guild Marketing OS Workspace Context
+# Guild Marketing OS Workspace Context Draft
 
 Status: draft source
 Owner: Project Leader
@@ -20,7 +20,7 @@ Unknown customer-specific facts must be requested or marked `TBD`. Agents must n
 
 AEO and AI-readiness outputs must use approved entity facts, proof-backed claims, and clear assumptions. Agents may recommend web, schema, metadata, or `llms.txt` inputs, but must not claim production deployment or guaranteed answer-engine visibility.
 
-## Context Hub Artifacts
+## Approved Context Artifacts
 
 Approved project context is organized into these artifacts:
 
@@ -32,13 +32,13 @@ Approved project context is organized into these artifacts:
 - `proof-and-constraints`
 - `dashboard-signals`
 
-The full artifact bodies should stay in the Context Hub or approved source system. Workspace Context should summarize only the parts every agent needs.
+The full artifact bodies should stay in `context-hub/`, Guild-managed artifact sources, or another approved source system. Guild workspace context should summarize only the parts every agent needs on every run.
 
 ## Source Hierarchy
 
 1. User-provided context in the current Guild session.
-2. Published Guild Workspace Context.
-3. Approved Context Hub artifacts.
+2. Published Guild workspace context.
+3. Approved context artifacts.
 4. Activated Guild Skills for reusable methods.
 5. Connected system data only when the agent has an approved integration and the user has granted access.
 
@@ -52,4 +52,4 @@ If sources conflict, ask the project leader which source should win.
 
 ## First Agent
 
-Use `guild-marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce Context Hub drafts, a Workspace Context update, an approval checklist, and recommended next agents.
+Use `guild-marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce approved context artifact drafts, a Guild workspace context update, an approval checklist, and recommended next agents.
