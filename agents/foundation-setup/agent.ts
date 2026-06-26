@@ -51,9 +51,6 @@ const inputSchema = z
     sourceLabels: z.array(z.string()).optional().describe("User-supplied source labels for traceability."),
     requestedArtifacts: z.array(artifactSchema).optional().describe("Context artifacts to draft or refresh."),
     operatingConstraints: z.array(z.string()).optional().describe("Explicit workflow constraints that must remain behind approval."),
-  })
-  .refine((input) => Boolean((input.rawContext ?? input.prompt ?? input.text).trim()), {
-    message: "Provide text, prompt, or rawContext.",
   });
 
 const claimSchema = z.object({
