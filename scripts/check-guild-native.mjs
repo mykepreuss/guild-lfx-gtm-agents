@@ -436,6 +436,33 @@ function validateTestHarness() {
       fail(`${file} must include ${snippet}.`);
     }
   }
+
+  const publishFile = "scripts/publish-guild-agent.mjs";
+  if (!exists(publishFile)) {
+    fail(`${publishFile} is missing.`);
+    return;
+  }
+
+  const publishContent = readText(publishFile);
+  for (const snippet of [
+    "guild agent clone",
+    "guild agent save",
+    "--no-bump",
+    "--publish",
+    "GitHub source repo",
+    "temporary Guild clone",
+    "latest_published_version",
+    "x-access-token:<redacted>",
+  ]) {
+    if (!publishContent.includes(snippet)) {
+      fail(`${publishFile} must include ${snippet}.`);
+    }
+  }
+
+  const packageJson = readJson("package.json");
+  if (packageJson?.scripts?.["publish:guild-agent"] !== "node scripts/publish-guild-agent.mjs") {
+    fail("package.json must include publish:guild-agent script.");
+  }
 }
 
 validateContextHub();

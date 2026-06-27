@@ -56,6 +56,7 @@ guild auth status
 guild doctor
 guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 npm run verify
+npm run publish:guild-agent -- --agent <agent-id> --message "<release message>"
 ```
 
 Allowed only when intentionally reinitializing one of the existing V1 package records or the intake entrypoint:
@@ -64,11 +65,11 @@ Allowed only when intentionally reinitializing one of the existing V1 package re
 guild agent init --name <guild-marketing-os-name> --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/<agent>
 ```
 
+Direct Guild save/publish commands are not allowed from this GitHub monorepo. GitHub is the source of truth; Guild is a deployment target. To publish, commit and push the monorepo first, then use `npm run publish:guild-agent`, which clones the target Guild agent into a temporary directory and runs `guild agent save --publish` only from that Guild-managed clone.
+
 Not allowed until separately approved for the specific lifecycle change:
 
 ```sh
-guild agent save
-guild agent publish
 guild agent unpublish
 guild workspace agent add
 guild workspace context publish
@@ -85,7 +86,7 @@ guild trigger create
 - `context-hub/` - approved context artifact starter templates, not the always-injected runtime context.
 - `workspace-context/` - concise Guild workspace context draft.
 - `guild-skills/` - source markdown for future Guild Skills.
-- `scripts/` - local non-mutating validation.
+- `scripts/` - local validation and guarded Guild release tooling.
 - `_private/` - local-only private notes, ignored by Git.
 
 ## Agent Suite
@@ -134,11 +135,14 @@ npm run verify
 npm run check:context
 npm run test:guild-smoke
 npm run test:guild-adversarial
+npm run publish:guild-agent -- --agent intake --message "Publish intake updates"
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and approved context artifact contract.
 
 The Guild test commands require an authenticated Guild CLI session and run live ephemeral tests against the configured workspace. Use `GUILD_WORKSPACE=<owner/workspace>` to override the default workspace.
+
+`npm run publish:guild-agent` requires a clean GitHub worktree with no unpushed or behind commits. It copies tracked files from one package into a temporary Guild clone, builds there, saves/publishes the Guild version with `--no-bump`, verifies the published version matches the source `package.json`, and removes the temp clone. Use `--dry-run` to validate the bridge without publishing.
 
 ## Guild Setup
 
@@ -149,7 +153,7 @@ guild agent init --name guild-marketing-os-company-context-builder --agent-type 
 guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 ```
 
-Do not save, publish, install, configure credentials, publish workspace context, change visibility, or create triggers unless that lifecycle step is explicitly approved for the current change.
+Do not run `guild agent save` or `guild agent publish` directly from this monorepo. Use `npm run publish:guild-agent` after explicit approval to publish an agent package through a temporary Guild clone. Do not install agents, configure credentials, publish workspace context, change visibility, or create triggers unless that lifecycle step is explicitly approved for the current change.
 
 ## References
 
