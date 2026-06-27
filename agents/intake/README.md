@@ -9,6 +9,8 @@ Provides the chat-native default entrypoint for Guild Marketing OS. It uses a de
 
 When the user explicitly asks for public-source research, Intake uses the Guild Firecrawl integration to search/scrape public pages and returns source URLs plus snippets for approval. Researched facts remain unapproved until the user accepts or edits them.
 
+For first-run setup, the response should give clear next replies such as `Research Webflow` and a compact manual context template. Users should not have to infer or type a long prompt to trigger research.
+
 ## V1 Boundary
 
 Review-only. This agent does not call other agents, publish, install, schedule, activate credentials, change spend, or modify external systems. Public-source research is allowed only on explicit request and is blocked clearly if the Firecrawl tool or credentials are unavailable.

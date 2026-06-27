@@ -44,13 +44,9 @@ const minimumCompanyInputs = [
 ];
 
 const blockedActions = [
-  "live publishing",
-  "scheduling",
-  "paid media spend changes",
-  "CRM activation",
-  "credential setup",
-  "workspace install",
-  "trigger setup",
+  "live publishing or scheduling",
+  "paid media spend or CRM activation",
+  "credential, workspace, or trigger changes",
   "public visibility changes",
 ];
 
@@ -101,12 +97,13 @@ const companyPatterns = [
   /\bcompany\s*(?:is|=|:)\s*([A-Z][A-Za-z0-9&.\- ]{1,80})/i,
   /\bproject\s*(?:is|=|:)\s*([A-Z][A-Za-z0-9&.\- ]{1,80})/i,
   /\b(?:my|our|the)\s+company,\s*([A-Z][A-Za-z0-9&.\- ]{1,80})(?:[,.]|$)/i,
+  /\b(?:research|search|source|sources)\s+([A-Z][A-Za-z0-9&.\- ]{1,80})(?:[,.]|$)/i,
   /\bfor\s+([A-Z][A-Za-z0-9&.\- ]{1,80})(?:[,.]|$)/,
   /\bfocused on\s+([A-Z][A-Za-z0-9&.\- ]{1,80})(?:[,.]|$)/i,
 ];
 
 const researchIntentPattern =
-  /\b(web search|research|look up|public source|public-source|official source|source-backed|find this information|get this information|crawl|scrape)\b/i;
+  /\b(web search|search|research|look up|public source|public-source|official source|source-backed|find this information|get this information|crawl|scrape)\b/i;
 
 export default agent({
   identifier: "guild_marketing_os_intake",
@@ -376,6 +373,7 @@ function renderResponse({
   const status = missingInputs.length ? "needs_input" : "ready_for_review";
   const publicSourceResearchStatus =
     researchPacket.status === "ready_for_approval" ? "ready_for_approval" : researchPacket.status;
+  const researchReply = formatResearchReply(knownCompanyOrProject);
 
   return [
     "## Consumed Context",
@@ -386,6 +384,8 @@ function renderResponse({
     "## Produced Artifact",
     `- Intake decision: run ${route.agent} next.`,
     `- Reason: ${route.reason}.`,
+    ...formatNextActionLines({ wantsResearch, researchPacket, researchReply }),
+    "- Or paste approved context directly using: Description; Audiences; Goals; Proof/links; Channels.",
     `- Public-source research status: ${formatResearchStatus(researchPacket)}.`,
     ...formatResearchSources(researchPacket),
     `- Missing setup inputs: ${formatList(missingInputs)}`,
@@ -412,6 +412,16 @@ function renderResponse({
         missing_inputs: missingInputs,
         public_source_research: wantsResearch ? publicSourceResearchStatus : "available_on_request",
         researched_sources: researchPacket.sources.map((source) => source.url),
+        next_actions: [
+          {
+            label: "Research public sources for approval",
+            reply: researchReply,
+          },
+          {
+            label: "Provide approved context manually",
+            fields: ["Description", "Audiences", "Goals", "Proof/links", "Channels"],
+          },
+        ],
         blocked_actions: blockedActions,
       },
       null,
@@ -420,11 +430,52 @@ function renderResponse({
     "```",
     "",
     "## Downstream Handoff",
-    `- Select/run ${route.agent} next.`,
+    formatResearchHandoff({ wantsResearch, researchPacket, researchReply }),
+    "- To provide context manually, paste: Description; Audiences; Goals; Proof/links; Channels.",
     route.agent === "Company Context Builder"
-      ? "- Provide approved context directly, or run a public-source research approval pass first and then paste the approved facts into Company Context Builder."
+      ? "- After the facts are approved, run Company Context Builder with the approved context."
       : "- Confirm Company Context Builder has approved reusable context before this specialist produces a review packet.",
   ].join("\n");
+}
+
+function formatNextActionLines({
+  wantsResearch,
+  researchPacket,
+  researchReply,
+}: {
+  wantsResearch: boolean;
+  researchPacket: ResearchPacket;
+  researchReply: string;
+}): string[] {
+  if (!wantsResearch) {
+    return [`- Recommended next reply: ${researchReply} if you want me to gather official public-source context for approval.`];
+  }
+
+  if (researchPacket.status === "ready_for_approval") {
+    return ["- Research request completed. Review the public-source approval draft below before any facts become reusable context."];
+  }
+
+  return [`- Research request received. To retry after the blocker is fixed, reply: ${researchReply}`];
+}
+
+function formatResearchHandoff({
+  wantsResearch,
+  researchPacket,
+  researchReply,
+}: {
+  wantsResearch: boolean;
+  researchPacket: ResearchPacket;
+  researchReply: string;
+}): string {
+  if (!wantsResearch) {
+    return `- To have me gather public source facts for approval, reply: ${researchReply}`;
+  }
+
+  if (researchPacket.status === "blocked") {
+    return `- Public-source research is blocked right now. After the blocker is fixed, retry with: ${researchReply}`;
+  }
+
+  return "- Review, approve, reject, or edit the researched source snippets before using them as Company Context Builder input.";
 }
 
 function formatResearchStatus(researchPacket: ResearchPacket): string {
@@ -458,6 +509,11 @@ function formatRequestSummary({
   const target = knownCompanyOrProject === "TBD" ? "" : ` for ${knownCompanyOrProject}`;
   const research = wantsResearch ? " with public-source research requested" : "";
   return `route a Guild Marketing OS request to ${route.agent}${target}${research}`;
+}
+
+function formatResearchReply(knownCompanyOrProject: string): string {
+  const target = knownCompanyOrProject === "TBD" ? "<company name>" : knownCompanyOrProject;
+  return `Research ${target}`;
 }
 
 function formatList(items: string[]): string {

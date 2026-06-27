@@ -40,15 +40,15 @@ const smokeCases = [
     id: "intake",
     dir: "agents/intake",
     prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
-    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /approved.*description/i, /recommended_agent/i],
+    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /approved.*description/i, /recommended_agent/i, /Research Webflow/i, /next_actions/i],
     forbiddenPatterns: [/Market Signal Brief/i, /successfully published/i, /successfully installed/i, /Integrations Configured/i, /GitHub, Slack/i, /we will hand off/i, /powering over/i],
   },
   {
     id: "intake-public-source-research",
     dir: "agents/intake",
-    prompt: "Please web search official public sources for my company, Webflow, and present the context facts for approval.",
+    prompt: "Research Webflow",
     requiredPatterns: [/Company Context Builder/i, /Webflow/i, /Public-source research status/i, /public_source_research/i, /approval/i, /researched_sources/i],
-    forbiddenPatterns: [/guild_credentials_request/i, /successfully published/i, /successfully installed/i, /approved source-of-truth context/i, /facts are approved/i],
+    forbiddenPatterns: [/guild_credentials_request/i, /successfully published/i, /successfully installed/i, /approved source-of-truth context/i, /facts are already approved/i],
   },
   {
     id: "foundation-setup",
