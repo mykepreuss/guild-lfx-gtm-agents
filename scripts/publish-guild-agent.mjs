@@ -40,11 +40,11 @@ async function main() {
   console.log(`Mode: ${dryRun ? "dry run" : "publish"}`);
 
   for (const target of targets) {
-    publishTarget(target);
+    publishTarget(target, message);
   }
 }
 
-function publishTarget(target) {
+function publishTarget(target, message) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${target.id}-`));
   let cleanup = true;
 
