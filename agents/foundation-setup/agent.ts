@@ -45,12 +45,6 @@ const inputSchema = z
   .object({
     type: z.literal("text").describe("Guild canonical text input type."),
     text: z.string().describe("Guild canonical text input body."),
-    prompt: z.string().optional().describe("Plain text task prompt. Supported for Guild CLI compatibility."),
-    projectName: z.string().optional().describe("Known project, product, or company name."),
-    rawContext: z.string().optional().describe("Business, product, market, meeting, or source context to convert into reusable project context."),
-    sourceLabels: z.array(z.string()).optional().describe("User-supplied source labels for traceability."),
-    requestedArtifacts: z.array(artifactSchema).optional().describe("Context artifacts to draft or refresh."),
-    operatingConstraints: z.array(z.string()).optional().describe("Explicit workflow constraints that must remain behind approval."),
   });
 
 const claimSchema = z.object({
@@ -303,19 +297,19 @@ function renderVisibleReviewSummary(output: Output): string {
 }
 
 function getRawContext(input: Input): string {
-  return (input.rawContext ?? input.prompt ?? input.text ?? "").trim();
+  return input.text.trim();
 }
 
-function getSourceLabels(input: Input): string[] {
-  return input.sourceLabels ?? [];
+function getSourceLabels(_input: Input): string[] {
+  return [];
 }
 
-function getRequestedArtifacts(input: Input): Array<(typeof artifactValues)[number]> {
-  return normalizeArtifacts(input.requestedArtifacts ?? defaultRequestedArtifacts);
+function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {
+  return normalizeArtifacts(defaultRequestedArtifacts);
 }
 
-function getOperatingConstraints(input: Input): string[] {
-  return input.operatingConstraints ?? defaultConstraints;
+function getOperatingConstraints(_input: Input): string[] {
+  return defaultConstraints;
 }
 
 function buildExtractionPrompt(input: Input, rawContext: string): string {
@@ -365,7 +359,7 @@ Rules:
 - The runtime renders markdownPacket deterministically, so markdownPacket may be an empty string if the structured fields are complete.
 
 Project name hint:
-${input.projectName ?? "TBD"}
+${extractProjectName(rawContext) ?? "TBD"}
 
 Requested artifacts:
 ${getRequestedArtifacts(input).join(", ")}
@@ -460,7 +454,7 @@ function firstJsonObject(text: string): string | undefined {
 
 function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[]): Output {
   const rawContext = getRawContext(input);
-  const explicitProjectName = input.projectName ?? extractProjectName(rawContext);
+  const explicitProjectName = extractProjectName(rawContext);
   const explicitDescription = extractLineAfterLabels(rawContext, [
     "Approved description",
     "Company description",
@@ -849,7 +843,7 @@ function hasOpenContextGaps(output: Output): boolean {
 
 function buildFallbackOutput(input: Input, blockers: string[]): Output {
   const rawContext = getRawContext(input);
-  const projectName = input.projectName ?? extractProjectName(rawContext) ?? "TBD";
+  const projectName = extractProjectName(rawContext) ?? "TBD";
   const approvedDescription = extractLineAfterLabels(rawContext, [
     "Approved description",
     "Company description",
