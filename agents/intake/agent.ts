@@ -127,6 +127,12 @@ const sourceIntentPattern =
 const sourcePacketPattern =
   /\b(company\/project|approved description|primary audiences|current goals|proof-backed claims|source excerpts|channels in scope|anything not approved)\s*:/i;
 
+const sourceMaterialCommandPattern =
+  /^\s*(?:use my sources|use sources|paste sources|manual context|manual source|source packet|pasted context|paste context|source text|use pasted context)\s*:?\s+\S[\s\S]{80,}/i;
+
+const sourceMaterialHeadingPattern =
+  /(?:^|\n|:\s*)#{1,3}\s*[A-Z][A-Za-z0-9&.\- ]{1,80}\s+(?:company|project|product)\s+(?:profile|overview|context)\b/im;
+
 const researchIntentPattern =
   /\b(web search|search|research|look up|public source|public-source|official source|source-backed|find this information|get this information|crawl|scrape)\b/i;
 
@@ -145,8 +151,8 @@ export default agent({
     const knownCompanyOrProject = extractCompanyOrProject(userText) ?? "TBD";
     const requestedRoute = chooseRoute(userText);
     const wantsSourceIntake = sourceIntentPattern.test(userText);
-    const hasSourcePacket = sourcePacketPattern.test(userText);
-    const wantsResearch = researchIntentPattern.test(userText);
+    const hasSourcePacket = hasUserProvidedSourceMaterial(userText);
+    const wantsResearch = !hasSourcePacket && researchIntentPattern.test(userText);
     const missingInputs = inferMissingInputs(userText);
     const route = chooseFirstRunRoute({
       requestedRoute,
@@ -368,7 +374,7 @@ function stringifyError(error: unknown): string {
 }
 
 function chooseRoute(text: string): Route {
-  if (sourceIntentPattern.test(text) || sourcePacketPattern.test(text)) {
+  if (sourceIntentPattern.test(text) || hasUserProvidedSourceMaterial(text)) {
     return {
       agent: companyContextAgent,
       reason: "source intake should become approved company context before specialist agents draft work",
@@ -422,6 +428,12 @@ function chooseFirstRunRoute({
 }
 
 function extractCompanyOrProject(text: string): string | undefined {
+  const titleCandidate = extractCompanyFromSourceTitle(text);
+  if (titleCandidate) return titleCandidate;
+
+  const sentenceCandidate = extractCompanyFromSourceSentence(text);
+  if (sentenceCandidate) return sentenceCandidate;
+
   for (const pattern of companyPatterns) {
     const match = text.match(pattern);
     const candidate = cleanCandidate(match?.[1]);
@@ -429,6 +441,28 @@ function extractCompanyOrProject(text: string): string | undefined {
   }
 
   return undefined;
+}
+
+function hasUserProvidedSourceMaterial(text: string): boolean {
+  return (
+    sourcePacketPattern.test(text) ||
+    sourceMaterialCommandPattern.test(text) ||
+    (text.length > 600 && sourceMaterialHeadingPattern.test(text))
+  );
+}
+
+function extractCompanyFromSourceTitle(text: string): string | undefined {
+  const match = text.match(
+    /(?:^|\n|:\s*)#{1,3}\s*([A-Z][A-Za-z0-9&.\- ]{1,80})\s+(?:Company|Project|Product)\s+(?:Profile|Overview|Context)\b/m,
+  );
+  return cleanCandidate(match?.[1]);
+}
+
+function extractCompanyFromSourceSentence(text: string): string | undefined {
+  const match = text.match(
+    /\b([A-Z][A-Za-z0-9&.\- ]{1,80})\s+is\s+(?:a|an|the)\s+(?:privately held\s+)?(?:U\.S\.\s+)?(?:software\s+)?(?:company|platform|product)\b/,
+  );
+  return cleanCandidate(match?.[1]);
 }
 
 function cleanCandidate(value: string | undefined): string | undefined {
@@ -440,6 +474,19 @@ function cleanCandidate(value: string | undefined): string | undefined {
     .trim()
     .replace(/[,.!?;:]+$/, "");
 
+  const blockedCandidates = new Set([
+    "trying",
+    "information",
+    "sources",
+    "source",
+    "context",
+    "company",
+    "project",
+    "product",
+    "website",
+    "marketing",
+  ]);
+  if (blockedCandidates.has(cleaned.toLowerCase())) return undefined;
   if (!cleaned || cleaned.length < 2) return undefined;
   return cleaned;
 }
@@ -448,14 +495,14 @@ function inferMissingInputs(text: string): string[] {
   const missing = new Set(minimumCompanyInputs);
 
   if (/\b(description|about|overview|one-paragraph)\b/i.test(text)) missing.delete("Approved one-paragraph description");
-  if (/\b(audience|buyer|user|persona|role|maintainer|developer|executive|sponsor)\b/i.test(text)) {
+  if (/\b(audiences?|buyers?|users?|personas?|roles?|maintainers?|developers?|executives?|sponsors?)\b/i.test(text)) {
     missing.delete("Primary audiences or buyer/user roles");
   }
-  if (/\b(goal|objective|priority|outcome)\b/i.test(text)) missing.delete("Current marketing goals");
-  if (/\b(proof|claim|source|link|evidence|customer|case study|metric)\b/i.test(text)) {
+  if (/\b(goals?|objectives?|priorities|outcomes?)\b/i.test(text)) missing.delete("Current marketing goals");
+  if (/\b(proof|claims?|sources?|links?|evidence|customers?|case stud(?:y|ies)|metrics?)\b/i.test(text)) {
     missing.delete("Proof-backed claims or approved source links");
   }
-  if (/\b(channel|website|social|email|paid|ads|crm|content|community)\b/i.test(text)) missing.delete("Channel scope");
+  if (/\b(channels?|websites?|social|email|paid|ads|crm|content|community)\b/i.test(text)) missing.delete("Channel scope");
 
   return [...missing];
 }
@@ -506,7 +553,7 @@ function renderResponse({
     })}`,
     `- Company or project: ${knownCompanyOrProject === "TBD" ? "TBD" : `${knownCompanyOrProject} (user supplied)`}`,
     hasSourcePacket
-      ? "- Approved context artifacts available in this message: source packet provided by user, pending explicit approval."
+      ? "- Approved context artifacts available in this message: source material provided by user, pending explicit approval."
       : "- Approved context artifacts available in this message: none",
     "",
     "## Produced Artifact",
@@ -546,7 +593,7 @@ function renderResponse({
         public_source_research: wantsResearch ? publicSourceResearchStatus : "available_on_request",
         researched_sources: researchPacket.sources.map((source) => source.url),
         visible_chooser_sent: true,
-        context_persistence: "Intake does not save durable approved context; carry approved facts into Company Context Builder or an approved context artifact.",
+        context_persistence: "Intake does not save durable approved context or invoke Company Context Builder automatically; send approved facts to Company Context Builder or an approved context artifact.",
         downstream_agent_after_context_approval: route.downstreamAgent ?? null,
         workspace_chat_handoff: "Use the Guild @ picker to select an installed specialist when you want that agent to run; intake does not install or invoke agents automatically.",
         approval_replies: availableReplies,
@@ -563,7 +610,7 @@ function renderResponse({
             requires_configured_web_research_credentials: true,
           },
           {
-            label: "Run Company Context Builder after source approval",
+            label: "Open Company Context Builder after source approval",
             reply: "Build company context",
             agent: "Company Context Builder",
           },
@@ -579,7 +626,7 @@ function renderResponse({
     ...formatSourceHandoff({ wantsSourceIntake, hasSourcePacket, researchReply }),
     ...(wantsResearch ? [formatResearchHandoff({ researchPacket, researchReply })] : []),
     route.agent === "Company Context Builder"
-      ? "- After the facts are approved, run Company Context Builder with the approved context."
+      ? "- After the facts are approved, select Company Context Builder in Guild and send `Build company context` with the approved source material."
       : "- Confirm Company Context Builder has approved reusable context before this specialist produces a review packet.",
   ].join("\n");
 }
@@ -606,14 +653,15 @@ function renderVisibleChooser({
 
   if (hasSourcePacket) {
     return [
-      `**Next step for ${headingTarget}: review the source packet.**`,
+      `**I received your ${headingTarget} source material.**`,
       "",
-      "Reply with one:",
+      "Reply here with one:",
       "- `Approve source packet` if these facts are safe to reuse.",
       "- `Edit source packet: ...` to replace or remove facts.",
-      "- `Build company context` when the approved facts are ready.",
       "",
-      "I do not save durable context or call another agent automatically.",
+      "Then select `Company Context Builder` in Guild and send `Build company context` with the approved source material.",
+      "",
+      "Intake has not saved durable context or run another agent.",
     ].join("\n");
   }
 
@@ -627,7 +675,7 @@ function renderVisibleChooser({
       ...sourcePacketFields.map((field) => `${field}:`),
       "```",
       "",
-      "After it is complete, reply `Build company context`.",
+      "After it is complete, approve the facts, then select `Company Context Builder` in Guild and send `Build company context`.",
     ].join("\n");
   }
 
@@ -668,7 +716,7 @@ function renderVisibleChooser({
     "Reply with one:",
     "- `Use my sources` - paste what you know or upload source text. No web credentials needed.",
     `- \`${researchReply}\` - optional public-source research if credentials are configured.`,
-    "- `Build company context` - after facts are approved.",
+    "- `Build company context` - after selecting Company Context Builder.",
     ...(route.downstreamAgent ? [`- Later: run ${route.downstreamAgent} after context is approved.`] : []),
     "",
     "I do not publish, spend, configure credentials, install agents, or save durable context from Intake.",
@@ -699,7 +747,9 @@ function formatSourceHandoff({
   researchReply: string;
 }): string[] {
   if (hasSourcePacket) {
-    return ["- Send this source packet to Company Context Builder for approval and normalization."];
+    return [
+      "- Source material was received in this message. Approve or edit it first, then send the approved material to Company Context Builder for normalization.",
+    ];
   }
 
   if (wantsSourceIntake) {
@@ -744,7 +794,7 @@ function formatApprovalReplies({
     return [
       "Approve source packet",
       "Edit source packet: <replacement facts>",
-      "Build company context",
+      "Open Company Context Builder",
     ];
   }
 
