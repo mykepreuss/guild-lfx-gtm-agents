@@ -1,6 +1,6 @@
 # Guild Marketing OS Foundation Method
 
-Status: source draft
+Status: live private
 
 Use when a Guild Marketing OS agent needs to bootstrap or refresh a project's GTM foundation from raw user context, especially inside the Company Context Builder.
 

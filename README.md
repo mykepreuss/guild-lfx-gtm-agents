@@ -20,6 +20,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
+- Private Guild Skills now cover foundation setup, customer research, positioning, fit, proof, answer-engine and web readiness, conversion experimentation, competitive intelligence, and campaign planning methods.
+- `guild-skills/catalog.json` records the private live skill names, versions, CLI metadata, and required `guildai~skills` runtime integration. Agent packages do not yet declare the integration.
 - License: Apache-2.0.
 
 ## V1 Goal
@@ -29,7 +31,7 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 1. A user enters business context into the Company Context Builder.
 2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
 3. Guild workspace context keeps a concise always-on Platform Context summary.
-4. Specialized methods later move into Guild Skills.
+4. Specialized methods move into Guild Skills.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
 ## Guild Architecture

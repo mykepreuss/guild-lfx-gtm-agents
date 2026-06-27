@@ -1,0 +1,80 @@
+{
+  "status": "live_private",
+  "owner": "michaelpreuss",
+  "visibility": "internal_private",
+  "requiredRuntimeIntegration": "guildai~skills",
+  "notes": [
+    "These records describe private live Guild Skills and local source bodies for future version updates.",
+    "The skill records were created with guild skill create and versioned with guild skill version create.",
+    "Each overview is human-facing for guild skill create --overview.",
+    "Each runtimeDescription is agent-facing for guild skill version create --description.",
+    "Each bodyFile points to the markdown body to pass with --body-file.",
+    "Each initialVersion records the first published version. Each currentVersion records the latest published version generated from these body files.",
+    "Agents should declare the requiredRuntimeIntegration only after live skill versions exist and runtime activation is intentionally enabled."
+  ],
+  "skills": [
+    {
+      "name": "guild-marketing-os-foundation-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-foundation-method",
+      "bodyFile": "guild-marketing-os-foundation-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "GTM foundation setup method for Guild Marketing OS.",
+      "runtimeDescription": "Use when bootstrapping or refreshing a Guild Marketing OS project foundation, including approved context artifacts, workspace-context drafts, approval gates, source confidence, and downstream handoffs."
+    },
+    {
+      "name": "guild-marketing-os-customer-research-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-customer-research-method",
+      "bodyFile": "guild-marketing-os-customer-research-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "Customer research synthesis method for Guild Marketing OS.",
+      "runtimeDescription": "Use when synthesizing interviews, sales calls, surveys, support tickets, reviews, community threads, or public discussion into audience, ICP, messaging, positioning, content, campaign, AEO, or proof inputs."
+    },
+    {
+      "name": "guild-marketing-os-positioning-fit-proof-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-positioning-fit-proof-method",
+      "bodyFile": "guild-marketing-os-positioning-fit-proof-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "Positioning, fit, and proof method for Guild Marketing OS.",
+      "runtimeDescription": "Use when converting approved context, customer research, market signal, or project-leader input into struggling moments, capability-benefit-proof maps, fit and non-fit boundaries, proof-backed positioning, answer-ready language, pitch narrative, or campaign messages."
+    },
+    {
+      "name": "guild-marketing-os-answer-engine-web-readiness-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-answer-engine-web-readiness-method",
+      "bodyFile": "guild-marketing-os-answer-engine-web-readiness-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "AEO and web-readiness method for Guild Marketing OS.",
+      "runtimeDescription": "Use when evaluating or drafting website, AEO, AI-readiness, schema, llms.txt, priority query sets, content architecture, zero-click scorecards, or answer-ready recommendations from approved project context."
+    },
+    {
+      "name": "guild-marketing-os-conversion-experimentation-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-conversion-experimentation-method",
+      "bodyFile": "guild-marketing-os-conversion-experimentation-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "Conversion and experimentation method for Guild Marketing OS.",
+      "runtimeDescription": "Use when reviewing conversion paths, landing pages, forms, signup flows, campaign destinations, tracking plans, KPIs, A/B test plans, measurement quality, or performance loops."
+    },
+    {
+      "name": "guild-marketing-os-competitive-intelligence-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-competitive-intelligence-method",
+      "bodyFile": "guild-marketing-os-competitive-intelligence-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "Competitive intelligence method for Guild Marketing OS.",
+      "runtimeDescription": "Use when researching competitors, peers, alternatives, category language, comparison pages, battlecard inputs, market positioning, or competitor-driven content opportunities."
+    },
+    {
+      "name": "guild-marketing-os-campaign-planning-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-campaign-planning-method",
+      "bodyFile": "guild-marketing-os-campaign-planning-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.1",
+      "overview": "Campaign planning and creative testing method for Guild Marketing OS.",
+      "runtimeDescription": "Use when planning campaigns, paid media, content promotion, event promotion, creative angles, channel tests, budget assumptions, landing-page needs, activation gates, or performance review loops."
+    }
+  ]
+}
