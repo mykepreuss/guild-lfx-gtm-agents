@@ -19,7 +19,8 @@
     "typescript": "5.0.4"
   },
   "dependencies": {
-    "@guildai/agents-sdk": "0.2.58"
+    "@guildai/agents-sdk": "0.2.58",
+    "@guildai-services/guildai~skills": "1.0.0"
   },
   "files": [
     "./dist/**/*.js",

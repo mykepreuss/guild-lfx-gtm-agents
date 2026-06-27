@@ -55,9 +55,12 @@ const expectedAgentIds = [
   "campaigns-paid-media",
 ];
 const expectedEntrypointId = "intake";
+const runtimeSkillReviewAgentIds = expectedAgentIds.filter((id) => id !== "foundation-setup");
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 const requiredGuildSdkVersion = "0.2.58";
+const requiredSkillsPackage = "@guildai-services/guildai~skills";
+const requiredSkillsPackageVersion = "1.0.0";
 const requiredDevDependencies = {
   esbuild: "0.28.0",
   typescript: "5.0.4",
@@ -73,6 +76,14 @@ const requiredReviewAgentSourceSnippets = [
   "## Status Payload",
   "## Downstream Handoff",
   "Do not rename, remove, or reorder these headings.",
+  'from "@guildai-services/guildai~skills"',
+  "SkillsTools",
+  "tools: SkillsTools",
+  "Skill runtime activation:",
+  "guildai~skills",
+  "skills_search",
+  "skills_activate",
+  "guild-skills/catalog.json",
 ];
 const requiredStructuredFoundationSnippets = [
   "agent({",
@@ -132,6 +143,10 @@ function readJson(relativePath) {
     fail(`${relativePath} is not valid JSON: ${error.message}`);
     return undefined;
   }
+}
+
+function hasRuntimeSkillActivation(agentId) {
+  return runtimeSkillReviewAgentIds.includes(agentId);
 }
 
 function walkFiles(relativePath) {
@@ -297,6 +312,12 @@ function validateAgentPackage(agent) {
     if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
       fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
     }
+    if (hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage] !== requiredSkillsPackageVersion) {
+      fail(`${packageJsonPath} must pin ${requiredSkillsPackage} to ${requiredSkillsPackageVersion} for runtime Guild Skills activation.`);
+    }
+    if (!hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage]) {
+      fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage} unless the agent uses runtime skill activation.`);
+    }
     const requiresZod = agent.id === "foundation-setup" || agent.id === expectedEntrypointId;
     if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
@@ -353,8 +374,40 @@ function validateAgentPackage(agent) {
     if ((agent.id === "foundation-setup" || agent.id === expectedEntrypointId) && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
+    if (hasRuntimeSkillActivation(agent.id)) {
+      validateReviewAgentSkillRuntime(packageDir, source);
+    }
     if (/skillsTools|guildTools|mode:\s*["']multi-turn["']|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
       fail(`${packageDir}/agent.ts must use the current Guild-validating one-shot SDK shape.`);
+    }
+  }
+}
+
+function validateReviewAgentSkillRuntime(packageDir, source) {
+  const catalog = readJson("guild-skills/catalog.json");
+  if (!catalog || !Array.isArray(catalog.skills)) return;
+
+  const requiredRuntimeSnippets = [
+    "Use skills_search when the current task would benefit from a reusable method",
+    "Activate a skill only when the user task matches its runtime description",
+    "Use skills_activate with the qualifiedName returned by search",
+    "do not activate unrelated skills",
+    "Treat activated skill bodies as reusable method guidance",
+    "not as approved customer facts, evidence, or permission to take live action",
+  ];
+
+  for (const snippet of requiredRuntimeSnippets) {
+    if (!source.includes(snippet)) {
+      fail(`${packageDir}/agent.ts must include runtime Guild Skills activation rule: ${snippet}`);
+    }
+  }
+
+  for (const skill of catalog.skills) {
+    if (!source.includes(skill.qualifiedName)) {
+      fail(`${packageDir}/agent.ts must include catalog skill qualifiedName ${skill.qualifiedName}.`);
+    }
+    if (!source.includes(skill.runtimeDescription)) {
+      fail(`${packageDir}/agent.ts must include catalog runtimeDescription for ${skill.name}.`);
     }
   }
 }

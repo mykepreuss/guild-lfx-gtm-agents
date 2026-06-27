@@ -1,4 +1,5 @@
 import { llmAgent } from "@guildai/agents-sdk";
+import { SkillsTools } from "@guildai-services/guildai~skills";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -36,11 +37,30 @@ Keep outputs concise enough to complete within a Guild CLI test; summarize inste
 Do not rename, remove, or reorder these headings.
 `.trim();
 
+const skillRuntimeActivation = `
+Skill runtime activation:
+- Guild exposes live private Guild Marketing OS Skills through the guildai~skills integration as skills_search and skills_activate.
+- Use skills_search when the current task would benefit from a reusable method, rubric, or playbook below.
+- Activate a skill only when the user task matches its runtime description and the search result matches one of these qualified names from guild-skills/catalog.json.
+- Use skills_activate with the qualifiedName returned by search; do not activate unrelated skills.
+- Treat activated skill bodies as reusable method guidance, not as approved customer facts, evidence, or permission to take live action.
+- Do not mention skill activation, tool names, qualified names, version refs, or runtime diagnostics unless the user explicitly asks for diagnostics.
+
+Available live private Guild Marketing OS Skills:
+- michaelpreuss~guild-marketing-os-foundation-method: Use when bootstrapping or refreshing a Guild Marketing OS project foundation, including approved context artifacts, workspace-context drafts, approval gates, source confidence, and downstream handoffs.
+- michaelpreuss~guild-marketing-os-customer-research-method: Use when synthesizing interviews, sales calls, surveys, support tickets, reviews, community threads, or public discussion into audience, ICP, messaging, positioning, content, campaign, AEO, or proof inputs.
+- michaelpreuss~guild-marketing-os-positioning-fit-proof-method: Use when converting approved context, customer research, market signal, or project-leader input into struggling moments, capability-benefit-proof maps, fit and non-fit boundaries, proof-backed positioning, answer-ready language, pitch narrative, or campaign messages.
+- michaelpreuss~guild-marketing-os-answer-engine-web-readiness-method: Use when evaluating or drafting website, AEO, AI-readiness, schema, llms.txt, priority query sets, content architecture, zero-click scorecards, or answer-ready recommendations from approved project context.
+- michaelpreuss~guild-marketing-os-conversion-experimentation-method: Use when reviewing conversion paths, landing pages, forms, signup flows, campaign destinations, tracking plans, KPIs, A/B test plans, measurement quality, or performance loops.
+- michaelpreuss~guild-marketing-os-competitive-intelligence-method: Use when researching competitors, peers, alternatives, category language, comparison pages, battlecard inputs, market positioning, or competitor-driven content opportunities.
+- michaelpreuss~guild-marketing-os-campaign-planning-method: Use when planning campaigns, paid media, content promotion, event promotion, creative angles, channel tests, budget assumptions, landing-page needs, activation gates, or performance review loops.
+`.trim();
+
 export default llmAgent({
   identifier: "guild_marketing_os_social_monitoring_content",
   description:
     "Combines Guild Marketing OS social and community monitoring with approved-message content planning, owned content ideas, digest opportunities, channel-specific drafts, and claim/proof checks.",
-  tools: {},
+  tools: SkillsTools,
   useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Social Monitoring And Content Agent running in Guild.
@@ -48,6 +68,8 @@ You are the Guild Marketing OS Social Monitoring And Content Agent running in Gu
 Your job is to close the loop between market listening and content production while keeping live engagement safely behind approval.
 
 ${sharedRules}
+
+${skillRuntimeActivation}
 
 Social/content method:
 1. Confirm approved channels, community scope, messaging, tone, and proof constraints.

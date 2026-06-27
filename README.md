@@ -11,7 +11,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight deliverable package directories plus the chat-native intake entrypoint include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that responds immediately, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
+- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that responds immediately with a human-first `Start Here` block, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
 - The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a chat-renderable Markdown approval packet.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
@@ -21,7 +21,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
 - Private Guild Skills now cover foundation setup, customer research, positioning, fit, proof, answer-engine and web readiness, conversion experimentation, competitive intelligence, and campaign planning methods.
-- `guild-skills/catalog.json` records the private live skill names, versions, CLI metadata, and required `guildai~skills` runtime integration. Agent packages do not yet declare the integration.
+- `guild-skills/catalog.json` records the private live skill names, versions, CLI metadata, and required `guildai~skills` runtime integration. The seven prompt-only review agents declare `@guildai-services/guildai~skills` and can discover and activate relevant skills at runtime.
 - License: Apache-2.0.
 
 ## V1 Goal
@@ -31,7 +31,7 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 1. A user enters business context into the Company Context Builder.
 2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
 3. Guild workspace context keeps a concise always-on Platform Context summary.
-4. Specialized methods move into Guild Skills.
+4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
 ## Guild Architecture
@@ -41,7 +41,7 @@ Use Guild surfaces this way:
 - **Agent package**: reusable behavior. The source starts in `agents/<agent>/agent.ts`.
 - **Guild workspace context**: short Platform Context summary and routing instructions that every agent receives at runtime.
 - **Approved Context Artifacts**: reviewable project artifacts owned by the user or workspace; the starter source lives in `context-hub/`.
-- **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant.
+- **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant by agents that declare `guildai~skills`.
 - **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
 Do not dump full context artifacts into Guild workspace context. Keep it concise because Guild injects workspace context into every agent run.
@@ -87,7 +87,7 @@ guild trigger create
 - `agents/<agent>/` - Guild-native source packages.
 - `context-hub/` - approved context artifact starter templates, not the always-injected runtime context.
 - `workspace-context/` - concise Guild workspace context draft.
-- `guild-skills/` - source markdown for future Guild Skills.
+- `guild-skills/` - source markdown and catalog records for private live Guild Skills.
 - `scripts/` - local validation and guarded Guild release tooling.
 - `_private/` - local-only private notes, ignored by Git.
 
@@ -108,7 +108,13 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not call other agents or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
+The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. The first visible block gives short replies such as `Use my sources`, `Research Webflow`, and `Build company context` before the shared review frame. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not save durable approved context, call other agents, or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
+
+## Runtime Skill Activation
+
+The seven prompt-only review agents declare `@guildai-services/guildai~skills@1.0.0` and expose the generated `SkillsTools` tool set. At runtime, Guild provides `skills_search` and `skills_activate` from the `guildai~skills` integration. Agents are instructed to search for a relevant reusable method first, activate only matching `qualifiedName` records from `guild-skills/catalog.json`, and treat activated skill bodies as method guidance rather than customer facts, evidence, approval, or permission for live action.
+
+The deterministic `guild-marketing-os-intake` package and structured `guild-marketing-os-company-context-builder` package do not declare `guildai~skills` yet. Keeping activation out of those coded agents preserves intake routing and one-shot foundation packet behavior until a deliberate programmatic skill-call contract is added.
 
 ## Production Readiness Boundary
 
@@ -163,4 +169,5 @@ Do not run `guild agent save` or `guild agent publish` directly from this monore
 - Guild CLI reference: https://docs.guild.ai/cli/getting-started
 - Guild Platform Context / workspace context: https://docs.guild.ai/platform/context
 - Guild Skills: https://docs.guild.ai/platform/skills
+- Guild CLI Skills: https://docs.guild.ai/cli/skills
 - Agent Hub publishing: https://docs.guild.ai/platform/publish-to-agent-hub

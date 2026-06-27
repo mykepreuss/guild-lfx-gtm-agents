@@ -6,7 +6,14 @@ Skills are for reusable methods, playbooks, tone guidance, and review rubrics. T
 
 Guild Skills are managed through the Guild CLI. These files are local source bodies for private live skills created with `guild skill create` and versioned with `guild skill version create`. The skills are only available at runtime to agents that declare the `guildai~skills` integration.
 
-Use `catalog.json` as the source of truth for future skill names, human-facing overviews, runtime activation descriptions, initial version numbers, body files, and the required runtime integration. Do not add `guildai~skills` to agent packages until live skill versions exist and runtime activation is intentionally enabled.
+Use `catalog.json` as the source of truth for skill names, human-facing overviews, runtime activation descriptions, initial version numbers, current version numbers, body files, and the required runtime integration.
+
+Runtime state:
+
+- The seven prompt-only review agents under `agents/` declare `@guildai-services/guildai~skills@1.0.0`.
+- Those agents expose Guild's generated `SkillsTools`, which provides `skills_search` and `skills_activate`.
+- Their prompts require search before activation, activation only for relevant catalog skill `qualifiedName` records, and use of activated skill bodies as reusable method guidance only.
+- `agents/intake/` and `agents/foundation-setup/` do not declare `guildai~skills`; they stay deterministic coded agents until a separate programmatic activation design is approved.
 
 Current source:
 
@@ -21,4 +28,4 @@ Current source:
 
 These skill sources adapt the reviewed open-source marketing-skills patterns into Guild Marketing OS boundaries. Keep the Guild-native approval policy: skills can recommend, draft, and structure work, but they must not imply live publishing, spend, audience sync, CRM activation, credential setup, or tool execution.
 
-Do not publish additional skill versions until explicitly approved.
+Do not publish additional skill versions, publish agents, install workspace agents, publish workspace context, configure credentials, create triggers, or change public visibility until explicitly approved.
