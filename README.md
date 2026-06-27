@@ -10,9 +10,9 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild package initialization and testing are approved for this implementation.
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
-- All eight deliverable package directories plus the chat-native intake entrypoint include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that sends a short visible next-step chooser, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
-- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a chat-renderable Markdown approval packet.
+- All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files; `guild-marketing-os-intake` remains an optional support package for routing and explicit public-source research.
+- `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company or project context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
+- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts, sends a short visible review summary, and leaves the full Markdown packet as the details view.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
@@ -28,8 +28,8 @@ This repository is safe to share: private source notes, meeting context, and cli
 
 Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
 
-1. A user enters business context into the Company Context Builder.
-2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
+1. A user enters business context into the default Company Context Builder chat.
+2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a visible review summary, a status payload, and downstream handoffs.
 3. Guild workspace context keeps a concise always-on Platform Context summary.
 4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
@@ -108,13 +108,13 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. Intake uses Guild UI notifications to send a short visible chooser with replies such as `Use my sources`, `Research Webflow`, and `Build company context`; the collapsed run output is a details packet rather than the primary UX. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not save durable approved context, call other agents, or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
+The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It sends a short visible summary first, then returns the full structured packet for review. `guild-marketing-os-intake` remains installed as an optional helper for routing and explicit public-source research, but it is not the primary onboarding path.
 
 ## Runtime Skill Activation
 
 The seven prompt-only review agents declare `@guildai-services/guildai~skills@1.0.0` and expose the generated `SkillsTools` tool set. At runtime, Guild provides `skills_search` and `skills_activate` from the `guildai~skills` integration. Agents are instructed to search for a relevant reusable method first, activate only matching `qualifiedName` records from `guild-skills/catalog.json`, and treat activated skill bodies as method guidance rather than customer facts, evidence, approval, or permission for live action.
 
-The deterministic `guild-marketing-os-intake` package and structured `guild-marketing-os-company-context-builder` package do not declare `guildai~skills` yet. Keeping activation out of those coded agents preserves intake routing and one-shot foundation packet behavior until a deliberate programmatic skill-call contract is added.
+The deterministic `guild-marketing-os-intake` package and structured `guild-marketing-os-company-context-builder` package do not declare `guildai~skills` yet. Keeping activation out of those coded agents preserves the first-run context contract until a deliberate programmatic skill-call contract is added.
 
 ## Production Readiness Boundary
 
@@ -144,12 +144,12 @@ npm run check:context
 npm run test:guild-smoke
 npm run test:guild-smoke:full
 npm run test:guild-adversarial
-npm run publish:guild-agent -- --agent intake --message "Publish intake updates"
+npm run publish:guild-agent -- --agent foundation-setup --message "Publish company context builder updates"
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and approved context artifact contract.
 
-`npm run test:guild-smoke` is the fast development smoke. It runs the Intake/chat UX cases only so iteration stays quick while the interface is changing. `npm run test:guild-smoke:full` runs the full all-agent smoke suite and should be used before release-style publishes or broad workspace validation.
+`npm run test:guild-smoke` is the fast development smoke. It runs the Company Context Builder first-run case plus focused chat UX cases so iteration stays quick while the interface is changing. `npm run test:guild-smoke:full` runs the full all-agent smoke suite and should be used before release-style publishes or broad workspace validation.
 
 The Guild test commands require an authenticated Guild CLI session and run live ephemeral tests against the configured workspace. Use `GUILD_WORKSPACE=<owner/workspace>` to override the default workspace.
 

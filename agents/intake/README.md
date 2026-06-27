@@ -5,7 +5,9 @@ Package owner: `michaelpreuss`
 
 ## Purpose
 
-Provides the chat-native default entrypoint for Guild Marketing OS. It uses a deterministic coded response for fast first-run triage, captures minimum company setup context, and routes the user to the right specialist agent without inventing facts or implying live execution.
+Provides an optional chat-native support helper for Guild Marketing OS. It uses a deterministic coded response for fast triage, source collection guidance, explicit public-source research, and routing to the right specialist agent without inventing facts or implying live execution.
+
+The default first-run workspace agent should be Company Context Builder, not Intake. Normal project leader onboarding starts by processing supplied company context into reviewable context artifacts.
 
 The default no-credential path is `Use my sources`. Intake accepts either a compact fielded source packet or long pasted/uploaded source text, then asks the user to approve or edit that material before it is used by Company Context Builder.
 

@@ -8,15 +8,40 @@
     "AEO and AI-readiness outputs must distinguish approved entity facts, proof-backed claims, recommendations, assumptions, and unknowns."
   ],
   "entrypoint": {
-    "id": "intake",
-    "guildName": "guild-marketing-os-intake",
-    "displayName": "Guild Marketing OS Intake",
+    "id": "foundation-setup",
+    "guildName": "guild-marketing-os-company-context-builder",
+    "displayName": "Knowledge Graph / Company Context Builder",
     "status": "guild_native_source_ready",
-    "packageDir": "agents/intake",
+    "packageDir": "agents/foundation-setup",
     "primaryUser": "Project Leader",
-    "description": "Chat-native default entrypoint that triages setup requests, collects minimum company context, and routes users to the right Guild Marketing OS specialist without inventing facts or implying live execution.",
-    "defaultWorkspaceAgent": true
+    "description": "Chat-native first-run entrypoint that turns raw company or project context into approved Context Hub artifact drafts, a concise Workspace Context draft, entity facts, proof points, gaps, assumptions, approval gates, and next-agent routing.",
+    "defaultWorkspaceAgent": true,
+    "contextHub": {
+      "requiredArtifacts": [
+        "project-context",
+        "messaging-source",
+        "brand-kit",
+        "audience-segments",
+        "channel-registry",
+        "proof-and-constraints",
+        "dashboard-signals"
+      ],
+      "optionalArtifacts": [],
+      "missingContextBehavior": "Ask for critical missing business context when blocked; otherwise draft with TBD markers."
+    }
   },
+  "supportPackages": [
+    {
+      "id": "intake",
+      "guildName": "guild-marketing-os-intake",
+      "displayName": "Guild Marketing OS Intake",
+      "status": "optional_support",
+      "packageDir": "agents/intake",
+      "primaryUser": "Project Leader",
+      "description": "Optional helper for routing, source collection guidance, and explicit public-source research. It is not the default first-run agent.",
+      "defaultWorkspaceAgent": false
+    }
+  ],
   "agents": [
     {
       "id": "foundation-setup",

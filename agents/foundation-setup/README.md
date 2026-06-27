@@ -7,6 +7,8 @@ Package owner: `michaelpreuss`
 
 Turns raw company or project context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a Guild workspace context update, approval checkpoints, and next-agent routing.
 
+This is the default first-run workspace agent for the V1 Marketing OS. It should make a project leader feel like the system is processing their company context, not routing them through a separate setup menu.
+
 ## Contract
 
 This is the first structured Guild Marketing OS agent. It uses Zod-backed input and output schemas instead of a prompt-only `llmAgent()` implementation.
@@ -25,6 +27,7 @@ Returned output:
 - AEO readiness
 - status payload
 - downstream handoff
+- short visible review summary via `ui_notify`
 - `markdownPacket` for human review
 
 ## V1 Boundary

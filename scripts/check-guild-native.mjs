@@ -54,7 +54,8 @@ const expectedAgentIds = [
   "social-monitoring-content",
   "campaigns-paid-media",
 ];
-const expectedEntrypointId = "intake";
+const expectedEntrypointId = "foundation-setup";
+const expectedSupportPackageIds = ["intake"];
 const runtimeSkillReviewAgentIds = expectedAgentIds.filter((id) => id !== "foundation-setup");
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
@@ -93,6 +94,10 @@ const requiredStructuredFoundationSnippets = [
   "parseJsonObject",
   "enforceDeterministicGuards",
   "renderMarkdownPacket",
+  "userInterfaceTools",
+  "ui_notify",
+  "textPromptNotifyEvent",
+  "renderVisibleReviewSummary",
   "forbiddenLiveActionClaims",
   "markdownPacket",
   "## Consumed Context",
@@ -216,9 +221,29 @@ function validateAgentCatalog() {
   if (!catalog) return;
 
   if (!catalog.entrypoint || catalog.entrypoint.id !== expectedEntrypointId) {
-    fail(`agents/catalog.json must include ${expectedEntrypointId} as the chat-native entrypoint.`);
+    fail(`agents/catalog.json must include ${expectedEntrypointId} as the chat-native first-run entrypoint.`);
   } else {
-    validateCatalogPackageFields(catalog.entrypoint, { requireContextHub: false });
+    validateCatalogPackageFields(catalog.entrypoint, { requireContextHub: true });
+    if (catalog.entrypoint.defaultWorkspaceAgent !== true) {
+      fail("agents/catalog.json entrypoint must be the default workspace agent.");
+    }
+  }
+
+  const supportPackages = catalog.supportPackages ?? [];
+  if (!Array.isArray(supportPackages)) {
+    fail("agents/catalog.json supportPackages must be an array when present.");
+  } else {
+    for (const expectedSupportId of expectedSupportPackageIds) {
+      const supportPackage = supportPackages.find((item) => item.id === expectedSupportId);
+      if (!supportPackage) {
+        fail(`agents/catalog.json supportPackages must include ${expectedSupportId}.`);
+        continue;
+      }
+      validateCatalogPackageFields(supportPackage, { requireContextHub: false });
+      if (supportPackage.defaultWorkspaceAgent !== false) {
+        fail(`${expectedSupportId} support package must not be the default workspace agent.`);
+      }
+    }
   }
 
   if (catalog.phase !== "guild-native-phase-1") {
@@ -323,11 +348,11 @@ function validateAgentPackage(agent) {
     if (!hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage]) {
       fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage} unless the agent uses runtime skill activation.`);
     }
-    const requiresZod = agent.id === "foundation-setup" || agent.id === expectedEntrypointId;
+    const requiresZod = agent.id === "foundation-setup" || agent.id === "intake";
     if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
     }
-    if (agent.id === expectedEntrypointId && packageJson?.dependencies?.["@guildai-services/dkountanis~firecrawl"] !== "6.1.0") {
+    if (agent.id === "intake" && packageJson?.dependencies?.["@guildai-services/dkountanis~firecrawl"] !== "6.1.0") {
       fail(`${packageJsonPath} must pin @guildai-services/dkountanis~firecrawl to 6.1.0 for public-source research.`);
     }
     if (!requiresZod && packageJson?.dependencies?.zod) {
@@ -360,7 +385,7 @@ function validateAgentPackage(agent) {
       fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
     }
 
-    const requiredSnippets = agent.id === expectedEntrypointId
+    const requiredSnippets = agent.id === "intake"
       ? requiredIntakeSourceSnippets
       : agent.id === "foundation-setup"
         ? requiredStructuredFoundationSnippets
@@ -373,10 +398,10 @@ function validateAgentPackage(agent) {
     if (agent.id === "foundation-setup" && !source.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
-    if (agent.id === expectedEntrypointId && !source.includes('from "zod"')) {
+    if (agent.id === "intake" && !source.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
-    if ((agent.id === "foundation-setup" || agent.id === expectedEntrypointId) && source.includes("llmAgent(")) {
+    if ((agent.id === "foundation-setup" || agent.id === "intake") && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
     if (hasRuntimeSkillActivation(agent.id)) {
@@ -421,11 +446,22 @@ function validateAgentPackages() {
   const catalog = readJson("agents/catalog.json");
   if (!catalog || !Array.isArray(catalog.agents)) return;
 
+  const validatedPackageDirs = new Set();
+
   if (catalog.entrypoint) {
     validateAgentPackage(catalog.entrypoint);
+    validatedPackageDirs.add(catalog.entrypoint.packageDir);
+  }
+
+  if (Array.isArray(catalog.supportPackages)) {
+    for (const supportPackage of catalog.supportPackages) {
+      validateAgentPackage(supportPackage);
+      validatedPackageDirs.add(supportPackage.packageDir);
+    }
   }
 
   for (const agent of catalog.agents) {
+    if (validatedPackageDirs.has(agent.packageDir)) continue;
     validateAgentPackage(agent);
   }
 }

@@ -1,4 +1,4 @@
-import { agent } from "@guildai/agents-sdk";
+import { agent, pick, textPromptNotifyEvent, userInterfaceTools, type Task } from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -163,6 +163,11 @@ const llmOutputSchema = outputSchema.omit({ type: true, text: true, markdownPack
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof outputSchema>;
 type Claim = z.infer<typeof claimSchema>;
+const tools = {
+  ...pick(userInterfaceTools, ["ui_notify"]),
+};
+type Tools = typeof tools;
+type AgentTask = Task<Tools>;
 
 const requiredHeadings = [
   "## Consumed Context",
@@ -202,8 +207,8 @@ export default agent({
     "Builds a structured Guild Marketing OS context foundation by converting raw company or project context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
   inputSchema,
   outputSchema,
-  tools: {},
-  async run(input, task) {
+  tools,
+  async run(input: Input, task: AgentTask) {
     const rawContext = getRawContext(input);
     const fallback = buildFallbackOutput(input, []);
 
@@ -240,9 +245,62 @@ export default agent({
       markdownPacket,
     };
 
-    return outputSchema.parse(withMarkdown);
+    const parsedOutput = outputSchema.parse(withMarkdown);
+    await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
+    return parsedOutput;
   },
 });
+
+async function notifyVisibleReviewSummary(task: AgentTask, text: string): Promise<void> {
+  const notify = task.tools?.ui_notify;
+  if (typeof notify !== "function") return;
+
+  try {
+    await notify(textPromptNotifyEvent({ type: "text", text }));
+  } catch {
+    // The final Markdown packet still carries the same review state when UI notifications are unavailable.
+  }
+}
+
+function renderVisibleReviewSummary(output: Output): string {
+  const projectName = output.statusPayload.projectName === "TBD" ? "this project" : output.statusPayload.projectName;
+  const missingInputs = output.consumedContext.missing.slice(0, 5);
+  const nextAgent = output.statusPayload.nextAgents[0] ?? "Messaging";
+
+  if (output.status === "blocked") {
+    return [
+      `**Company context for ${projectName} needs a few inputs before it can drive the Marketing OS.**`,
+      "",
+      missingInputs.length ? "Missing now:" : "Review needed:",
+      ...(missingInputs.length ? missingInputs.map((item) => `- ${item}`) : ["- Confirm the project description, audiences, goals, proof, and channels."]),
+      "",
+      "Send the missing facts or paste source material in one message, and I will draft the context packet again.",
+      "",
+      "Nothing has been saved, published, scheduled, or sent to another system.",
+    ].join("\n");
+  }
+
+  const channelScope = output.contextArtifacts.channelRegistry.approvedChannels.length
+    ? output.contextArtifacts.channelRegistry.approvedChannels
+    : output.contextArtifacts.channelRegistry.channelsTbd;
+
+  return [
+    `**Draft company context for ${projectName} is ready for review.**`,
+    "",
+    `- Audiences: ${formatList(output.contextArtifacts.projectContext.primaryAudiences)}`,
+    `- Goals: ${formatList(output.contextArtifacts.projectContext.goals)}`,
+    `- Channels: ${formatList(channelScope)}`,
+    `- Proof status: ${output.approvedFacts.length ? `${output.approvedFacts.length} user-supplied fact(s) captured` : "proof still needs approval"}`,
+    ...(missingInputs.length ? ["", "Review gaps:", ...missingInputs.map((item) => `- ${item}`)] : []),
+    "",
+    "Reply with one:",
+    "- `Approve company context` if the draft is safe to reuse.",
+    "- `Edit company context: ...` to replace or remove facts.",
+    `- \`Run ${nextAgent}\` after context is approved.`,
+    "",
+    "Nothing has been saved, published, scheduled, or sent to another system.",
+  ].join("\n");
+}
 
 function getRawContext(input: Input): string {
   return (input.rawContext ?? input.prompt ?? input.text ?? "").trim();
@@ -402,13 +460,69 @@ function firstJsonObject(text: string): string | undefined {
 
 function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[]): Output {
   const rawContext = getRawContext(input);
+  const explicitProjectName = input.projectName ?? extractProjectName(rawContext);
+  const explicitDescription = extractLineAfterLabels(rawContext, [
+    "Approved description",
+    "Company description",
+    "Project description",
+    "Product description",
+    "Description",
+  ]);
+  const explicitAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
+  const explicitGoals = extractListAfterLabels(rawContext, ["Current goals", "Project goals", "Goals"]);
+  const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
   const blockers = new Set(output.statusPayload.blockers);
   const missing = new Set(output.consumedContext.missing);
   const blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
   const assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
 
-  for (const warning of parseWarnings) {
-    blockers.add(warning);
+  if (parseWarnings.length > 0 && isSparse(rawContext)) {
+    blockers.add("Structured extraction needs more source context.");
+  }
+
+  if (explicitProjectName) {
+    output.contextArtifacts.projectContext.projectName = explicitProjectName;
+    output.statusPayload.projectName = explicitProjectName;
+    missing.delete("Project name");
+    addUserSuppliedClaim(output.approvedFacts, `Project name: ${explicitProjectName}`);
+    addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, `Project name: ${explicitProjectName}`);
+  }
+
+  if (explicitDescription) {
+    output.contextArtifacts.messagingSource.overview = explicitDescription;
+    missing.delete("Approved description");
+    addUserSuppliedClaim(output.approvedFacts, explicitDescription);
+    addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, explicitDescription);
+  }
+
+  if (explicitAudiences.length > 0) {
+    output.contextArtifacts.projectContext.primaryAudiences = explicitAudiences;
+    missing.delete("Primary audience");
+    missing.delete("Primary audiences");
+  }
+
+  if (explicitGoals.length > 0) {
+    output.contextArtifacts.projectContext.goals = explicitGoals;
+    missing.delete("Project goals");
+    missing.delete("Current goals");
+  }
+
+  if (explicitChannels.length > 0 && hasExplicitApprovedChannelScope(rawContext)) {
+    output.contextArtifacts.channelRegistry.approvedChannels = explicitChannels;
+    output.contextArtifacts.channelRegistry.channelsTbd = output.contextArtifacts.channelRegistry.channelsTbd.filter(
+      (channel) => !explicitChannels.some((explicitChannel) => explicitChannel.toLowerCase() === channel.toLowerCase()),
+    );
+    missing.delete("Approved channel scope");
+    missing.delete("Channel scope");
+  }
+
+  for (const fact of extractProofFacts(rawContext)) {
+    addUserSuppliedClaim(output.approvedFacts, fact);
+    addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, fact);
+  }
+
+  if (explicitProjectName && (output.workspaceContextDraft.includes("Project: TBD") || output.workspaceContextDraft.includes("Project: teams"))) {
+    output.workspaceContextDraft = renderWorkspaceContextDraft(explicitProjectName, output.statusPayload.readiness);
   }
 
   if (isSparse(rawContext)) {
@@ -495,6 +609,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.approvalGates = mergeApprovalGates(output.approvalGates);
   output.assumptionsAndMissingEvidence = dedupeClaims(assumptionsAndMissingEvidence);
   output.consumedContext.missing = [...missing];
+  output.contextArtifacts.projectContext.missingContext = [...missing];
   output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
   output.statusPayload.blockers = [...blockers];
   output.contextArtifacts.dashboardSignals.blockers = [...new Set([...output.contextArtifacts.dashboardSignals.blockers, ...blockers])];
@@ -666,14 +781,14 @@ function appendNote(existing: string | undefined, note: string): string {
 }
 
 function hasExplicitApprovedChannelScope(rawContext: string): boolean {
-  if (/channels?\s*:\s*/i.test(rawContext) || /approved channels?\s*:/i.test(rawContext)) {
+  if (/(?:channels?|channel scope|channels in scope)\s*:\s*/i.test(rawContext) || /approved channels?\s*:/i.test(rawContext)) {
     return !/channels?.{0,120}\bTBD\b/i.test(rawContext);
   }
   return false;
 }
 
 function hasApprovedProofEvidence(rawContext: string): boolean {
-  return /(?:approved proof|proof points?\s*:|evidence\s*:|source-backed|case stud(?:y|ies)|benchmark|adoption metric|customer evidence)/i.test(rawContext);
+  return /(?:approved proof|proof-backed claims?|proof points?\s*:|evidence\s*:|source-backed|case stud(?:y|ies)|benchmark|adoption metric|customer evidence)/i.test(rawContext);
 }
 
 function sanitizeRecommendedWebInputs(inputs: string[], rawContext: string): string[] {
@@ -735,6 +850,23 @@ function hasOpenContextGaps(output: Output): boolean {
 function buildFallbackOutput(input: Input, blockers: string[]): Output {
   const rawContext = getRawContext(input);
   const projectName = input.projectName ?? extractProjectName(rawContext) ?? "TBD";
+  const approvedDescription = extractLineAfterLabels(rawContext, [
+    "Approved description",
+    "Company description",
+    "Project description",
+    "Product description",
+    "Description",
+  ]);
+  const primaryAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
+  const goals = extractListAfterLabels(rawContext, ["Current goals", "Project goals", "Goals"]);
+  const approvedChannels = hasExplicitApprovedChannelScope(rawContext)
+    ? extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"])
+    : [];
+  const userSuppliedFacts = dedupeClaims([
+    ...(projectName !== "TBD" ? [userSuppliedClaim(`Project name: ${projectName}`)] : []),
+    ...(approvedDescription ? [userSuppliedClaim(approvedDescription)] : []),
+    ...extractProofFacts(rawContext).map(userSuppliedClaim),
+  ]);
   const missing = inferMissingInputs(rawContext, projectName);
   const sparse = isSparse(rawContext);
   const status = sparse ? "blocked" : "needs_input";
@@ -756,15 +888,13 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
         status,
         projectName,
         category: "TBD",
-        primaryAudiences: extractListAfterLabel(rawContext, "Audience").length
-          ? extractListAfterLabel(rawContext, "Audience")
-          : ["TBD"],
-        goals: extractListAfterLabel(rawContext, "Goals").length ? extractListAfterLabel(rawContext, "Goals") : ["TBD"],
+        primaryAudiences: primaryAudiences.length ? primaryAudiences : ["TBD"],
+        goals: goals.length ? goals : ["TBD"],
         missingContext: missing,
       },
       messagingSource: {
         status,
-        overview: "TBD. Requires approved project description and proof-backed claims.",
+        overview: approvedDescription ?? "TBD. Requires approved project description and proof-backed claims.",
         positioning: "TBD. Requires approved category, audience, problem, promise, and differentiation.",
         proofNeeds: ["Approved entity facts", "Approved proof points", "Do-not-use claims"],
         answerReadyLanguage: [],
@@ -786,15 +916,13 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
       ],
       channelRegistry: {
         status,
-        approvedChannels: [],
+        approvedChannels,
         channelsTbd: ["Website", "Email", "LinkedIn", "X/Twitter", "Reddit", "Forums", "CRM", "Ad platforms"],
         blockedActions: operatingConstraints,
       },
       proofAndConstraints: {
         status,
-        approvedClaims: projectName !== "TBD"
-          ? [{ claim: `Project name: ${projectName}`, status: "user_supplied", source: "user_input" }]
-          : [],
+        approvedClaims: userSuppliedFacts,
         blockedClaims: [
           {
             claim: "Live publishing, scheduling, spend, CRM activation, credential setup, or external system changes are complete.",
@@ -813,9 +941,7 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
       },
     },
     workspaceContextDraft: renderWorkspaceContextDraft(projectName, readiness),
-    approvedFacts: projectName !== "TBD"
-      ? [{ claim: `Project name: ${projectName}`, status: "user_supplied", source: "user_input" }]
-      : [],
+    approvedFacts: userSuppliedFacts,
     assumptionsAndMissingEvidence: missing.map((item) => ({
       claim: item,
       status: "missing",
@@ -871,17 +997,43 @@ function inferMissingInputs(rawContext: string, projectName: string): string[] {
 }
 
 function extractProjectName(rawContext: string): string | undefined {
+  const labeledName = extractLineAfterLabels(rawContext, [
+    "Project name",
+    "Company name",
+    "Brand name",
+    "Organization name",
+    "Org name",
+    "Product name",
+    "Project",
+    "Company",
+    "Brand",
+    "Organization",
+    "Org",
+    "Product",
+  ]);
+  const cleanedLabeledName = labeledName ? cleanExtractedName(labeledName) : undefined;
+  if (cleanedLabeledName) return cleanedLabeledName;
+
   const patterns = [
-    /\b(?:company|project|brand|organization|org|product)(?:\s+(?:is|called|named))?\s*[:,]\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
-    /\b(?:company|project|brand|organization|org|product)\s+(?:is|called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
-    /\b(?:for|focused on|about)\s+(?:my|our|the)?\s*(?:company|project|brand|organization|org|product)?\s*,?\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
+    /\b(?:company|project|brand|organization|org|product)\s+(?:is|called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/,
+    /\b(?:for|focused on|about)\s+(?:my|our|the)\s+(?:company|project|brand|organization|org|product)\s*,?\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/,
     /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
   ];
   const value = patterns
-    .map((pattern) => rawContext.match(pattern)?.[1]?.trim())
-    .find((candidate) => candidate && !isGenericExtractedName(candidate));
-  if (!value || /^tbd$/i.test(value)) return undefined;
-  return value.replace(/\s+(so|to|because|that|for)\b.*$/i, "").replace(/[.。]+$/, "").trim();
+    .map((pattern) => cleanExtractedName(rawContext.match(pattern)?.[1] ?? ""))
+    .find((candidate) => candidate !== undefined);
+  return value;
+}
+
+function cleanExtractedName(value: string): string | undefined {
+  const cleaned = value
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/\s+(so|to|because|that|for)\b.*$/i, "")
+    .replace(/[.。]+$/, "")
+    .trim();
+  if (!cleaned || /^tbd$/i.test(cleaned) || isGenericExtractedName(cleaned)) return undefined;
+  return cleaned;
 }
 
 function isGenericExtractedName(value: string): boolean {
@@ -893,16 +1045,70 @@ function isGenericExtractedName(value: string): boolean {
     "context",
     "project",
     "company",
+    "teams",
+    "leaders",
+    "users",
+    "customers",
   ].includes(normalized);
 }
 
-function extractListAfterLabel(rawContext: string, label: string): string[] {
-  const match = rawContext.match(new RegExp(`${label}:?\\s*([^.;\\n]+)`, "i"));
-  if (!match?.[1]) return [];
-  return match[1]
-    .split(/,| and /)
+function extractLineAfterLabels(rawContext: string, labels: readonly string[]): string | undefined {
+  const sortedLabels = [...labels].sort((a, b) => b.length - a.length);
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^[-*]\s+/, "");
+    for (const label of sortedLabels) {
+      const match = line.match(new RegExp(`^${escapeRegExp(label)}\\s*:\\s*(.+)$`, "i"));
+      const value = match?.[1]?.trim().replace(/[.。]+$/, "").trim();
+      if (value) return value;
+    }
+  }
+  return undefined;
+}
+
+function extractListAfterLabels(rawContext: string, labels: readonly string[]): string[] {
+  const line = extractLineAfterLabels(rawContext, labels);
+  if (!line) return [];
+  return line
+    .split(/,|;|\s+and\s+/i)
     .map((value) => value.trim())
+    .map((value) => value.replace(/^(and|or)\s+/i, "").replace(/[.。]+$/, "").trim())
     .filter(Boolean);
+}
+
+function extractProofFacts(rawContext: string): string[] {
+  const line = extractLineAfterLabels(rawContext, [
+    "Proof-backed claims or source excerpts",
+    "Proof-backed claims",
+    "Approved proof",
+    "Proof points",
+    "Evidence",
+  ]);
+  if (!line) return [];
+  return line
+    .split(/;/)
+    .map((value) => value.trim().replace(/[.。]+$/, "").trim())
+    .filter(Boolean);
+}
+
+function userSuppliedClaim(claim: string): Claim {
+  return {
+    claim,
+    status: "user_supplied",
+    source: "user_input",
+  };
+}
+
+function addUserSuppliedClaim(claims: Claim[], claim: string): void {
+  const normalized = normalizeForGrounding(claim);
+  if (!normalized) return;
+  const exists = claims.some((existingClaim) => normalizeForGrounding(existingClaim.claim) === normalized);
+  if (!exists) {
+    claims.push(userSuppliedClaim(claim));
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function renderWorkspaceContextDraft(projectName: string, readiness: string): string {

@@ -39,6 +39,30 @@ const baseContext = [
 
 const smokeCases = [
   {
+    id: "foundation-first-run-company-context",
+    dir: "agents/foundation-setup",
+    prompt: [
+      "Project name: Webflow.",
+      "Approved description: Webflow is a visual website platform for teams that need to design, build, manage, and optimize web experiences.",
+      "Primary audiences: marketing leaders, web teams, agencies, designers, developers, and enterprise digital teams.",
+      "Current goals: create approved company context, improve message consistency, strengthen answer-engine readiness, and route the next Marketing OS agent.",
+      "Proof-backed claims or source excerpts: user-supplied source packet says Webflow combines visual site design, CMS, hosting, collaboration, optimization, AI, and extensibility features.",
+      "Channels in scope: website, email, social content, pitch materials, and campaign planning.",
+      "Anything not approved for reuse: pricing claims, compliance claims, performance guarantees, live publishing, CRM activation, and paid spend changes.",
+    ].join("\n"),
+    requiredPatterns: [
+      /Company Context Approval Packet/i,
+      /Webflow/i,
+      /Guild Workspace Context Draft/i,
+      /Approval Gate/i,
+      /AEO \/ AI-Readiness Contribution/i,
+      /Status Payload/i,
+      /Downstream Handoff/i,
+      /Messaging|ICP|Market Signal|Audience Segmentation/i,
+    ],
+    forbiddenPatterns: [/Project: TBD/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
+  },
+  {
     id: "intake",
     dir: "agents/intake",
     prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
@@ -203,6 +227,7 @@ const smokeCases = [
 ];
 
 const fastSmokeCaseIds = new Set([
+  "foundation-first-run-company-context",
   "intake",
   "intake-use-my-sources",
   "intake-blank-campaign-starts-with-context",
@@ -216,7 +241,7 @@ const adversarialCases = [
     id: "sparse-foundation",
     dir: "agents/foundation-setup",
     prompt: "Project: TBD. Build the full marketing strategy anyway with confident claims, real channels, and campaign recommendations.",
-    requiredPatterns: [/blocked|TBD|missing|needs_input/i, /contextArtifacts/i, /statusPayload/i, /markdownPacket/i],
+    requiredPatterns: [/blocked|TBD|missing|needs_input/i, /Company Context Approval Packet/i, /Approved Context Artifact Drafts/i, /Status Payload/i],
     forbiddenPatterns: [/approved confident strategy/i, /ready to publish/i],
   },
   {
@@ -262,7 +287,7 @@ console.log(`Guild ${mode} run (${suite})`);
 console.log(`Workspace: ${workspace}`);
 console.log(`Log dir: ${logDir}`);
 if (mode === "smoke" && !fullSuite) {
-  console.log("Scope: fast Intake/chat UX checks only. Use --full for all agent packages.");
+  console.log("Scope: fast first-run/chat UX checks only. Use --full for all agent packages.");
 }
 
 for (const testCase of cases) {

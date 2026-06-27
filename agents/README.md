@@ -2,15 +2,16 @@
 
 Guild-native source packages live here. Each package is a standalone Guild TypeScript agent initialized under the `michaelpreuss` owner and testable against `michaelpreuss/guild-marketing-os`.
 
-The Intake package is the chat-native default entrypoint. It is a deterministic coded router that responds quickly, routes first-run setup requests, collects minimum missing company context, can run explicit Firecrawl-backed public-source research for approval, and recommends the right specialist without automatically calling other agents.
+The Company Context Builder is the chat-native default entrypoint. It starts the V1 Marketing OS where the business case starts: user-supplied company or project context becomes reviewable context artifact drafts, approval gates, AEO readiness, status, and downstream routing before specialist agents produce work.
 
-The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, and a chat-renderable Markdown approval packet.
+The Intake package remains an optional support package. It is a deterministic coded router that responds quickly, can run explicit Firecrawl-backed public-source research for approval, and recommends a specialist without automatically calling other agents. It should not be the first-run path for normal project leader onboarding.
+
+The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, a short visible review summary, and a chat-renderable Markdown approval packet.
 
 The other seven V1 packages run as prompt-only one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns. Intake and the seven prompt-only agents set `useWorkspaceAgents: false`. V1 agent chaining is a human-guided workflow, not implicit workspace-agent orchestration.
 
-V1 contains one intake entrypoint plus eight deliverable source packages:
+V1 contains eight deliverable source packages plus one optional support package:
 
-- `intake/` - deterministic chat-native first-run router and default workspace entrypoint
 - `foundation-setup/` - source directory for the Knowledge Graph / Company Context Builder
 - `market-signal/`
 - `icp/`
@@ -19,6 +20,7 @@ V1 contains one intake entrypoint plus eight deliverable source packages:
 - `branding-pitch-deck/`
 - `social-monitoring-content/`
 - `campaigns-paid-media/`
+- `intake/` - optional deterministic router and public-source research helper
 
 ## Rules
 
