@@ -580,7 +580,15 @@ function validateTestHarness() {
   }
 
   const content = readText(file);
-  for (const snippet of ["smokeCases", "adversarialCases", "Test complete", "requiredHeadings", "contextArtifacts", "statusPayload", "markdownPacket"]) {
+  for (const snippet of [
+    "smokeCases",
+    "adversarialCases",
+    "Test complete",
+    "requiredHeadings",
+    "Company Context Approval Packet",
+    "Status Payload",
+    "Downstream Handoff",
+  ]) {
     if (!content.includes(snippet)) {
       fail(`${file} must include ${snippet}.`);
     }

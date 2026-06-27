@@ -12,7 +12,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files; `guild-marketing-os-intake` remains an optional support package for routing and explicit public-source research.
 - `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company or project context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-- The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts, sends a short visible review summary, and leaves the full Markdown packet as the details view.
+- The Company Context Builder is a structured Zod-backed `agent()` internally, but exposes canonical text input/output for Guild default chat compatibility. It sends a short visible review summary and leaves the full Markdown packet as the details view.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
@@ -29,7 +29,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
 
 1. A user enters business context into the default Company Context Builder chat.
-2. The Company Context Builder returns typed approved context artifact drafts, approval gates, AEO readiness, a visible review summary, a status payload, and downstream handoffs.
+2. The Company Context Builder returns a visible review summary plus a Markdown approval packet containing approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
 3. Guild workspace context keeps a concise always-on Platform Context summary.
 4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
@@ -106,9 +106,9 @@ Confirmed V1 suite order:
 
 All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
 
-The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
+The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It sends a short visible summary first, then returns the full structured packet for review. `guild-marketing-os-intake` remains installed as an optional helper for routing and explicit public-source research, but it is not the primary onboarding path.
+The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It sends a short visible summary first, then returns the full Markdown packet for review. `guild-marketing-os-intake` remains installed as an optional helper for routing and explicit public-source research, but it is not the primary onboarding path.
 
 ## Runtime Skill Activation
 

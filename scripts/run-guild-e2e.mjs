@@ -176,7 +176,7 @@ const smokeCases = [
     id: "foundation-setup",
     dir: "agents/foundation-setup",
     prompt: `${baseContext} Task for foundation-setup: Draft the V1 company context approval packet and recommend next agents.`,
-    requiredPatterns: [/contextArtifacts/i, /projectContext/i, /statusPayload/i, /downstreamHandoff/i, /markdownPacket/i, /Proof-backed claims/i, /Approved channel scope/i],
+    requiredPatterns: [/Company Context Approval Packet/i, /Project:/i, /Status Payload/i, /Downstream Handoff/i, /Proof-backed claims|Proof constraints|Missing proof/i, /Approved channel scope|Channel scope/i],
     forbiddenPatterns: [/https:\/\/github\.com\/example/i],
   },
   {

@@ -11,24 +11,17 @@ This is the default first-run workspace agent for the V1 Marketing OS. It should
 
 ## Contract
 
-This is the first structured Guild Marketing OS agent. It uses Zod-backed input and output schemas instead of a prompt-only `llmAgent()` implementation.
+This is the first structured Guild Marketing OS agent. It uses a canonical text input/output schema for Guild chat compatibility, then validates an internal Zod-backed context packet before rendering the review Markdown.
 
 Accepted input:
 
 - required `type: "text"` and `text` for Guild workspace chat compatibility.
-- `prompt` for Guild CLI compatibility.
-- `projectName`, `rawContext`, `sourceLabels`, `requestedArtifacts`, and `operatingConstraints` for structured use.
 
 Returned output:
 
-- typed approved context artifact drafts
-- approved facts and missing evidence
-- approval gates
-- AEO readiness
-- status payload
-- downstream handoff
+- canonical `type: "text"` and `text`
+- full Markdown review packet containing approved context artifact drafts, approved facts and missing evidence, approval gates, AEO readiness, status payload, and downstream handoff
 - short visible review summary via `ui_notify`
-- `markdownPacket` for human review
 
 ## V1 Boundary
 

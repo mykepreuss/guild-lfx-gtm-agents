@@ -61,7 +61,7 @@ const approvalGateSchema = z.object({
   status: z.enum(["needed", "approved", "blocked"]),
 });
 
-const outputSchema = z.object({
+const structuredOutputSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
   status: packetStatusSchema,
@@ -148,14 +148,19 @@ const outputSchema = z.object({
   markdownPacket: z.string(),
 });
 
-const llmOutputSchema = outputSchema.omit({ type: true, text: true, markdownPacket: true }).extend({
+const outputSchema = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+});
+
+const llmOutputSchema = structuredOutputSchema.omit({ type: true, text: true, markdownPacket: true }).extend({
   type: z.literal("text").optional(),
   text: z.string().optional(),
   markdownPacket: z.string().optional(),
 });
 
 type Input = z.infer<typeof inputSchema>;
-type Output = z.infer<typeof outputSchema>;
+type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 const tools = {
   ...pick(userInterfaceTools, ["ui_notify"]),
@@ -239,9 +244,9 @@ export default agent({
       markdownPacket,
     };
 
-    const parsedOutput = outputSchema.parse(withMarkdown);
+    const parsedOutput = structuredOutputSchema.parse(withMarkdown);
     await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
-    return parsedOutput;
+    return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
   },
 });
 
