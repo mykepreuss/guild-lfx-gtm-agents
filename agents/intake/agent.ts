@@ -491,7 +491,7 @@ function renderResponse({
     "",
     "## Downstream Handoff",
     ...formatSourceHandoff({ wantsSourceIntake, hasSourcePacket, researchReply }),
-    formatResearchHandoff({ wantsResearch, researchPacket, researchReply }),
+    ...(wantsResearch ? [formatResearchHandoff({ researchPacket, researchReply })] : []),
     route.agent === "Company Context Builder"
       ? "- After the facts are approved, run Company Context Builder with the approved context."
       : "- Confirm Company Context Builder has approved reusable context before this specialist produces a review packet.",
@@ -558,18 +558,12 @@ function formatSourcePacketLines({
 }
 
 function formatResearchHandoff({
-  wantsResearch,
   researchPacket,
   researchReply,
 }: {
-  wantsResearch: boolean;
   researchPacket: ResearchPacket;
   researchReply: string;
 }): string {
-  if (!wantsResearch) {
-    return `- Optional: to have me gather public source facts for approval, reply: ${researchReply}`;
-  }
-
   if (researchPacket.status === "blocked") {
     return `- Public-source research is blocked right now. You can still continue without credentials by replying: Use my sources`;
   }
