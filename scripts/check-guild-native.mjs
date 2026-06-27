@@ -93,12 +93,17 @@ const requiredStructuredFoundationSnippets = [
   "## Downstream Handoff",
 ];
 const requiredIntakeSourceSnippets = [
-  "llmAgent({",
+  "agent({",
+  "inputSchema",
+  "outputSchema",
   "identifier:",
-  "useWorkspaceAgents: false",
-  "Guild Marketing OS Intake Agent",
+  "Deterministic chat-native entrypoint",
+  "FirecrawlTools",
+  "firecrawl_search_and_scrape",
   "Company Context Builder",
+  "Public-source research",
   "recommended_agent",
+  "public_source_research",
   "## Consumed Context",
   "## Produced Artifact",
   "## Assumptions And Missing Evidence",
@@ -292,10 +297,14 @@ function validateAgentPackage(agent) {
     if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
       fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
     }
-    if (agent.id === "foundation-setup" && packageJson?.dependencies?.zod !== "4.4.3") {
-      fail(`${packageJsonPath} must pin zod to 4.4.3 for the structured foundation agent.`);
+    const requiresZod = agent.id === "foundation-setup" || agent.id === expectedEntrypointId;
+    if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
+      fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
     }
-    if (agent.id !== "foundation-setup" && packageJson?.dependencies?.zod) {
+    if (agent.id === expectedEntrypointId && packageJson?.dependencies?.["@guildai-services/dkountanis~firecrawl"] !== "6.1.0") {
+      fail(`${packageJsonPath} must pin @guildai-services/dkountanis~firecrawl to 6.1.0 for public-source research.`);
+    }
+    if (!requiresZod && packageJson?.dependencies?.zod) {
       fail(`${packageJsonPath} should not depend on zod unless the package has a structured schema boundary.`);
     }
     for (const [dependency, version] of Object.entries(requiredDevDependencies)) {
@@ -338,7 +347,10 @@ function validateAgentPackage(agent) {
     if (agent.id === "foundation-setup" && !source.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
-    if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {
+    if (agent.id === expectedEntrypointId && !source.includes('from "zod"')) {
+      fail(`${packageDir}/agent.ts must import zod for structured validation.`);
+    }
+    if ((agent.id === "foundation-setup" || agent.id === expectedEntrypointId) && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
     if (/skillsTools|guildTools|mode:\s*["']multi-turn["']|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {

@@ -44,6 +44,13 @@ const smokeCases = [
     forbiddenPatterns: [/Market Signal Brief/i, /successfully published/i, /successfully installed/i, /Integrations Configured/i, /GitHub, Slack/i, /we will hand off/i, /powering over/i],
   },
   {
+    id: "intake-public-source-research",
+    dir: "agents/intake",
+    prompt: "Please web search official public sources for my company, Webflow, and present the context facts for approval.",
+    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /Public-source research status/i, /public_source_research/i, /approval/i, /researched_sources/i],
+    forbiddenPatterns: [/guild_credentials_request/i, /successfully published/i, /successfully installed/i, /approved source-of-truth context/i, /facts are approved/i],
+  },
+  {
     id: "foundation-setup",
     dir: "agents/foundation-setup",
     prompt: `${baseContext} Task for foundation-setup: Draft the V1 company context approval packet and recommend next agents.`,

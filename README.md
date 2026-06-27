@@ -11,10 +11,10 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight deliverable package directories plus the chat-native intake entrypoint include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it routes setup requests to the right specialist and collects minimum missing context without inventing facts.
+- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that responds immediately, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
 - The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a chat-renderable Markdown approval packet.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
-- The intake and seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
+- The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
 - Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, workspace context publish, or public visibility changes have been run.
 - All eight V1 agents are committed deliverables.
@@ -105,7 +105,7 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Intake package is the current chat-native entrypoint and first-run router. It does not call other agents automatically. Autonomous orchestration remains a future product pattern.
+The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not call other agents or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
 
 ## Production Readiness Boundary
 

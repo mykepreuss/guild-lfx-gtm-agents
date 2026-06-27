@@ -2,7 +2,7 @@
 
 Guild-native source packages live here. Each package is a standalone Guild TypeScript agent initialized under the `michaelpreuss` owner and testable against `michaelpreuss/guild-marketing-os`.
 
-The Intake package is the chat-native default entrypoint. It routes first-run setup requests, collects minimum missing company context, and recommends the right specialist without automatically calling other agents.
+The Intake package is the chat-native default entrypoint. It is a deterministic coded router that responds quickly, routes first-run setup requests, collects minimum missing company context, can run explicit Firecrawl-backed public-source research for approval, and recommends the right specialist without automatically calling other agents.
 
 The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, and a chat-renderable Markdown approval packet.
 
@@ -10,7 +10,7 @@ The other seven V1 packages run as prompt-only one-shot review-packet agents. Th
 
 V1 contains one intake entrypoint plus eight deliverable source packages:
 
-- `intake/` - chat-native first-run router and default workspace entrypoint
+- `intake/` - deterministic chat-native first-run router and default workspace entrypoint
 - `foundation-setup/` - source directory for the Knowledge Graph / Company Context Builder
 - `market-signal/`
 - `icp/`
