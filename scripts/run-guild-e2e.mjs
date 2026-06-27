@@ -63,6 +63,32 @@ const smokeCases = [
     forbiddenPatterns: [/Project: TBD/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
   },
   {
+    id: "foundation-placeholder-source-intro",
+    dir: "agents/foundation-setup",
+    prompt: "Here is the context for my company",
+    requiredPatterns: [
+      /Readable company context has not been provided|readable company\/source text|needs readable source text/i,
+      /paste the relevant text|paste source material|Readable company\/source text/i,
+      /Company\/project/i,
+      /Approved description/i,
+      /Proof-backed claims or source excerpts/i,
+      /Project: TBD/i,
+      /blocked/i,
+    ],
+    forbiddenPatterns: [
+      /Draft company context .* ready for review/i,
+      /workspace_capabilities/i,
+      /Workspace initialized/i,
+      /GitHub, Slack/i,
+      /GitHub/i,
+      /Slack/i,
+      /successfully published/i,
+      /successfully installed/i,
+      /credentials configured/i,
+      /trigger created/i,
+    ],
+  },
+  {
     id: "intake",
     dir: "agents/intake",
     prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
@@ -228,6 +254,7 @@ const smokeCases = [
 
 const fastSmokeCaseIds = new Set([
   "foundation-first-run-company-context",
+  "foundation-placeholder-source-intro",
   "intake",
   "intake-use-my-sources",
   "intake-blank-campaign-starts-with-context",

@@ -16,6 +16,7 @@ This is the first structured Guild Marketing OS agent. It uses a canonical text 
 Accepted input:
 
 - required `type: "text"` and `text` for Guild workspace chat compatibility.
+- readable company/source text pasted into the message. If a user attaches a PDF or file without pasted text, the agent must explain that it cannot draft context from unread file contents in the current chat run.
 
 Returned output:
 

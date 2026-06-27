@@ -209,6 +209,20 @@ export default agent({
   tools,
   async run(input: Input, task: AgentTask) {
     const rawContext = getRawContext(input);
+
+    if (shouldRequestReadableSourceText(rawContext)) {
+      const blockedOutput = buildReadableSourceNeededOutput(input);
+      const markdownPacket = renderMarkdownPacket(blockedOutput);
+      const parsedOutput = structuredOutputSchema.parse({
+        ...blockedOutput,
+        type: "text",
+        text: markdownPacket,
+        markdownPacket,
+      });
+      await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
+      return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
+    }
+
     const fallback = buildFallbackOutput(input, []);
 
     const { text } = await task.llm.generateText({
@@ -266,6 +280,27 @@ function renderVisibleReviewSummary(output: Output): string {
   const missingInputs = output.consumedContext.missing.slice(0, 5);
   const nextAgent = output.statusPayload.nextAgents[0] ?? "Messaging";
 
+  if (output.status === "blocked" && needsReadableSourceText(output)) {
+    return [
+      "**I do not have readable company context yet.**",
+      "",
+      "I can format your source material into the Marketing OS context packet once the source text is in the chat message.",
+      "",
+      "If you attached a PDF or file, this run did not receive its readable extracted text. Paste the relevant text or excerpts directly into chat.",
+      "",
+      "A good first message can be rough, but it should include:",
+      "- `Company/project: ...`",
+      "- `Approved description: ...`",
+      "- `Primary audiences: ...`",
+      "- `Current goals: ...`",
+      "- `Proof-backed claims or source excerpts: ...`",
+      "- `Channels in scope: ...`",
+      "- `Anything not approved for reuse: ...`",
+      "",
+      "Nothing has been saved, published, scheduled, or sent to another system.",
+    ].join("\n");
+  }
+
   if (output.status === "blocked") {
     return [
       `**Company context for ${projectName} needs a few inputs before it can drive the Marketing OS.**`,
@@ -302,11 +337,27 @@ function renderVisibleReviewSummary(output: Output): string {
 }
 
 function getRawContext(input: Input): string {
-  return input.text.trim();
+  const rawText = input.text.trim();
+  return extractEmbeddedTextInput(rawText) ?? rawText;
 }
 
 function getSourceLabels(_input: Input): string[] {
   return [];
+}
+
+function extractEmbeddedTextInput(value: string): string | undefined {
+  for (const candidate of [value, fencedJson(value), firstJsonObject(value)]) {
+    if (!candidate) continue;
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (isRecord(parsed) && parsed.type === "text" && typeof parsed.text === "string") {
+        return parsed.text.trim();
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return undefined;
 }
 
 function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {
@@ -354,6 +405,8 @@ Valid claim statuses are: approved, user_supplied, assumption, missing, blocked,
 
 Rules:
 - Do not invent customer-specific facts, metrics, audience counts, connected systems, legal constraints, or performance results.
+- Use only the Raw context below as company evidence. Do not use workspace metadata, connected integration names, user profile data, attachment filenames, or attachment metadata as company context.
+- If the Raw context only says a file or context is attached/provided but does not include readable source text, return status "blocked" and ask the user to paste the source text.
 - If context is sparse, return status "blocked" or "needs_input" and mark unsupported artifacts as "blocked" or "needs_input".
 - Do not draft substantive public copy, headlines, campaign messages, benefit claims, channel plans, or audience rules from sparse context.
 - Do not claim publishing, scheduling, spend, CRM activation, credential setup, workspace install, trigger setup, visibility change, or external system updates happened.
@@ -459,6 +512,7 @@ function firstJsonObject(text: string): string | undefined {
 
 function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[]): Output {
   const rawContext = getRawContext(input);
+  const sourceTextNeeded = shouldRequestReadableSourceText(rawContext);
   const explicitProjectName = extractProjectName(rawContext);
   const explicitDescription = extractLineAfterLabels(rawContext, [
     "Approved description",
@@ -471,12 +525,21 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   const explicitGoals = extractListAfterLabels(rawContext, ["Current goals", "Project goals", "Goals"]);
   const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
   const blockers = new Set(output.statusPayload.blockers);
-  const missing = new Set(output.consumedContext.missing);
-  const blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
-  const assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
+  let missing = new Set(output.consumedContext.missing);
+  let blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
+  let assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
 
   if (parseWarnings.length > 0 && isSparse(rawContext)) {
     blockers.add("Structured extraction needs more source context.");
+  }
+
+  if (sourceTextNeeded || hasNoUsableOutputContext(output)) {
+    blockers.add("No readable source text was provided to the agent. If a file was attached, paste the relevant text or excerpts into chat.");
+    output = applyReadableSourceNeededState(output);
+    missing = new Set(output.consumedContext.missing);
+    blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
+    assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
+    for (const blocker of output.statusPayload.blockers) blockers.add(blocker);
   }
 
   if (explicitProjectName) {
@@ -526,7 +589,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
 
   if (isSparse(rawContext)) {
     blockers.add("Business context is too sparse for substantive public marketing strategy.");
-    missing.add("Project name");
+    if (!explicitProjectName) missing.add("Project name");
     missing.add("Approved description");
     missing.add("Primary audience");
     missing.add("Proof-backed claims");
@@ -548,28 +611,27 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   assumptionsAndMissingEvidence.push(...factNormalization.downgraded, ...proofNormalization.downgraded);
 
   if (!hasExplicitApprovedChannelScope(rawContext)) {
-    const channelsTbd = new Set([...output.contextArtifacts.channelRegistry.channelsTbd, ...output.contextArtifacts.channelRegistry.approvedChannels]);
     output.contextArtifacts.channelRegistry.approvedChannels = [];
-    output.contextArtifacts.channelRegistry.channelsTbd = [...channelsTbd];
-    if (channelsTbd.size) {
-      missing.add("Approved channel scope");
-    }
+    output.contextArtifacts.channelRegistry.channelsTbd = ["TBD"];
+    missing.add("Approved channel scope");
   }
 
   if (!hasApprovedProofEvidence(rawContext)) {
     missing.add("Proof-backed claims");
-    output.contextArtifacts.messagingSource.status = "needs_input";
-    output.contextArtifacts.messagingSource.overview = "TBD. Requires an approved project description and proof-backed claims.";
-    output.contextArtifacts.messagingSource.positioning = "TBD. Requires approved category, audience, problem, promise, differentiation, and proof.";
-    output.contextArtifacts.messagingSource.answerReadyLanguage = [];
-    output.contextArtifacts.messagingSource.proofNeeds = [
-      ...new Set([
-        ...output.contextArtifacts.messagingSource.proofNeeds,
-        "Approved project description",
-        "Approved proof points",
-        "Do-not-use claims",
-      ]),
-    ];
+    if (!needsReadableSourceText(output)) {
+      output.contextArtifacts.messagingSource.status = "needs_input";
+      output.contextArtifacts.messagingSource.overview = "TBD. Requires an approved project description and proof-backed claims.";
+      output.contextArtifacts.messagingSource.positioning = "TBD. Requires approved category, audience, problem, promise, differentiation, and proof.";
+      output.contextArtifacts.messagingSource.answerReadyLanguage = [];
+      output.contextArtifacts.messagingSource.proofNeeds = [
+        ...new Set([
+          ...output.contextArtifacts.messagingSource.proofNeeds,
+          "Approved project description",
+          "Approved proof points",
+          "Do-not-use claims",
+        ]),
+      ];
+    }
     output.aeoReadiness.status = output.aeoReadiness.status === "blocked" ? "blocked" : "draft";
     output.aeoReadiness.answerReadyOpportunities = [
       "What the project is",
@@ -645,6 +707,49 @@ function isSparse(rawContext: string): boolean {
   const normalized = rawContext.toLowerCase();
   const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
   return wordCount < 12 || sparseMarkers.some((marker) => normalized.includes(marker));
+}
+
+function isPlaceholderSourceIntro(rawContext: string): boolean {
+  const normalized = rawContext.toLowerCase().trim();
+  if (!normalized || hasExplicitContextDetails(rawContext)) return false;
+
+  return (
+    /^here(?:'s| is)\b.*\b(context|information|info|profile|source|sources|material|company)\b/.test(normalized) ||
+    /\b(i attached|i uploaded|attached|uploaded|see attached|see the attached|see file|see pdf)\b/.test(normalized) ||
+    /\b(context|information|info|profile|source|sources|material|company profile)\b.*\b(attached|uploaded|in the file|in the pdf)\b/.test(normalized)
+  );
+}
+
+function shouldRequestReadableSourceText(rawContext: string): boolean {
+  const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
+  return isPlaceholderSourceIntro(rawContext) || (!hasExplicitContextDetails(rawContext) && wordCount < 20);
+}
+
+function hasExplicitContextDetails(rawContext: string): boolean {
+  return Boolean(
+    extractProjectName(rawContext) ||
+      extractLineAfterLabels(rawContext, [
+        "Approved description",
+        "Company description",
+        "Project description",
+        "Product description",
+        "Description",
+        "Primary audiences",
+        "Primary audience",
+        "Current goals",
+        "Project goals",
+        "Goals",
+        "Proof-backed claims or source excerpts",
+        "Proof-backed claims",
+        "Approved proof",
+        "Proof points",
+        "Evidence",
+        "Channels in scope",
+        "Approved channels",
+        "Channel scope",
+        "Channels",
+      ]),
+  );
 }
 
 function normalizeArtifacts(values: readonly string[]): Array<(typeof artifactValues)[number]> {
@@ -844,6 +949,124 @@ function hasOpenContextGaps(output: Output): boolean {
     output.contextArtifacts.projectContext.missingContext.length > 0 ||
     output.contextArtifacts.channelRegistry.approvedChannels.length === 0
   );
+}
+
+function buildReadableSourceNeededOutput(input: Input): Output {
+  return applyReadableSourceNeededState(
+    buildFallbackOutput(input, [
+      "No readable source text was provided to the agent. If a file was attached, paste the relevant text or excerpts into chat.",
+    ]),
+  );
+}
+
+function applyReadableSourceNeededState(output: Output): Output {
+  const missing = [
+    "Readable company/source text",
+    "Company/project",
+    "Approved description",
+    "Primary audiences",
+    "Current goals",
+    "Proof-backed claims or source excerpts",
+    "Channels in scope",
+    "Anything not approved for reuse",
+  ];
+  const blocker = "No readable source text was provided to the agent. If a file was attached, paste the relevant text or excerpts into chat.";
+
+  output.status = "blocked";
+  output.consumedContext.used = ["User message did not include readable company source text"];
+  output.consumedContext.missing = missing;
+  output.contextArtifacts.projectContext.status = "blocked";
+  output.contextArtifacts.projectContext.projectName = "TBD";
+  output.contextArtifacts.projectContext.category = "TBD";
+  output.contextArtifacts.projectContext.primaryAudiences = ["TBD"];
+  output.contextArtifacts.projectContext.goals = ["TBD"];
+  output.contextArtifacts.projectContext.missingContext = missing;
+  output.contextArtifacts.messagingSource.status = "blocked";
+  output.contextArtifacts.messagingSource.overview = "TBD. Paste readable company/source text before the Marketing OS drafts context artifacts.";
+  output.contextArtifacts.messagingSource.positioning = "TBD. Requires approved source text, audiences, goals, proof, and constraints.";
+  output.contextArtifacts.messagingSource.answerReadyLanguage = [];
+  output.contextArtifacts.messagingSource.proofNeeds = ["Readable source text", "Approved description", "Proof-backed claims"];
+  output.contextArtifacts.brandKit.status = "blocked";
+  output.contextArtifacts.audienceSegments = [
+    {
+      status: "blocked",
+      name: "Primary audience TBD",
+      description: "Audience segments require readable source text before drafting.",
+      evidenceStatus: "missing",
+      missingEvidence: ["Readable company/source text", "Approved audience definitions"],
+    },
+  ];
+  output.contextArtifacts.channelRegistry.status = "blocked";
+  output.contextArtifacts.channelRegistry.approvedChannels = [];
+  output.contextArtifacts.channelRegistry.channelsTbd = ["TBD"];
+  output.contextArtifacts.proofAndConstraints.status = "blocked";
+  output.contextArtifacts.proofAndConstraints.approvedClaims = [];
+  output.contextArtifacts.proofAndConstraints.constraints = defaultConstraints;
+  output.contextArtifacts.dashboardSignals.status = "blocked";
+  output.contextArtifacts.dashboardSignals.readiness = "blocked";
+  output.contextArtifacts.dashboardSignals.blockers = [blocker];
+  output.workspaceContextDraft = "Readable company context has not been provided yet. Paste source text before drafting reusable Marketing OS context.";
+  output.approvedFacts = [];
+  output.assumptionsAndMissingEvidence = missing.map((item) => ({
+    claim: item,
+    status: "missing",
+    source: "context_gap",
+  }));
+  output.approvalGates = [
+    {
+      ownerRole: "Project Leader",
+      decision: "Provide readable company/source text.",
+      requiredBefore: "Company Context Builder drafts reusable context artifacts.",
+      status: "needed",
+    },
+    {
+      ownerRole: "Legal Reviewer",
+      decision: "Approve legal, trademark, privacy, security, compliance, pricing, guarantee, and performance claims.",
+      requiredBefore: "Public messaging or campaign use.",
+      status: "needed",
+    },
+    {
+      ownerRole: "Marketing Owner",
+      decision: "Approve channel scope and any live execution plan.",
+      requiredBefore: "Publishing, scheduling, spend, CRM activation, or external system changes.",
+      status: "blocked",
+    },
+  ];
+  output.aeoReadiness.status = "blocked";
+  output.aeoReadiness.entityClarity = "Blocked until readable company/source text is provided.";
+  output.aeoReadiness.answerReadyOpportunities = ["What the project is", "Who it serves", "Why it matters", "What proof supports claims"];
+  output.aeoReadiness.missingProof = ["Readable source text", "Approved description", "Canonical URLs", "Proof-backed claims"];
+  output.aeoReadiness.recommendedWebInputs = ["Entity summary", "FAQ candidates", "Canonical URL TBD", "Schema.org inputs", "llms.txt inputs"];
+  output.statusPayload.projectName = "TBD";
+  output.statusPayload.readiness = "blocked";
+  output.statusPayload.nextAgents = ["Company Context Builder"];
+  output.statusPayload.blockers = [blocker];
+  output.downstreamHandoff = [
+    {
+      agent: "Company Context Builder",
+      receives: ["project-context"],
+      reason: "Needs readable source text before creating reusable company context artifacts.",
+    },
+  ];
+
+  return output;
+}
+
+function needsReadableSourceText(output: Output): boolean {
+  return output.statusPayload.blockers.some((blocker) => blocker.toLowerCase().includes("no readable source text"));
+}
+
+function hasNoUsableOutputContext(output: Output): boolean {
+  return (
+    output.statusPayload.projectName === "TBD" &&
+    output.approvedFacts.length === 0 &&
+    output.contextArtifacts.projectContext.primaryAudiences.every(isTbdish) &&
+    output.contextArtifacts.projectContext.goals.every(isTbdish)
+  );
+}
+
+function isTbdish(value: string): boolean {
+  return /^(?:tbd|unknown|none|n\/a|not supplied|not provided)?$/i.test(value.trim());
 }
 
 function buildFallbackOutput(input: Input, blockers: string[]): Output {
