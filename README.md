@@ -142,11 +142,14 @@ Before broad production use, add explicit orchestration, broader structured cont
 npm run verify
 npm run check:context
 npm run test:guild-smoke
+npm run test:guild-smoke:full
 npm run test:guild-adversarial
 npm run publish:guild-agent -- --agent intake --message "Publish intake updates"
 ```
 
 `npm run verify` is non-mutating. It validates the Guild-native scaffold and approved context artifact contract.
+
+`npm run test:guild-smoke` is the fast development smoke. It runs the Intake/chat UX cases only so iteration stays quick while the interface is changing. `npm run test:guild-smoke:full` runs the full all-agent smoke suite and should be used before release-style publishes or broad workspace validation.
 
 The Guild test commands require an authenticated Guild CLI session and run live ephemeral tests against the configured workspace. Use `GUILD_WORKSPACE=<owner/workspace>` to override the default workspace.
 

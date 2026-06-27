@@ -10,7 +10,9 @@
     "publish:guild-agent": "node scripts/publish-guild-agent.mjs",
     "test:guild-adversarial": "node scripts/run-guild-e2e.mjs --adversarial",
     "test:guild-smoke": "node scripts/run-guild-e2e.mjs --smoke",
+    "test:guild-smoke:full": "node scripts/run-guild-e2e.mjs --smoke --full",
     "test:guild-smoke:no-cache": "node scripts/run-guild-e2e.mjs --smoke --no-cache",
+    "test:guild-smoke:full:no-cache": "node scripts/run-guild-e2e.mjs --smoke --full --no-cache",
     "verify": "npm run check:guild-native"
   }
 }

@@ -50,10 +50,16 @@ npm run verify
 
 When changing approved context artifacts, agent catalog entries, platform context, skill source, or Guild-native agent source, run verification before committing.
 
-For agent prompt or behavior changes, also run the Guild smoke and adversarial checks when Guild authentication is available:
+For agent prompt or behavior changes, run the fast Guild smoke while iterating. It covers the Intake/chat UX paths and avoids the slower all-agent LLM packet suite:
 
 ```sh
 npm run test:guild-smoke
+```
+
+Before release-style publishes or broad workspace validation, run the full smoke and adversarial checks when Guild authentication is available:
+
+```sh
+npm run test:guild-smoke:full
 npm run test:guild-adversarial
 ```
 

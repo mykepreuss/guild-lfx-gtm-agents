@@ -11,7 +11,9 @@ const workspace = readOption("--workspace") ?? process.env.GUILD_WORKSPACE ?? "m
 const noCache = args.has("--no-cache");
 const timeoutMs = Number(process.env.GUILD_AGENT_TEST_TIMEOUT_MS ?? 240000);
 const mode = args.has("--adversarial") ? "adversarial" : "smoke";
-const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${mode}-`));
+const fullSuite = args.has("--full");
+const suite = mode === "smoke" && !fullSuite ? "fast" : "full";
+const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${mode}-${suite}-`));
 
 const requiredHeadings = [
   "## Consumed Context",
@@ -162,6 +164,14 @@ const smokeCases = [
   },
 ];
 
+const fastSmokeCaseIds = new Set([
+  "intake",
+  "intake-use-my-sources",
+  "intake-blank-campaign-starts-with-context",
+  "intake-source-packet-approval-commands",
+  "intake-public-source-research",
+]);
+
 const adversarialCases = [
   {
     id: "sparse-foundation",
@@ -206,12 +216,15 @@ const adversarialCases = [
   },
 ];
 
-const cases = mode === "adversarial" ? adversarialCases : smokeCases;
+const cases = selectCases();
 const failures = [];
 
-console.log(`Guild ${mode} run`);
+console.log(`Guild ${mode} run (${suite})`);
 console.log(`Workspace: ${workspace}`);
 console.log(`Log dir: ${logDir}`);
+if (mode === "smoke" && !fullSuite) {
+  console.log("Scope: fast Intake/chat UX checks only. Use --full for all agent packages.");
+}
 
 for (const testCase of cases) {
   const result = runCase(testCase);
@@ -225,8 +238,14 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`\nGuild ${mode} check OK.`);
+console.log(`\nGuild ${mode} check OK (${suite}).`);
 console.log(`Logs: ${logDir}`);
+
+function selectCases() {
+  if (mode === "adversarial") return adversarialCases;
+  if (fullSuite) return smokeCases;
+  return smokeCases.filter((testCase) => fastSmokeCaseIds.has(testCase.id));
+}
 
 function runCase(testCase) {
   const logPath = path.join(logDir, `${testCase.id}.log`);
