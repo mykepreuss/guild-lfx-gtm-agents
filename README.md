@@ -11,7 +11,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight deliverable package directories plus the chat-native intake entrypoint include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that responds immediately with a human-first `Start Here` block, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
+- `guild-marketing-os-intake` is the workspace-friendly default chat entrypoint; it is a deterministic coded router that sends a short visible next-step chooser, routes setup requests, collects minimum missing context, and can run Firecrawl-backed public-source research when explicitly requested.
 - The Company Context Builder is a structured Zod-backed `agent()` that returns typed context artifacts plus a chat-renderable Markdown approval packet.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
@@ -108,7 +108,7 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. The first visible block gives short replies such as `Use my sources`, `Research Webflow`, and `Build company context` before the shared review frame. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not save durable approved context, call other agents, or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
+The Intake package is the current chat-native entrypoint and first-run router. It uses a coded `agent()` response instead of an LLM call so first-run setup guidance is immediate. Intake uses Guild UI notifications to send a short visible chooser with replies such as `Use my sources`, `Research Webflow`, and `Build company context`; the collapsed run output is a details packet rather than the primary UX. When the user explicitly asks for public-source research, Intake attempts a Firecrawl search/scrape and returns URLs plus source snippets for approval. It does not save durable approved context, call other agents, or approve researched facts automatically. Autonomous orchestration remains a future product pattern.
 
 ## Runtime Skill Activation
 

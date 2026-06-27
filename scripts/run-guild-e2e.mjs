@@ -95,7 +95,7 @@ const smokeCases = [
       /Approve source packet/i,
       /Edit source packet/i,
       /Build company context/i,
-      /Intake does not save durable context/i,
+      /Intake does not save durable approved context/i,
       /source_packet_received/i,
       /approval_replies/i,
     ],

@@ -1,4 +1,4 @@
-import { agent, pick, type Task } from "@guildai/agents-sdk";
+import { agent, pick, textPromptNotifyEvent, userInterfaceTools, type Task } from "@guildai/agents-sdk";
 import { FirecrawlTools } from "@guildai-services/dkountanis~firecrawl";
 import { z } from "zod";
 
@@ -14,7 +14,10 @@ const outputSchema = z.object({
 
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof outputSchema>;
-const tools = pick(FirecrawlTools, ["firecrawl_search_and_scrape"]);
+const tools = {
+  ...pick(FirecrawlTools, ["firecrawl_search_and_scrape"]),
+  ...pick(userInterfaceTools, ["ui_notify"]),
+};
 type Tools = typeof tools;
 type AgentTask = Task<Tools>;
 
@@ -154,6 +157,17 @@ export default agent({
       wantsResearch,
     });
     const researchPacket = wantsResearch ? await researchPublicContext(task, knownCompanyOrProject) : notRequestedResearchPacket();
+    const visibleChooser = renderVisibleChooser({
+      route,
+      knownCompanyOrProject,
+      missingInputs,
+      wantsSourceIntake,
+      hasSourcePacket,
+      wantsResearch,
+      researchPacket,
+    });
+
+    await notifyVisibleChooser(task, visibleChooser);
 
     return {
       type: "text",
@@ -280,6 +294,17 @@ function notRequestedResearchPacket(): ResearchPacket {
     sources: [],
     note: "public-source research was not requested in this message",
   };
+}
+
+async function notifyVisibleChooser(task: AgentTask, text: string): Promise<void> {
+  const notify = task.tools?.ui_notify;
+  if (typeof notify !== "function") return;
+
+  try {
+    await notify(textPromptNotifyEvent({ type: "text", text }));
+  } catch {
+    // The final response still carries the same guidance when UI notifications are unavailable.
+  }
 }
 
 function extractResearchSources(response: unknown): ResearchSource[] {
@@ -461,21 +486,15 @@ function renderResponse({
     : wantsSourceIntake
       ? "requested"
       : "available_on_request";
+  const availableReplies = formatApprovalReplies({ hasSourcePacket, wantsResearch, researchPacket });
 
   return [
-    "# Guild Marketing OS Intake",
+    "# Intake Details",
     "",
     "## Start Here",
-    ...formatStartHereLines({
-      route,
-      knownCompanyOrProject,
-      missingInputs,
-      wantsSourceIntake,
-      hasSourcePacket,
-      wantsResearch,
-      researchPacket,
-      researchReply,
-    }),
+    "- I sent the short next-step chooser as a visible chat message.",
+    `- Best next agent: ${route.agent}.`,
+    `- Useful replies: ${availableReplies.map((reply) => `\`${reply}\``).join(", ")}.`,
     "",
     "## Consumed Context",
     `- User request: ${formatRequestSummary({
@@ -491,19 +510,13 @@ function renderResponse({
       : "- Approved context artifacts available in this message: none",
     "",
     "## Produced Artifact",
+    "- Artifact: compact routing and onboarding decision.",
     `- Intake decision: run ${route.agent} next.`,
     `- Reason: ${route.reason}.`,
     ...(route.downstreamAgent
       ? [`- Requested specialist after context approval: ${route.downstreamAgent}. ${route.downstreamReason}.`]
       : []),
-    ...formatNextActionLines({
-      wantsSourceIntake,
-      hasSourcePacket,
-      wantsResearch,
-      researchPacket,
-      researchReply,
-    }),
-    ...formatSourcePacketLines({ wantsSourceIntake, hasSourcePacket }),
+    `- Source packet fields for \`Use my sources\`: ${sourcePacketFields.join("; ")}.`,
     `- Public-source research status: ${formatResearchStatus(researchPacket)}.`,
     ...formatResearchSources(researchPacket),
     `- Missing setup inputs: ${formatList(missingInputs)}`,
@@ -511,6 +524,7 @@ function renderResponse({
     "## Assumptions And Missing Evidence",
     "- No company category, market claims, audience facts, proof points, competitors, channels, or performance claims are approved from this intake message alone.",
     "- Connected workspace services are not treated as approved customer context.",
+    "- Intake does not configure credentials, publish, schedule, install agents, create triggers, spend budget, or change workspace settings.",
     "",
     "## Approval Gate",
     "- Approve the company description, audiences, goals, proof-backed claims, and channel scope before specialist agents use them as source-of-truth context.",
@@ -531,10 +545,11 @@ function renderResponse({
         source_intake: sourceIntakeStatus,
         public_source_research: wantsResearch ? publicSourceResearchStatus : "available_on_request",
         researched_sources: researchPacket.sources.map((source) => source.url),
+        visible_chooser_sent: true,
         context_persistence: "Intake does not save durable approved context; carry approved facts into Company Context Builder or an approved context artifact.",
         downstream_agent_after_context_approval: route.downstreamAgent ?? null,
         workspace_chat_handoff: "Use the Guild @ picker to select an installed specialist when you want that agent to run; intake does not install or invoke agents automatically.",
-        approval_replies: formatApprovalReplies({ hasSourcePacket, wantsResearch, researchPacket }),
+        approval_replies: availableReplies,
         next_actions: [
           {
             label: "Use your pasted or uploaded sources",
@@ -569,7 +584,7 @@ function renderResponse({
   ].join("\n");
 }
 
-function formatStartHereLines({
+function renderVisibleChooser({
   route,
   knownCompanyOrProject,
   missingInputs,
@@ -577,7 +592,6 @@ function formatStartHereLines({
   hasSourcePacket,
   wantsResearch,
   researchPacket,
-  researchReply,
 }: {
   route: Route;
   knownCompanyOrProject: string;
@@ -586,130 +600,79 @@ function formatStartHereLines({
   hasSourcePacket: boolean;
   wantsResearch: boolean;
   researchPacket: ResearchPacket;
-  researchReply: string;
-}): string[] {
+}): string {
+  const researchReply = formatResearchReply(knownCompanyOrProject);
+  const headingTarget = knownCompanyOrProject === "TBD" ? "your Marketing OS" : `${knownCompanyOrProject} Marketing OS`;
+
   if (hasSourcePacket) {
     return [
-      "- I found a source packet in your message.",
-      "- Best next step: review it, then send the approved facts to Company Context Builder.",
-      "- Useful replies:",
-      "  - `Approve source packet` - only after the facts are safe to reuse.",
-      "  - `Edit source packet: ...` - replace or remove anything that should not be reused.",
-      "  - `Build company context` - prepare the Company Context Builder handoff from the approved packet.",
-      "- Intake does not save durable context or call another agent automatically. For a reliable handoff, keep the approved facts in the Company Context Builder message or approved artifact.",
-    ];
+      `**Next step for ${headingTarget}: review the source packet.**`,
+      "",
+      "Reply with one:",
+      "- `Approve source packet` if these facts are safe to reuse.",
+      "- `Edit source packet: ...` to replace or remove facts.",
+      "- `Build company context` when the approved facts are ready.",
+      "",
+      "I do not save durable context or call another agent automatically.",
+    ].join("\n");
   }
 
   if (wantsSourceIntake) {
     return [
-      "- Best next step: paste your source packet here. Web research credentials are not required.",
-      "- Use `TBD` for anything unknown, and include anything that is not approved for reuse.",
-      "- Useful replies:",
-      "  - `Company/project: ...` followed by the packet fields below.",
-      "  - `Build company context` after the packet is complete and approved.",
-      `  - \`${researchReply}\` if you want optional public-source research instead.`,
-      "- Intake does not save durable context or call another agent automatically. Carry approved facts into Company Context Builder when you switch agents.",
-    ];
-  }
-
-  if (wantsResearch && researchPacket.status === "ready_for_approval") {
-    return [
-      "- Public-source research returned snippets for review.",
-      "- Best next step: approve, reject, or edit each fact before any specialist uses it.",
-      "- Useful replies:",
-      "  - `Approve researched facts: ...` with only the facts that are safe to reuse.",
-      "  - `Reject researched facts` if none should be reused.",
-      "  - `Use my sources` to continue without web research.",
-      "- Intake does not save durable context or call another agent automatically. Put approved researched facts into the Company Context Builder handoff.",
-    ];
+      `**Paste your source packet for ${headingTarget}.**`,
+      "",
+      "No web credentials are needed. Use `TBD` where unknown.",
+      "",
+      "```text",
+      ...sourcePacketFields.map((field) => `${field}:`),
+      "```",
+      "",
+      "After it is complete, reply `Build company context`.",
+    ].join("\n");
   }
 
   if (wantsResearch && researchPacket.status === "blocked") {
     return [
-      `- Public-source research is blocked: ${researchPacket.note}.`,
-      "- Best next step: continue without web credentials by replying `Use my sources`.",
-      "- Useful replies:",
-      "  - `Use my sources` - paste approved answers, excerpts, links, or uploaded-file text.",
-      `  - \`${researchReply}\` - retry public-source research after a workspace owner has configured web-research credentials.`,
-      "- Intake does not configure credentials, install agents, publish, schedule, or change workspace settings.",
-    ];
+      `**Public-source research is blocked for ${headingTarget}.**`,
+      "",
+      researchPacket.note,
+      "",
+      "Reply with one:",
+      "- `Use my sources` to continue without web credentials.",
+      `- \`${researchReply}\` to retry after web-research credentials are configured.`,
+      "",
+      "Intake does not configure credentials, publish, schedule, install agents, create triggers, spend budget, or change workspace settings.",
+    ].join("\n");
   }
 
-  const bestNextStep = missingInputs.length
-    ? "start by collecting approved company context"
+  if (wantsResearch && researchPacket.status === "ready_for_approval") {
+    return [
+      `**Review public sources for ${headingTarget}.**`,
+      "",
+      `I found ${researchPacket.sources.length} source snippet(s). Expand the run details only if you need the URLs and excerpts.`,
+      "",
+      "Reply with one:",
+      "- `Approve researched facts: ...` with only facts safe to reuse.",
+      "- `Reject researched facts` if none should be reused.",
+      "- `Use my sources` to continue with your own context.",
+    ].join("\n");
+  }
+
+  const bestStep = missingInputs.length
+    ? "start with approved company context"
     : `route to ${route.agent}`;
-  const companyText = knownCompanyOrProject === "TBD" ? "" : ` for ${knownCompanyOrProject}`;
 
   return [
-    `- Best next step: ${bestNextStep}${companyText}.`,
-    "- Useful replies:",
-    "  - `Use my sources` - paste approved answers, excerpts, links, or uploaded-file text. No web credentials needed.",
-    `  - \`${researchReply}\` - optional public-source research; requires configured web-research credentials.`,
-    "  - `Build company context` - use the approved facts to prepare the Company Context Builder handoff.",
-    ...(route.downstreamAgent
-      ? [`- Requested specialist saved as next handoff after context approval: ${route.downstreamAgent}.`]
-      : []),
-    "- In Guild chat, select an installed specialist from the `@` picker when you want that agent to run. Intake only routes and prepares handoffs.",
-  ];
-}
-
-function formatNextActionLines({
-  wantsSourceIntake,
-  hasSourcePacket,
-  wantsResearch,
-  researchPacket,
-  researchReply,
-}: {
-  wantsSourceIntake: boolean;
-  hasSourcePacket: boolean;
-  wantsResearch: boolean;
-  researchPacket: ResearchPacket;
-  researchReply: string;
-}): string[] {
-  if (hasSourcePacket) {
-    return [
-      "- Source packet received. Treat these inputs as user-supplied and pending approval before they become reusable context.",
-    ];
-  }
-
-  if (wantsSourceIntake) {
-    return ["- Source intake requested. Paste answers, excerpts, links, or uploaded PDF text using the packet below."];
-  }
-
-  if (!wantsResearch) {
-    return [
-      "- Recommended next reply: Use my sources",
-      `- Optional web research reply: ${researchReply}. This requires configured web-research credentials.`,
-    ];
-  }
-
-  if (researchPacket.status === "ready_for_approval") {
-    return [
-      "- Research request completed. Review the public-source approval draft below before any facts become reusable context.",
-    ];
-  }
-
-  return [`- Research request received. To retry after the blocker is fixed, reply: ${researchReply}`];
-}
-
-function formatSourcePacketLines({
-  wantsSourceIntake,
-  hasSourcePacket,
-}: {
-  wantsSourceIntake: boolean;
-  hasSourcePacket: boolean;
-}): string[] {
-  if (hasSourcePacket) {
-    return [
-      "- Next approval step: confirm which supplied facts, excerpts, and links are approved for reuse before Company Context Builder stores them as context.",
-    ];
-  }
-
-  const intro = wantsSourceIntake
-    ? "- Paste this source packet next. Web research credentials are not required:"
-    : "- If you want to avoid web-research credentials, reply `Use my sources` and paste this packet:";
-
-  return [intro, "```text", ...sourcePacketFields.map((field) => `${field}:`), "```"];
+    `**Next step for ${headingTarget}: ${bestStep}.**`,
+    "",
+    "Reply with one:",
+    "- `Use my sources` - paste what you know or upload source text. No web credentials needed.",
+    `- \`${researchReply}\` - optional public-source research if credentials are configured.`,
+    "- `Build company context` - after facts are approved.",
+    ...(route.downstreamAgent ? [`- Later: run ${route.downstreamAgent} after context is approved.`] : []),
+    "",
+    "I do not publish, spend, configure credentials, install agents, or save durable context from Intake.",
+  ].join("\n");
 }
 
 function formatResearchHandoff({

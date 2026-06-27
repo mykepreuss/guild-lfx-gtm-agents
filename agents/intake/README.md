@@ -11,7 +11,7 @@ The default no-credential path is `Use my sources`. Intake asks the user to past
 
 When the user explicitly asks for public-source research with a short command such as `Research Webflow`, Intake uses the Guild Firecrawl integration to search/scrape public pages and returns source URLs plus snippets for approval. Researched facts remain unapproved until the user accepts or edits them. If Firecrawl credentials are unavailable, Intake tells the user to continue with `Use my sources` instead of exposing credential-tool instructions.
 
-For first-run setup, the first visible block is `Start Here`. It should give clear next replies such as `Use my sources`, `Research Webflow`, and `Build company context` before the shared review frame and JSON status payload. Users should not have to infer or type a long prompt to trigger either path.
+For first-run setup, Intake sends a short visible chat message with the next replies before the run completes. The collapsed run output is only a details packet. The visible chooser should include clear replies such as `Use my sources`, `Research Webflow`, and `Build company context`; users should not need to expand a `Done` row or read JSON to decide what to type next.
 
 When a blank-workspace user asks for a specialist deliverable, Intake should usually start with Company Context Builder and preserve the requested specialist as a downstream handoff. Specialist agents should run only after company context is approved or when the user explicitly supplies approved context.
 
