@@ -937,10 +937,11 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.contextArtifacts.proofAndConstraints.constraints = mergeDefaultConstraints(output.contextArtifacts.proofAndConstraints.constraints);
   output.contextArtifacts.channelRegistry.blockedActions = mergeDefaultConstraints(output.contextArtifacts.channelRegistry.blockedActions);
   output.assumptionsAndMissingEvidence = dedupeClaims(assumptionsAndMissingEvidence);
-  output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence]);
+  output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
+    .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
   output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
-  output.claimsNeedingApproval = dedupeClaims([
+  output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
     ...claimsNeedingApproval,
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
     ...output.assumptionsAndMissingEvidence.filter((claim) => claim.status === "assumption" || claim.status === "missing"),
@@ -1789,6 +1790,10 @@ function scrubReusableGuardedClaims(output: Output): void {
 function hasSensitiveClaimGuardrails(output: Output): boolean {
   return [...output.claimsNeedingApproval, ...output.contextArtifacts.proofAndConstraints.blockedClaims]
     .some((claim) => claim.source === "sensitive_claim_guardrail");
+}
+
+function normalizeClaimsNeedingApproval(claims: readonly Claim[]): Claim[] {
+  return dedupeClaims(claims.map((claim) => isGuardedReusableClaim(claim.claim) ? sensitiveClaimNeedsApproval(claim.claim) : claim));
 }
 
 function scrubGuardedString(value: string, fallback: string): string {
