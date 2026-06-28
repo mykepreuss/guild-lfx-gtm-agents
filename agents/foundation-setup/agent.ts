@@ -490,7 +490,8 @@ function isSaveStateQuestion(rawContext: string): boolean {
 
 function isApprovalOrEdit(rawContext: string): boolean {
   return /\bapprove\s+(?:this|it|the draft|the\s+company context|company context)\b/i.test(rawContext) ||
-    /\b(?:approved|looks good|ship it|confirm)(?:\s+(?:this|it|the draft|the\s+company context|company context))?\b/i.test(rawContext) ||
+    /^\s*(?:approved|looks good|ship it|confirm)(?:\s+(?:this|it|the draft|the\s+company context|company context))?\s*[.!]?$/i.test(rawContext.trim()) ||
+    /\b(?:looks good|ship it|confirm)\s+(?:this|it|the draft|the\s+company context|company context)\b/i.test(rawContext) ||
     isContextPersistenceRequest(rawContext) ||
     /\bedit\s+company context\s*:/i.test(rawContext) ||
     /\b(remove|delete)\s+.+\b(company context|claim|claims)\b/i.test(rawContext);
@@ -1740,6 +1741,14 @@ function scrubReusableGuardedClaims(output: Output): void {
   output.contextArtifacts.brandKit.constraints = scrubGuardedList(output.contextArtifacts.brandKit.constraints, [
     "No final logo, trademark, legal, or production identity claims without approval.",
   ]);
+  output.contextArtifacts.proofAndConstraints.constraints = scrubGuardedList(
+    output.contextArtifacts.proofAndConstraints.constraints,
+    defaultConstraints,
+  );
+  output.contextArtifacts.channelRegistry.blockedActions = scrubGuardedList(
+    output.contextArtifacts.channelRegistry.blockedActions,
+    defaultConstraints,
+  );
 
   output.contextArtifacts.audienceSegments = output.contextArtifacts.audienceSegments.map((segment) => {
     const guardedDescription = isGuardedReusableClaim(segment.description);

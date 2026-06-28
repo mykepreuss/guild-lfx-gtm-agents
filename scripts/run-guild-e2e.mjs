@@ -54,6 +54,7 @@ const smokeCases = [
       "Anything not approved for reuse: pricing claims, compliance claims, performance guarantees, live publishing, CRM activation, and paid spend changes.",
     ].join("\n"),
     requiredPatterns: [
+      /source_available/i,
       /Company Context Approval Packet/i,
       /Webflow/i,
       /Guild Workspace Context Draft/i,
@@ -74,7 +75,7 @@ const smokeCases = [
       /"saved_to_workspace_context": false/i,
       /Messaging|ICP|Market Signal|Audience Segmentation/i,
     ],
-    forbiddenPatterns: [/Company: TBD/i, /Reply with one/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
+    forbiddenPatterns: [/Conversation intent: approval_or_edit/i, /"conversationIntent": "approval_or_edit"/i, /Company: TBD/i, /Reply with one/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
   },
   {
     id: "foundation-placeholder-source-intro",
