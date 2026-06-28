@@ -7,7 +7,7 @@ Package owner: `michaelpreuss`
 
 Turns raw company context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a compact Guild workspace context brief, approval checkpoints, and next-agent routing.
 
-This is the default first-run workspace agent for the V1 Marketing OS. It should make a project leader feel like the system is processing their company context, not routing them through a separate setup menu.
+This is the default first-run workspace agent for Marketing OS. It should make a project leader feel like the system is processing their company context, not routing them through a separate setup menu.
 
 ## Contract
 
@@ -25,7 +25,11 @@ Returned output:
 - persistence state showing whether the packet is drafted, approved, staged, blocked, or published to Guild workspace context
 - short inline review summary at the top of the Markdown packet
 
-## V1 Boundary
+## Guild Usage
+
+Users should start here, paste readable company/source text, review the Company Context Approval Packet, approve it, then send exactly `publish approved context to workspace context` when the compact workspace context brief is ready to publish.
+
+## Operating Boundary
 
 Review-first. This agent does not schedule, install, spend, sync, trigger, change visibility, or modify external live systems.
 

@@ -26,6 +26,6 @@ Current source:
 - `guild-marketing-os-competitive-intelligence-method.md` - reusable method for competitor, peer, alternative, category, and comparison research.
 - `guild-marketing-os-campaign-planning-method.md` - reusable method for campaign planning, paid-media review packets, creative testing, and activation gates.
 
-These skill sources adapt the reviewed open-source marketing-skills patterns into Guild Marketing OS boundaries. Keep the Guild-native approval policy: skills can recommend, draft, and structure work, but they must not imply live publishing, spend, audience sync, CRM activation, credential setup, or tool execution.
+These skill sources capture reusable Marketing OS method patterns inside Guild Marketing OS boundaries. Keep the Guild-native approval policy: skills can recommend, draft, and structure work, but they must not imply live publishing, spend, audience sync, CRM activation, credential setup, or tool execution.
 
 Do not publish additional skill versions, publish agents, install workspace agents, publish workspace context, configure credentials, create triggers, or change public visibility until explicitly approved.

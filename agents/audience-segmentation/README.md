@@ -7,7 +7,11 @@ Package owner: `michaelpreuss`
 
 Converts approved ICP strategy into segment definitions, inclusion and exclusion rules, suppression logic, channel applicability, and list-building instructions.
 
-## V1 Boundary
+## Guild Usage
+
+Use after approved ICPs exist. Provide the intended channel, available list or CRM fields, consent and geography constraints, suppression rules, freshness limits, and whether the output is for planning or activation review.
+
+## Operating Boundary
 
 Review-only. This agent does not activate CRM lists, ad audiences, enrichment jobs, or email sends.
 

@@ -1,6 +1,6 @@
 # Guild Marketing OS Approved Context Artifacts
 
-Status: starter source draft
+Status: maintainer source templates
 
 This folder contains starter source templates for approved context artifacts used by the Guild Marketing OS agents.
 
@@ -9,7 +9,7 @@ It is not the Guild runtime context layer and it is not a formal database-backed
 ## Guild Boundary
 
 - Agent Hub agents own reusable behavior.
-- Guild workspace context should hold a short always-on company summary.
+- Guild workspace context should hold the short always-on company brief published by the Company Context Builder.
 - `context-hub/` files hold approved company context artifact templates and source bodies.
 - Skills can hold reusable methods or approved style guidance.
 - Live systems stay behind explicit integrations and approvals.
@@ -59,9 +59,9 @@ Leave unknowns as `TBD`. The Company Context Builder should also return a concis
 
 If a fact is not approved here or supplied by the user in the run, agents should ask for it or mark it `TBD`.
 
-## V1 Rule
+The Company Context Builder drafts or refreshes these artifacts and returns them for human approval. It must not claim that Guild workspace context, live tools, channels, dashboards, or external systems were updated unless an approved tool call confirms that change.
 
-For Guild-native V1, the Company Context Builder drafts or refreshes these artifacts and returns them for human approval. It must not claim that Guild workspace context, live tools, channels, dashboards, or external systems were updated unless an approved tool call confirms that change.
+External Guild users do not edit these source templates directly. They work in Guild with the Company Context Builder and downstream agents; maintainers update these files when the artifact model changes.
 
 ## Validation
 

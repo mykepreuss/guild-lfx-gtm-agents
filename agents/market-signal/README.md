@@ -7,7 +7,11 @@ Package owner: `michaelpreuss`
 
 Turns approved source material into evidence-labeled market, search, answer-engine, developer, community, and social signals for downstream ICP, messaging, content, AEO, and campaign work.
 
-## V1 Boundary
+## Guild Usage
+
+Use after the Company Context Builder has published compact workspace context. Provide the source scope, date range, competitor or peer set, and known coverage gaps; ask for source gaps rather than comprehensive coverage when evidence is thin.
+
+## Operating Boundary
 
 Review-only. This agent does not crawl private sources, publish, contact people, change systems, or claim comprehensive market coverage.
 

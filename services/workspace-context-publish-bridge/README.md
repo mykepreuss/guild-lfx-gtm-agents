@@ -2,6 +2,8 @@
 
 Host-controlled bridge for the Company Context Builder workspace-context publish flow.
 
+This is maintainer infrastructure. External Guild users do not deploy or call this service directly; they use the Company Context Builder in Guild and approve the publish flow there.
+
 The deployed agent must not call raw internal Guild service endpoints. Instead, after the user has approved the company context and sent the exact confirmation phrase, the agent calls this bridge through the `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` service contract.
 
 ## Operation
@@ -22,7 +24,7 @@ The bridge:
 8. Publishes the draft with `{ status: "PUBLISHED" }`.
 9. Returns draft, published, previous context ids, summary, publish path, and rollback metadata.
 
-The bridge uses the same supported API lifecycle as the Guild CLI workspace-context commands. It keeps Guild API credentials host-side; the agent sends only the managed compact context block and publish metadata.
+The bridge uses the same supported API lifecycle as the Guild CLI workspace-context commands. It keeps Guild API credentials host-side; the agent sends only the managed compact context brief block and publish metadata. The raw approved source corpus stays in Company Context Builder session state for audit, not in the published workspace context body.
 
 ## Runtime Configuration
 

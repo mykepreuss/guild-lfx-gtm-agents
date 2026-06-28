@@ -1,39 +1,14 @@
 # Guild Marketing OS Agents
 
-Guild-native source workspace for an open-source Guild Marketing OS agent suite for GTM teams.
+Guild-native source workspace for a Marketing OS agent suite for GTM teams. The suite turns approved company context into reusable workspace context and reviewable GTM artifacts across market signal, ICP, audience segmentation, messaging, brand/deck, social/content, and campaigns/paid media work.
 
-This repository is safe to share: private source notes, meeting context, and client-specific material belong in `_private/`, which is ignored by Git.
+## How It Works
 
-## Current Status
-
-- Guild-native V1 source build.
-- Guild package initialization and testing are approved for this implementation.
-- Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
-- Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
-- All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files.
-- `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-- The Company Context Builder is a structured Zod-backed `agent()` internally, but exposes canonical text input/output for Guild default chat compatibility. It returns a short inline review summary followed by the full Markdown packet.
-- First-run source collection currently expects readable source text pasted into chat. If a user attaches a PDF or file without pasted text, the Company Context Builder blocks and asks for the relevant text instead of pretending it read the attachment.
-- The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
-- The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
-- A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
-- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow, which calls the private Blaxel-hosted `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` publish bridge instead of raw Guild service endpoints or direct CLI workspace-context publishing.
-- All eight V1 agents are committed deliverables.
-- Old local labs, generated demo packets, and local-only exemplars have been removed.
-- Approved context artifact templates are present under `context-hub/`.
-- Private Guild Skills now cover foundation setup, customer research, positioning, fit, proof, answer-engine and web readiness, conversion experimentation, competitive intelligence, and campaign planning methods.
-- `guild-skills/catalog.json` records the private live skill names, versions, CLI metadata, and required `guildai~skills` runtime integration. The seven prompt-only review agents declare `@guildai-services/guildai~skills` and can discover and activate relevant skills at runtime.
-- License: Apache-2.0.
-
-## V1 Goal
-
-Create the smallest useful bridge from a clean Guild workspace to high-quality Guild Marketing OS agents:
-
-1. A user enters business context into the default Company Context Builder chat.
-2. The Company Context Builder returns a visible review summary plus a Markdown approval packet containing approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-3. After approval, the exact confirmation `publish approved context to workspace context` publishes a compact managed Guild workspace context brief.
-4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
-5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
+1. A user starts with the Company Context Builder and supplies readable company/source context.
+2. The Company Context Builder returns a reviewable approval packet with context artifact drafts, evidence status, gaps, approval gates, AEO readiness, and downstream handoffs.
+3. After user approval, the exact confirmation `publish approved context to workspace context` publishes a compact managed Guild workspace context brief.
+4. Specialist agents use published workspace context as their first source of truth, then produce focused review artifacts for GTM decisions.
+5. Reusable methods live in private Guild Skills and are activated by specialist agents only when relevant.
 
 ## Guild Architecture
 
@@ -62,7 +37,7 @@ npm run verify
 npm run publish:guild-agent -- --agent <agent-id> --message "<release message>"
 ```
 
-Allowed only when intentionally reinitializing one of the existing V1 package records:
+Allowed only when intentionally reinitializing one of the existing package records:
 
 ```sh
 guild agent init --name <guild-marketing-os-name> --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/<agent>
@@ -92,11 +67,10 @@ Direct CLI workspace context publishing remains disallowed from this repo. The a
 - `guild-skills/` - source markdown and catalog records for private live Guild Skills.
 - `services/workspace-context-publish-bridge/` - host-controlled publish bridge for chat-native workspace context writes.
 - `scripts/` - local validation and guarded Guild release tooling.
-- `_private/` - local-only private notes, ignored by Git.
 
 ## Agent Suite
 
-Confirmed V1 suite order:
+Recommended suite order:
 
 1. Knowledge Graph / Company Context Builder
 2. Market Signal Agent
@@ -107,19 +81,46 @@ Confirmed V1 suite order:
 7. Social Monitoring And Content Agent
 8. Campaigns And Paid Media Agent
 
-All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
+Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, downstream handoffs, and workspace-context persistence state, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes a compact workspace context brief only after the exact confirmation phrase through the host-controlled workspace-context publish bridge.
+The Company Context Builder should be the default workspace agent because user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes a compact workspace context brief only after the exact confirmation phrase through the host-controlled workspace-context publish bridge.
 
-## Using Marketing OS In Guild
+## Using Marketing OS In The Guild Interface
 
-Use Marketing OS as a sequential review workflow. It drafts approved context, strategy, messaging, content, and campaign artifacts; it does not launch campaigns, publish content, activate lists, spend budget, or change external systems in V1.
+This path is for workspace owners and users who access Marketing OS only through Guild, without access to this source repository.
+
+### External Workspace Setup In Guild UI
+
+1. Sign in to Guild and create or open the target workspace.
+2. Open the workspace agent or Agent Hub area in the Guild interface.
+3. Search for and add the published Marketing OS agents from the `michaelpreuss` owner:
+
+| Order | Agent package |
+|---:|---|
+| 1 | `michaelpreuss~guild-marketing-os-company-context-builder` |
+| 2 | `michaelpreuss~guild-marketing-os-market-signal` |
+| 3 | `michaelpreuss~guild-marketing-os-icp` |
+| 4 | `michaelpreuss~guild-marketing-os-audience-segmentation` |
+| 5 | `michaelpreuss~guild-marketing-os-messaging` |
+| 6 | `michaelpreuss~guild-marketing-os-branding-pitch-deck` |
+| 7 | `michaelpreuss~guild-marketing-os-social-monitoring-content` |
+| 8 | `michaelpreuss~guild-marketing-os-campaigns-paid-media` |
+
+4. Make the Company Context Builder the default first-run agent for the workspace.
+5. Confirm the `guildai~skills` integration is available when Guild prompts for specialist-agent skill access.
+6. Invite the GTM users who will provide company context, review drafts, and approve artifacts.
+
+Workspace users do not need GitHub, Node.js, Blaxel, local scripts, or this repository. The workspace-context bridge and package deployment are maintained outside the external user workflow. If a package is not visible in the Guild interface, ask the package owner or workspace admin to share or install it.
+
+### User Workflow
+
+Use Marketing OS as a sequential review workflow. It drafts approved context, strategy, messaging, content, and campaign artifacts; it does not launch campaigns, publish content, activate lists, spend budget, or change external systems.
 
 Recommended operating loop:
 
-1. Start with the Company Context Builder in the `michaelpreuss/guild-marketing-os` workspace.
+1. Start with the Company Context Builder.
 2. Paste readable company/source text, business goals, known audiences, proof-backed claims, channel scope, and constraints.
 3. Review the Company Context Approval Packet. Resolve important `TBD` items or approve the packet as a useful first version.
 4. Send exactly `publish approved context to workspace context` to publish the compact workspace context brief.
@@ -169,11 +170,11 @@ The seven prompt-only review agents declare `@guildai-services/guildai~skills@1.
 
 The structured `guild-marketing-os-company-context-builder` package does not declare `guildai~skills` yet. Keeping activation out of that coded root agent preserves the first-run context contract until a deliberate programmatic skill-call contract is added.
 
-## Production Readiness Boundary
+## Operating Boundaries
 
-V1 is a Guild-native review-agent starter pack, not a production autonomous marketing system.
+Marketing OS is a Guild-native review-agent suite, not an autonomous marketing execution system.
 
-Safe V1 behavior:
+Supported behavior:
 
 - Draft reviewable marketing artifacts from user-supplied or approved context.
 - Mark missing facts as `TBD` and separate evidence from assumptions.
@@ -181,7 +182,7 @@ Safe V1 behavior:
 - Persist approved company context to Guild workspace context through the Company Context Builder's exact two-step confirmation flow and host-controlled publish bridge.
 - Block live publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes.
 
-Not yet production autonomous:
+Not autonomous:
 
 - No production context database beyond Guild workspace context and per-session Company Context Builder state.
 - No source connectors, CRM/ad platform/social publishing adapters, or credentialed actions.
@@ -209,9 +210,9 @@ The Guild test commands require an authenticated Guild CLI session and run live 
 
 `npm run publish:guild-agent` requires a clean GitHub worktree with no unpushed or behind commits. It copies tracked files from one package into a temporary Guild clone, builds there, saves/publishes the Guild version with `--no-bump`, verifies the published version matches the source `package.json`, and removes the temp clone. Use `--dry-run` to validate the bridge without publishing.
 
-## Setting Up `guild-marketing-os` In Guild
+## Maintainer Setup And Deployment
 
-Use this runbook to stand up the Guild Marketing OS workspace, publish the Company Context Builder, and enable chat-native workspace context publishing through the Blaxel-hosted bridge.
+Use this maintainer runbook when you have repository, GitHub, Guild CLI, and Blaxel access. It covers standing up the Guild Marketing OS workspace, publishing the Company Context Builder, and enabling chat-native workspace context publishing through the Blaxel-hosted bridge.
 
 ### Prerequisites
 
@@ -434,7 +435,7 @@ npm run test:guild-smoke
 - If `npm run publish:guild-agent` fails before publishing, fix the GitHub repo state first: commit, push, pull/rebase if behind, and rerun from the monorepo root.
 - If the live agent cannot access a raw `guild` service, that is expected. The production path is the hosted bridge integration, not direct raw Guild service access from the agent runtime.
 
-## Guild Setup
+## Maintainer Guild CLI Notes
 
 Initialize or repair package directories with the Guild CLI and let Guild create `guild.json`:
 
