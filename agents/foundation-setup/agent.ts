@@ -516,11 +516,23 @@ function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { 
 
 function stripGuildRuntimePreamble(value: string): string {
   const withoutLeadingSpace = value.replace(/^\s+/, "");
-  if (!withoutLeadingSpace.startsWith("* This session was started at")) return value;
-  return withoutLeadingSpace.replace(
+  if (!withoutLeadingSpace.startsWith("* This session was started at")) return stripLeadingManagedWorkspaceContext(value);
+  const withoutRuntimePreamble = withoutLeadingSpace.replace(
     /^\* This session was started at[\s\S]*?```json\n[\s\S]*?\n```\n\n?/,
     "",
   );
+  return stripLeadingManagedWorkspaceContext(withoutRuntimePreamble);
+}
+
+function stripLeadingManagedWorkspaceContext(value: string): string {
+  let current = value;
+  while (current.replace(/^\s+/, "").startsWith(managedContextStart)) {
+    const leadingTrimmed = current.replace(/^\s+/, "");
+    const endIndex = leadingTrimmed.indexOf(managedContextEnd);
+    if (endIndex === -1) return current;
+    current = leadingTrimmed.slice(endIndex + managedContextEnd.length).replace(/^\s+/, "");
+  }
+  return current;
 }
 
 function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {

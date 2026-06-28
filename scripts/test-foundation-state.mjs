@@ -192,6 +192,23 @@ function guildChatEnvelope(text) {
   });
 }
 
+function guildChatEnvelopeWithManagedContext(text) {
+  const injectedManagedContext = [
+    "<!-- guild-marketing-os-context:start -->",
+    "# Guild Marketing OS Managed Company Context",
+    "",
+    "Status: published",
+    "Company: Webflow",
+    "",
+    "## Workspace Context Brief",
+    "Previously published compacted Webflow context. It mentions published workspace context state and should not be classified as the user's current request.",
+    "<!-- guild-marketing-os-context:end -->",
+    "",
+    text,
+  ].join("\n");
+  return guildChatEnvelope(injectedManagedContext);
+}
+
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
   createdContextBody = "";
@@ -276,6 +293,7 @@ async function runPublishFlow(label, wrapInput) {
 
 await runPublishFlow("direct input", (text) => text);
 await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
+await runPublishFlow("Guild chat envelope with injected managed context", guildChatEnvelopeWithManagedContext);
 
 assert.equal(stripCitationMarkers("A citeturn1 B"), "A  B", "citation markers should be stripped");
 assert.equal(removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"), "Keep\n\nDone", "fenced diagram blocks should be removed");
