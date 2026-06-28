@@ -2233,6 +2233,8 @@ ${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
 
 Must preserve if present: dates, numbers, named products, named audiences, proof metrics, third-party review ratings, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
 Do not infer appointment dates, causality, guarantees, compliance workarounds, or operational readiness unless the source states them directly.
+For private-company financials, distinguish company-disclosed funding from secondary-reported valuation or revenue estimates; never call secondary valuations or ARR estimates company-confirmed.
+For pricing and packaging, preserve tier names and included capabilities without strengthening them with words like "full", "complete", "all", or implementation mechanisms not in the source. If the source says "automatic visitor routing", do not rewrite it as "IP routing"; if it says Basic includes unlimited form submissions or Optimize includes audience targeting, keep those details.
 For HIPAA/PHI caveats, preserve the source nuance exactly: use "may not be HIPAA compliant" and "do not provide Protected Health Information / PHI" when that is what the source says; do not soften it to "not HIPAA out of the box."
 Must strip citation artifacts, raw source markers, long table formatting, diagrams, pseudo-queries, and code scaffolding.
 
