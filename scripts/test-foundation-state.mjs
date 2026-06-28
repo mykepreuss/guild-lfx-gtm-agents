@@ -93,6 +93,16 @@ const task = {
             }),
           };
         }
+        if (llmScenario === "repair_addendum" && auditCalls <= 2) {
+          return {
+            text: JSON.stringify({
+              lost_material_facts: ["Webflow headquarters address: 398 11th Street, Floor 2, San Francisco, CA 94103."],
+              unsupported_new_claims: [],
+              overcompressed_nuance: ["Preserve the source caveat that Webflow may not be HIPAA compliant and customers should not provide PHI."],
+              recommended_fixes: ["Append the missing material fact and compliance nuance to the brief."],
+            }),
+          };
+        }
         if (auditCalls === 1) {
           return {
             text: JSON.stringify({
@@ -352,6 +362,28 @@ assert.equal(bridgePublishCalls, 1, "browser routed publish should publish once 
 assert.equal(state.approvedSourceText, fixture, "browser routed publish should keep exact approved source text");
 assert.ok(!createdContextBody.includes(fixture), "browser routed published context must not include raw fixture");
 assert.doesNotMatch(createdContextBody, /cite/, "browser routed published context should strip citation artifacts");
+
+state = undefined;
+createdContextBody = "";
+bridgePublishInput = undefined;
+bridgePublishCalls = 0;
+bridgeScenario = "successful";
+llmScenario = "repair_addendum";
+compactionCalls = 0;
+auditCalls = 0;
+
+const repairFirst = await foundationAgent.start({ type: "text", text: fixture }, task);
+assert.equal(repairFirst.type, "output", "audit repair first input");
+const repairApproval = await foundationAgent.start({ type: "text", text: "Context approved save to workspace context" }, task);
+assert.equal(repairApproval.type, "output", "audit repair approval");
+const repairPublish = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
+assert.equal(repairPublish.type, "output", "audit repair publish");
+assert.match(repairPublish.output.text, /saved_to_workspace_context: true/, "audit repair publish");
+assert.equal(state.workspaceContextStatus, "published", "audit repair should publish after deterministic addendum");
+assert.equal(compactionCalls, 2, "audit repair should still regenerate once with the LLM");
+assert.equal(auditCalls, 3, "audit repair should audit initial, regenerated, and addendum-repaired briefs");
+assert.match(createdContextBody, /Audit-Preserved Facts And Nuance/, "audit repair should append an addendum");
+assert.match(createdContextBody, /398 11th Street, Floor 2, San Francisco, CA 94103/, "audit repair should include the lost material fact");
 
 const approvedOutputForAuditTests = state.approvedOutput;
 

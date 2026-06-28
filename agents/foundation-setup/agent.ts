@@ -2151,10 +2151,58 @@ async function buildCompactedWorkspaceContext(
     };
   }
   if (regeneratedAudit.lost_material_facts.length > 0) {
+    const repairedCompaction = applyCompactionAuditAddendum(regeneratedCompaction, regeneratedAudit);
+    const repairedBriefCheck = validateWorkspaceContextBrief(repairedCompaction.workspace_context_brief);
+    if (repairedBriefCheck.length > 0) {
+      return {
+        status: "blocked",
+        reason: `The audit-repaired workspace context brief is missing required sections: ${repairedBriefCheck.join(", ")}.`,
+        audit: regeneratedAudit,
+        cleanedSourceText,
+      };
+    }
+
+    let repairedAudit = await requestWorkspaceContextAudit(
+      cleanedSourceText,
+      repairedCompaction,
+      task,
+      "The regenerated brief now includes a deterministic audit addendum with the prior lost material facts and over-compressed nuance. Return empty lost_material_facts only if those facts are now present in the brief. Return unsupported_new_claims for any addendum fact that is not supported by the cleaned source.",
+    );
+    if (!repairedAudit) {
+      repairedAudit = await requestWorkspaceContextAudit(
+        cleanedSourceText,
+        repairedCompaction,
+        task,
+        "The previous audit-repair response was missing or did not match the required JSON shape. Return only the required JSON object with array fields.",
+      );
+    }
+    if (!repairedAudit) {
+      return {
+        status: "blocked",
+        reason: "The audit-repaired compaction audit response was missing or did not match the required JSON shape.",
+        audit: regeneratedAudit,
+        cleanedSourceText,
+      };
+    }
+    if (repairedAudit.unsupported_new_claims.length > 0) {
+      return {
+        status: "blocked",
+        reason: "The audit-repaired workspace context brief introduced unsupported new claims.",
+        audit: repairedAudit,
+        cleanedSourceText,
+      };
+    }
+    if (repairedAudit.lost_material_facts.length === 0) {
+      return {
+        status: "ready",
+        context: buildCompactedWorkspaceContextPayload(cleanedSourceText, repairedCompaction, repairedAudit, true),
+      };
+    }
+
     return {
       status: "blocked",
       reason: "The regenerated workspace context brief still lost material facts from the approved source corpus.",
-      audit: regeneratedAudit,
+      audit: repairedAudit,
       cleanedSourceText,
     };
   }
@@ -2182,6 +2230,31 @@ function buildCompactedWorkspaceContextPayload(
     estimatedSourceTokens: estimateWorkspaceContextTokens(cleanedSourceText),
     estimatedBriefTokens: estimateWorkspaceContextTokens(compaction.workspace_context_brief),
     regeneratedAfterAudit,
+  };
+}
+
+function applyCompactionAuditAddendum(
+  compaction: WorkspaceContextCompaction,
+  audit: WorkspaceContextAudit,
+): WorkspaceContextCompaction {
+  const addendumLines = [
+    "### Audit-Preserved Facts And Nuance",
+    "These source-backed details are retained because the compaction coverage audit marked them material for downstream Marketing OS agents.",
+    ...audit.lost_material_facts.map((fact) => `- Material fact: ${fact}`),
+    ...audit.overcompressed_nuance.map((nuance) => `- Nuance to preserve: ${nuance}`),
+  ];
+
+  return {
+    ...compaction,
+    workspace_context_brief: [
+      compaction.workspace_context_brief.trim(),
+      "",
+      addendumLines.join("\n"),
+    ].join("\n"),
+    source_corpus_summary: [
+      compaction.source_corpus_summary.trim(),
+      "Audit repair addendum appended material facts and nuance identified by the compaction coverage audit.",
+    ].join("\n"),
   };
 }
 
