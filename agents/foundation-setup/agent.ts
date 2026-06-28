@@ -2022,7 +2022,16 @@ async function buildCompactedWorkspaceContext(
     ].join("\n");
   const cleanedSourceText = cleanApprovedSourceForWorkspaceContext(sourceText);
   const estimatedSourceTokens = estimateWorkspaceContextTokens(cleanedSourceText);
-  const firstCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task);
+  let firstCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task);
+  if (!firstCompaction) {
+    firstCompaction = await requestWorkspaceContextCompaction(
+      approvedOutput,
+      cleanedSourceText,
+      task,
+      undefined,
+      "The previous compaction response was missing or did not match the required JSON shape. Return only the required JSON object with workspace_context_brief and source_corpus_summary strings.",
+    );
+  }
   if (!firstCompaction) {
     return {
       status: "blocked",
@@ -2040,7 +2049,15 @@ async function buildCompactedWorkspaceContext(
     };
   }
 
-  const firstAudit = await requestWorkspaceContextAudit(cleanedSourceText, firstCompaction, task);
+  let firstAudit = await requestWorkspaceContextAudit(cleanedSourceText, firstCompaction, task);
+  if (!firstAudit) {
+    firstAudit = await requestWorkspaceContextAudit(
+      cleanedSourceText,
+      firstCompaction,
+      task,
+      "The previous audit response was missing or did not match the required JSON shape. Return only the required JSON object with array fields.",
+    );
+  }
   if (!firstAudit) {
     return {
       status: "blocked",
@@ -2064,7 +2081,16 @@ async function buildCompactedWorkspaceContext(
     };
   }
 
-  const regeneratedCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task, firstAudit);
+  let regeneratedCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task, firstAudit);
+  if (!regeneratedCompaction) {
+    regeneratedCompaction = await requestWorkspaceContextCompaction(
+      approvedOutput,
+      cleanedSourceText,
+      task,
+      firstAudit,
+      "The previous regeneration response was missing or did not match the required JSON shape. Return only the required JSON object with workspace_context_brief and source_corpus_summary strings.",
+    );
+  }
   if (!regeneratedCompaction) {
     return {
       status: "blocked",
@@ -2083,7 +2109,15 @@ async function buildCompactedWorkspaceContext(
     };
   }
 
-  const regeneratedAudit = await requestWorkspaceContextAudit(cleanedSourceText, regeneratedCompaction, task);
+  let regeneratedAudit = await requestWorkspaceContextAudit(cleanedSourceText, regeneratedCompaction, task);
+  if (!regeneratedAudit) {
+    regeneratedAudit = await requestWorkspaceContextAudit(
+      cleanedSourceText,
+      regeneratedCompaction,
+      task,
+      "The previous regenerated audit response was missing or did not match the required JSON shape. Return only the required JSON object with array fields.",
+    );
+  }
   if (!regeneratedAudit) {
     return {
       status: "blocked",
@@ -2140,9 +2174,10 @@ async function requestWorkspaceContextCompaction(
   cleanedSourceText: string,
   task: AgentTask,
   auditFeedback?: WorkspaceContextAudit,
+  retryInstruction?: string,
 ): Promise<WorkspaceContextCompaction | undefined> {
   const { text } = await task.llm.generateText({
-    prompt: buildWorkspaceContextCompactionPrompt(approvedOutput, cleanedSourceText, auditFeedback),
+    prompt: buildWorkspaceContextCompactionPrompt(approvedOutput, cleanedSourceText, auditFeedback, retryInstruction),
   });
   const parsed = parseJsonObject(text);
   const result = workspaceContextCompactionSchema.safeParse(parsed);
@@ -2153,9 +2188,10 @@ async function requestWorkspaceContextAudit(
   cleanedSourceText: string,
   compaction: WorkspaceContextCompaction,
   task: AgentTask,
+  retryInstruction?: string,
 ): Promise<WorkspaceContextAudit | undefined> {
   const { text } = await task.llm.generateText({
-    prompt: buildWorkspaceContextAuditPrompt(cleanedSourceText, compaction),
+    prompt: buildWorkspaceContextAuditPrompt(cleanedSourceText, compaction, retryInstruction),
   });
   const parsed = parseJsonObject(text);
   const result = workspaceContextAuditSchema.safeParse(parsed);
@@ -2166,6 +2202,7 @@ function buildWorkspaceContextCompactionPrompt(
   approvedOutput: Output,
   cleanedSourceText: string,
   auditFeedback?: WorkspaceContextAudit,
+  retryInstruction?: string,
 ): string {
   const auditInstruction = auditFeedback
     ? [
@@ -2204,13 +2241,14 @@ Readiness: ${approvedOutput.statusPayload.readiness}
 Known next agents: ${approvedOutput.statusPayload.nextAgents.join(", ")}
 
 ${auditInstruction}
+${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
 Cleaned approved source corpus:
 ${cleanedSourceText}
 `.trim();
 }
 
-function buildWorkspaceContextAuditPrompt(cleanedSourceText: string, compaction: WorkspaceContextCompaction): string {
+function buildWorkspaceContextAuditPrompt(cleanedSourceText: string, compaction: WorkspaceContextCompaction, retryInstruction?: string): string {
   return `
 Workspace Context Compaction Audit
 
@@ -2227,6 +2265,7 @@ Required JSON shape:
 }
 
 Use empty arrays when there are no issues. Put only claims that materially affect downstream Marketing OS agents in lost_material_facts. Put any claim in unsupported_new_claims if it appears in the brief but is not supported by the cleaned source.
+${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
 Cleaned approved source corpus:
 ${cleanedSourceText}
