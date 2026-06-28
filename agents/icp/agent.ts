@@ -42,8 +42,9 @@ Do not rename, remove, or reorder these headings.
 const skillRuntimeActivation = `
 Skill runtime activation:
 - Guild exposes live private Guild Marketing OS Skills through the guildai~skills integration as skills_search and skills_activate.
-- Published Guild workspace context is the first source of truth. If it contains enough customer facts for the user's request, produce the artifact directly before considering any skill.
-- Skills are optional method guidance. Use skills_search when the current task would benefit from a reusable method, rubric, or playbook below; skip it when workspace context and the built-in method are enough.
+- Published Guild workspace context is the first source of truth. If it contains enough customer facts for the user's request, produce the artifact directly without calling skills_search or skills_activate.
+- Default to the built-in method and workspace context for short direct requests such as summaries, bullet lists, ICP drafts, segment drafts, message pillars, campaign angles, or review packets.
+- Skills are optional method guidance. Use skills_search when the current task would benefit from a reusable method, rubric, or playbook below only when the user explicitly asks for a Marketing OS method/skill or the task cannot be completed well from workspace context plus the built-in method.
 - Activate a skill only when the user task matches its runtime description and the search result matches one of these qualified names from guild-skills/catalog.json.
 - Use skills_activate with the qualifiedName returned by search; do not activate unrelated skills.
 - If skills_search or skills_activate is unavailable, forbidden, empty, or errors, do not retry and do not block the response. Continue with the built-in method, workspace context, approved artifacts, and user input.
