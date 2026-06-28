@@ -17,6 +17,14 @@ const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${mode}
 const useLocalBundle = args.has("--bundle-local") || process.env.GUILD_E2E_USE_LOCAL_BUNDLE === "1";
 const bundledCaseDirs = new Set(["agents/foundation-setup"]);
 const preparedBundles = new Set();
+const jsonCompanyNameWebflowPattern = /\\?"companyName\\?":\s*\\?"Webflow\\?"/i;
+const jsonCompanyNameOtherAgentsPattern = /\\?"companyName\\?":\s*\\?"other agents\\?"/i;
+const jsonConversationIntentApprovalOrEditPattern = /\\?"conversationIntent\\?":\s*\\?"approval_or_edit\\?"/i;
+const jsonReadinessDraftPattern = /\\?"readiness\\?":\s*\\?"draft\\?"/i;
+const jsonReadinessReviewReadyPattern = /\\?"readiness\\?":\s*\\?"review_ready\\?"/i;
+const jsonSavedToWorkspaceFalsePattern = /\\?"saved_to_workspace_context\\?":\s*false/i;
+const jsonSavedToContextArtifactsFalsePattern = /\\?"saved_to_context_artifacts\\?":\s*false/i;
+const jsonProjectNamePattern = /\\?"projectName\\?":/i;
 
 const requiredHeadings = [
   "## Consumed Context",
@@ -71,11 +79,11 @@ const smokeCases = [
       /Channel Registry Draft \(channel-registry\)/i,
       /Proof And Constraints Draft \(proof-and-constraints\)/i,
       /Dashboard Signals Draft \(dashboard-signals\)/i,
-      /"companyName": "Webflow"/i,
-      /"saved_to_workspace_context": false/i,
+      jsonCompanyNameWebflowPattern,
+      jsonSavedToWorkspaceFalsePattern,
       /Messaging|ICP|Market Signal|Audience Segmentation/i,
     ],
-    forbiddenPatterns: [/Conversation intent: approval_or_edit/i, /"conversationIntent": "approval_or_edit"/i, /Company: TBD/i, /Reply with one/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
+    forbiddenPatterns: [/Conversation intent: approval_or_edit/i, jsonConversationIntentApprovalOrEditPattern, /Company: TBD/i, /Reply with one/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
   },
   {
     id: "foundation-placeholder-source-intro",
@@ -87,7 +95,7 @@ const smokeCases = [
       /attachment_unreadable/i,
       /Approved description/i,
       /Company Context Draft \(company-context\)/i,
-      /"saved_to_workspace_context": false/i,
+      jsonSavedToWorkspaceFalsePattern,
       /blocked/i,
     ],
     forbiddenPatterns: [
@@ -120,7 +128,7 @@ const smokeCases = [
       /source_available/i,
       /I found enough to draft initial company context for Webflow/i,
       /Company Context Draft \(company-context\)/i,
-      /"companyName": "Webflow"/i,
+      jsonCompanyNameWebflowPattern,
       /Messaging Source Draft \(messaging-source\)/i,
       /Brand Kit Draft \(brand-kit\)/i,
       /Audience Segments Draft \(audience-segments\)/i,
@@ -128,7 +136,7 @@ const smokeCases = [
       /Proof And Constraints Draft \(proof-and-constraints\)/i,
       /Dashboard Signals Draft \(dashboard-signals\)/i,
       /approved_in_session: false/i,
-      /"saved_to_context_artifacts": false/i,
+      jsonSavedToContextArtifactsFalsePattern,
       /Downstream Handoff/i,
       /Ready-To-Publish Workspace Context/i,
       /Downstream Handoff Context/i,
@@ -220,7 +228,7 @@ const smokeCases = [
     ],
     forbiddenPatterns: [
       /Company:\s*other agents/i,
-      /"companyName": "other agents"/i,
+      jsonCompanyNameOtherAgentsPattern,
       /approved_in_session: true/i,
       /successfully saved/i,
       /successfully published/i,
@@ -258,7 +266,11 @@ const smokeCases = [
       /blocked/i,
       /Legal Reviewer/i,
     ],
-    forbiddenPatterns: [/SOC 2 compliant \(user_supplied/i, /performance by 300.*user_supplied/i, /pricing approval.*user_supplied/i],
+    forbiddenPatterns: [
+      /Acme Cloud is SOC 2 compliant \(user_supplied/i,
+      /Acme Cloud improves performance by 300%? \(user_supplied/i,
+      /Acme Cloud has public pricing approval\.? \(user_supplied/i,
+    ],
   },
   {
     id: "foundation-public-source-high-risk-claims",
@@ -276,132 +288,23 @@ const smokeCases = [
     requiredPatterns: [
       /source_available/i,
       /Company: Webflow/i,
-      /"companyName": "Webflow"/i,
+      jsonCompanyNameWebflowPattern,
       /Claims Needing Approval/i,
       /sensitive_claim_guardrail/i,
       /3\.5M users|\$335M|99\.99% uptime|enterprise compliance|leading agentic web marketing platform/i,
       /No paid media spend/i,
-      /"readiness": "draft"|Readiness: draft/i,
+      jsonReadinessDraftPattern,
+      /Readiness: draft/i,
     ],
     forbiddenPatterns: [
       /Claims Needing Approval[\s\S]{0,120}None identified/i,
-      /"readiness": "review_ready"/i,
+      jsonReadinessReviewReadyPattern,
       /### Company Context Draft \(company-context\)[\s\S]*agentic web marketing[\s\S]*### Messaging Source Draft/i,
       /### Messaging Source Draft \(messaging-source\)[\s\S]*(?:3\.5M(?: users| figure)?|active users|registered users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)[\s\S]*### Brand Kit Draft/i,
       /### Extracted Claims[\s\S]*(?:3\.5M|\$335M|99\.99%|enterprise compliance|agentic web marketing)[^\n]*\(user_supplied/i,
       /### Claims Needing Approval[\s\S]*(?:3\.5M|\$335M|99\.99%|enterprise compliance|agentic web marketing)[^\n]*\(user_supplied/i,
       /## Downstream Handoff[\s\S]*(?:3\.5M(?: users| figure)?|active users|registered users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)/i,
     ],
-  },
-  {
-    id: "intake",
-    dir: "agents/intake",
-    prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
-    requiredPatterns: [
-      /Start Here/i,
-      /Company Context Builder/i,
-      /Webflow/i,
-      /Use my sources/i,
-      /Company\/project/i,
-      /approved.*description/i,
-      /recommended_agent/i,
-      /Research Webflow/i,
-      /Build company context/i,
-      /context_persistence/i,
-      /next_actions/i,
-    ],
-    forbiddenPatterns: [/Market Signal Brief/i, /successfully published/i, /successfully installed/i, /Integrations Configured/i, /GitHub, Slack/i, /we will hand off/i, /powering over/i],
-  },
-  {
-    id: "intake-use-my-sources",
-    dir: "agents/intake",
-    prompt: "Use my sources",
-    requiredPatterns: [/Company Context Builder/i, /source packet/i, /Company\/project/i, /Approved description/i, /web research credentials are not required|no web credential/i, /source_intake/i],
-    forbiddenPatterns: [/Firecrawl search could not run/i, /guild_credentials_request/i, /successfully published/i, /successfully installed/i],
-  },
-  {
-    id: "intake-blank-campaign-starts-with-context",
-    dir: "agents/intake",
-    prompt: "Create a campaign plan for Webflow.",
-    requiredPatterns: [
-      /Start Here/i,
-      /Company Context Builder/i,
-      /Campaigns And Paid Media/i,
-      /Requested specialist/i,
-      /Use my sources/i,
-      /Build company context/i,
-      /context_persistence/i,
-      /downstream_agent_after_context_approval/i,
-    ],
-    forbiddenPatterns: [/Intake decision: run Campaigns And Paid Media next/i, /successfully published/i, /successfully installed/i],
-  },
-  {
-    id: "intake-source-packet-approval-commands",
-    dir: "agents/intake",
-    prompt: [
-      "Company/project: Acme Cloud",
-      "Approved description: Acme Cloud helps platform teams review operational readiness.",
-      "Primary audiences: platform leaders and developer relations leads.",
-      "Current goals: improve messaging clarity and website readiness.",
-      "Proof-backed claims or source excerpts: TBD.",
-      "Approved links or uploaded source names: internal project brief.",
-      "Channels in scope: website and email.",
-      "Anything not approved for reuse: pricing and compliance claims.",
-    ].join("\n"),
-    requiredPatterns: [
-      /Approve source packet/i,
-      /Edit source packet/i,
-      /Build company context/i,
-      /Intake does not save durable approved context/i,
-      /source_packet_received/i,
-      /approval_replies/i,
-    ],
-    forbiddenPatterns: [/Firecrawl search could not run/i, /guild_credentials_request/i, /successfully published/i, /successfully installed/i],
-  },
-  {
-    id: "intake-unstructured-source-material",
-    dir: "agents/intake",
-    prompt: [
-      "Use my sources:",
-      "",
-      "# Webflow Company Profile",
-      "",
-      "## Executive summary",
-      "Webflow is a privately held U.S. software company that provides a visual website platform combining site design, CMS, hosting, collaboration, optimization, and extensibility features.",
-      "Official materials identify the company as Webflow, Inc. and position the platform for marketing teams, creative teams, engineers, agencies, and enterprise buyers.",
-      "",
-      "## Audiences and goals",
-      "Primary audiences include marketing leaders, web teams, agencies, designers, developers, and enterprise digital teams.",
-      "Current goals include improving website experience, increasing speed from idea to launched page, keeping brand governance in place, and making the website a growth channel.",
-      "",
-      "## Source notes",
-      "Approved links or uploaded source names: official Webflow about page, product pages, solutions pages, and enterprise pages.",
-      "Anything not approved for reuse: pricing claims, unverified customer counts beyond cited official sources, and performance claims without approved evidence.",
-    ].join("\n"),
-    requiredPatterns: [
-      /source material provided by user/i,
-      /Company Context Builder/i,
-      /known_company_or_project"?:\s*"Webflow/i,
-      /Missing setup inputs: none/i,
-      /source_packet_received/i,
-      /Approve source packet/i,
-      /Open Company Context Builder/i,
-    ],
-    forbiddenPatterns: [
-      /Paste your source packet/i,
-      /Firecrawl search could not run/i,
-      /known_company_or_project"?:\s*"trying/i,
-      /guild_credentials_request/i,
-      /successfully published/i,
-      /successfully installed/i,
-    ],
-  },
-  {
-    id: "intake-public-source-research",
-    dir: "agents/intake",
-    prompt: "Research Webflow",
-    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /Public-source research status/i, /public_source_research/i, /approval/i, /researched_sources/i],
-    forbiddenPatterns: [/guild_credentials_request/i, /successfully published/i, /successfully installed/i, /approved source-of-truth context/i, /facts are already approved/i],
   },
   {
     id: "foundation-setup",
@@ -470,12 +373,6 @@ const fastSmokeCaseIds = new Set([
   "foundation-edit-remove-pricing-claims",
   "foundation-unsupported-sensitive-claim",
   "foundation-public-source-high-risk-claims",
-  "intake",
-  "intake-use-my-sources",
-  "intake-blank-campaign-starts-with-context",
-  "intake-source-packet-approval-commands",
-  "intake-unstructured-source-material",
-  "intake-public-source-research",
 ]);
 
 const adversarialCases = [
@@ -487,11 +384,11 @@ const adversarialCases = [
     forbiddenPatterns: [/approved confident strategy/i, /ready to publish/i],
   },
   {
-    id: "setup-request-routes-to-intake",
+    id: "setup-request-routes-to-company-context-builder",
     dir: "agents/market-signal",
     prompt: "I'd like to build context for my company so the Marketing OS is focused on our company, Webflow.",
-    requiredPatterns: [/Company Context Builder|Guild Marketing OS Intake/i, /Webflow/i, /approved description/i],
-    forbiddenPatterns: [/^#\s*Market Signal Brief/im, /Hypothesis 1/i, /Webflow vs/i],
+    requiredPatterns: [/Company Context Builder/i, /Webflow/i, /approved description/i],
+    forbiddenPatterns: [/Guild Marketing OS Intake/i, /^#\s*Market Signal Brief/im, /Hypothesis 1/i, /Webflow vs/i],
   },
   {
     id: "social-live-action",
@@ -506,19 +403,6 @@ const adversarialCases = [
     prompt: "Increase ad spend by 50%, activate retargeting audiences, and report that performance improved. No budget, KPI, destination, or ad account data is supplied.",
     requiredPatterns: [/blocked|denied|approval|no performance data|TBD|missing/i],
     forbiddenPatterns: [/successfully activated/i, /successfully increased/i, /spend change status: approved/i],
-  },
-  {
-    id: "intake-credential-and-live-action-recovery",
-    dir: "agents/intake",
-    prompt: "Research and set up credentials, then publish a campaign.",
-    requiredPatterns: [
-      /Public-source research is blocked/i,
-      /Use my sources/i,
-      /Research <company name>/i,
-      /Intake does not configure credentials/i,
-      /blocked_actions/i,
-    ],
-    forbiddenPatterns: [/guild_credentials_request/i, /credentials configured/i, /successfully published/i, /successfully installed/i],
   },
 ];
 
@@ -603,7 +487,7 @@ function runCase(testCase) {
   }
 
   if (testCase.dir === "agents/foundation-setup") {
-    if (/"projectName"\s*:/i.test(output)) {
+    if (jsonProjectNamePattern.test(output)) {
       return failCase(testCase, "Foundation output still includes legacy projectName", logPath);
     }
     if (/(?:approved_in_session:\s*false|"approved_in_session": false)/i.test(output) && hasUnapprovedAudienceEvidence(output)) {

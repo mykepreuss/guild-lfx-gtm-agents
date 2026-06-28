@@ -274,8 +274,7 @@ function redact(value) {
 function printUsage() {
   console.log(`
 Usage:
-  npm run publish:guild-agent -- --agent intake --message "Publish intake updates"
-  npm run publish:guild-agent -- --agent guild-marketing-os-intake --dry-run
+  npm run publish:guild-agent -- --agent foundation-setup --message "Publish company context builder updates"
   npm run publish:guild-agent -- --all --message "Publish Guild Marketing OS agents"
 
 This command must run from the GitHub monorepo root after changes are committed and pushed.

@@ -56,7 +56,6 @@ const expectedAgentIds = [
   "campaigns-paid-media",
 ];
 const expectedEntrypointId = "foundation-setup";
-const expectedSupportPackageIds = ["intake"];
 const runtimeSkillReviewAgentIds = expectedAgentIds.filter((id) => id !== "foundation-setup");
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
@@ -95,10 +94,7 @@ const requiredStructuredFoundationSnippets = [
   "parseJsonObject",
   "enforceDeterministicGuards",
   "renderMarkdownPacket",
-  "userInterfaceTools",
-  "ui_notify",
-  "textPromptNotifyEvent",
-  "renderVisibleReviewSummary",
+  "renderPacketSummary",
   "forbiddenLiveActionClaims",
   "markdownPacket",
   "## Consumed Context",
@@ -109,32 +105,6 @@ const requiredStructuredFoundationSnippets = [
   "## Status Payload",
   "## Downstream Handoff",
 ];
-const requiredIntakeSourceSnippets = [
-  "agent({",
-  "inputSchema",
-  "outputSchema",
-  "identifier:",
-  "Deterministic chat-native entrypoint",
-  "FirecrawlTools",
-  "firecrawl_search_and_scrape",
-  "userInterfaceTools",
-  "ui_notify",
-  "textPromptNotifyEvent",
-  "renderVisibleChooser",
-  "visible_chooser_sent",
-  "Company Context Builder",
-  "Public-source research",
-  "recommended_agent",
-  "public_source_research",
-  "## Consumed Context",
-  "## Produced Artifact",
-  "## Assumptions And Missing Evidence",
-  "## Approval Gate",
-  "## AEO / AI-Readiness Contribution",
-  "## Status Payload",
-  "## Downstream Handoff",
-];
-
 function fail(message) {
   errors.push(message);
 }
@@ -247,18 +217,8 @@ function validateAgentCatalog() {
   const supportPackages = catalog.supportPackages ?? [];
   if (!Array.isArray(supportPackages)) {
     fail("agents/catalog.json supportPackages must be an array when present.");
-  } else {
-    for (const expectedSupportId of expectedSupportPackageIds) {
-      const supportPackage = supportPackages.find((item) => item.id === expectedSupportId);
-      if (!supportPackage) {
-        fail(`agents/catalog.json supportPackages must include ${expectedSupportId}.`);
-        continue;
-      }
-      validateCatalogPackageFields(supportPackage, { requireContextHub: false });
-      if (supportPackage.defaultWorkspaceAgent !== false) {
-        fail(`${expectedSupportId} support package must not be the default workspace agent.`);
-      }
-    }
+  } else if (supportPackages.length > 0) {
+    fail("agents/catalog.json supportPackages must stay empty for the eight-agent V1 suite.");
   }
 
   if (catalog.phase !== "guild-native-phase-1") {
@@ -363,12 +323,9 @@ function validateAgentPackage(agent) {
     if (!hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage]) {
       fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage} unless the agent uses runtime skill activation.`);
     }
-    const requiresZod = agent.id === "foundation-setup" || agent.id === "intake";
+    const requiresZod = agent.id === "foundation-setup";
     if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
-    }
-    if (agent.id === "intake" && packageJson?.dependencies?.["@guildai-services/dkountanis~firecrawl"] !== "6.1.0") {
-      fail(`${packageJsonPath} must pin @guildai-services/dkountanis~firecrawl to 6.1.0 for public-source research.`);
     }
     if (!requiresZod && packageJson?.dependencies?.zod) {
       fail(`${packageJsonPath} should not depend on zod unless the package has a structured schema boundary.`);
@@ -400,9 +357,7 @@ function validateAgentPackage(agent) {
       fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
     }
 
-    const requiredSnippets = agent.id === "intake"
-      ? requiredIntakeSourceSnippets
-      : agent.id === "foundation-setup"
+    const requiredSnippets = agent.id === "foundation-setup"
         ? requiredStructuredFoundationSnippets
         : requiredReviewAgentSourceSnippets;
     for (const snippet of requiredSnippets) {
@@ -413,10 +368,7 @@ function validateAgentPackage(agent) {
     if (agent.id === "foundation-setup" && !source.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
-    if (agent.id === "intake" && !source.includes('from "zod"')) {
-      fail(`${packageDir}/agent.ts must import zod for structured validation.`);
-    }
-    if ((agent.id === "foundation-setup" || agent.id === "intake") && source.includes("llmAgent(")) {
+    if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
     if (hasRuntimeSkillActivation(agent.id)) {

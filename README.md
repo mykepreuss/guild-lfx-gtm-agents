@@ -10,9 +10,9 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Guild package initialization and testing are approved for this implementation.
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
-- All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files; `guild-marketing-os-intake` remains an optional support package for routing and explicit public-source research.
+- All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files.
 - `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-- The Company Context Builder is a structured Zod-backed `agent()` internally, but exposes canonical text input/output for Guild default chat compatibility. It sends a short visible review summary and leaves the full Markdown packet as the details view.
+- The Company Context Builder is a structured Zod-backed `agent()` internally, but exposes canonical text input/output for Guild default chat compatibility. It returns a short inline review summary followed by the full Markdown packet.
 - First-run source collection currently expects readable source text pasted into chat. If a user attaches a PDF or file without pasted text, the Company Context Builder blocks and asks for the relevant text instead of pretending it read the attachment.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
@@ -62,7 +62,7 @@ npm run verify
 npm run publish:guild-agent -- --agent <agent-id> --message "<release message>"
 ```
 
-Allowed only when intentionally reinitializing one of the existing V1 package records or the intake entrypoint:
+Allowed only when intentionally reinitializing one of the existing V1 package records:
 
 ```sh
 guild agent init --name <guild-marketing-os-name> --agent-type GUILD_TYPESCRIPT --template LLM --owner michaelpreuss --directory agents/<agent>
@@ -109,13 +109,13 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It sends a short visible summary first, then returns the full Markdown packet for review. `guild-marketing-os-intake` remains installed as an optional helper for routing and explicit public-source research, but it is not the primary onboarding path.
+The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet.
 
 ## Runtime Skill Activation
 
 The seven prompt-only review agents declare `@guildai-services/guildai~skills@1.0.0` and expose the generated `SkillsTools` tool set. At runtime, Guild provides `skills_search` and `skills_activate` from the `guildai~skills` integration. Agents are instructed to search for a relevant reusable method first, activate only matching `qualifiedName` records from `guild-skills/catalog.json`, and treat activated skill bodies as method guidance rather than customer facts, evidence, approval, or permission for live action.
 
-The deterministic `guild-marketing-os-intake` package and structured `guild-marketing-os-company-context-builder` package do not declare `guildai~skills` yet. Keeping activation out of those coded agents preserves the first-run context contract until a deliberate programmatic skill-call contract is added.
+The structured `guild-marketing-os-company-context-builder` package does not declare `guildai~skills` yet. Keeping activation out of that coded root agent preserves the first-run context contract until a deliberate programmatic skill-call contract is added.
 
 ## Production Readiness Boundary
 

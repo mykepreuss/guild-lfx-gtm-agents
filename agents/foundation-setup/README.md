@@ -22,7 +22,7 @@ Returned output:
 
 - canonical `type: "text"` and `text`
 - full Markdown review packet containing approved context artifact drafts, approved facts and missing evidence, approval gates, AEO readiness, status payload, and downstream handoff
-- short visible review summary via `ui_notify`
+- short inline review summary at the top of the Markdown packet
 
 ## V1 Boundary
 

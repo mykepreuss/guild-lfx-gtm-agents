@@ -1,4 +1,4 @@
-import { agent, pick, textPromptNotifyEvent, userInterfaceTools, type Task } from "@guildai/agents-sdk";
+import { agent, noTools, type Task } from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -187,9 +187,7 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
-const tools = {
-  ...pick(userInterfaceTools, ["ui_notify"]),
-};
+const tools = noTools;
 type Tools = typeof tools;
 type AgentTask = Task<Tools>;
 
@@ -237,23 +235,23 @@ export default agent({
     const conversationIntent = classifyConversationIntent(rawContext);
 
     if (conversationIntent === "save_state_question") {
-      return finalizeOutput(task, buildSaveStateQuestionOutput(input));
+      return finalizeOutput(buildSaveStateQuestionOutput(input));
     }
 
     if (conversationIntent === "approval_or_edit") {
-      return finalizeOutput(task, buildApprovalOrEditOutput(input));
+      return finalizeOutput(buildApprovalOrEditOutput(input));
     }
 
     if (conversationIntent === "attachment_unreadable") {
-      return finalizeOutput(task, buildReadableSourceNeededOutput(input, conversationIntent));
+      return finalizeOutput(buildReadableSourceNeededOutput(input, conversationIntent));
     }
 
     if (conversationIntent === "downstream_request_without_context") {
-      return finalizeOutput(task, buildDownstreamWithoutContextOutput(input));
+      return finalizeOutput(buildDownstreamWithoutContextOutput(input));
     }
 
     if (conversationIntent === "missing_context") {
-      return finalizeOutput(task, buildMissingContextOutput(input));
+      return finalizeOutput(buildMissingContextOutput(input));
     }
 
     const fallback = buildFallbackOutput(input, [], conversationIntent);
@@ -283,11 +281,11 @@ export default agent({
     }
 
     const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
-    return finalizeOutput(task, guarded);
+    return finalizeOutput(guarded);
   },
 });
 
-async function finalizeOutput(task: AgentTask, output: Output): Promise<z.infer<typeof outputSchema>> {
+async function finalizeOutput(output: Output): Promise<z.infer<typeof outputSchema>> {
   const markdownPacket = renderMarkdownPacket(output);
   const parsedOutput = structuredOutputSchema.parse({
     ...output,
@@ -295,148 +293,7 @@ async function finalizeOutput(task: AgentTask, output: Output): Promise<z.infer<
     text: markdownPacket,
     markdownPacket,
   });
-  void task;
-  // Guild chat renders ui_notify as a separate message. Keep the first-run UX to one response.
   return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
-}
-
-async function notifyVisibleReviewSummary(task: AgentTask, text: string): Promise<void> {
-  const notify = task.tools?.ui_notify;
-  if (typeof notify !== "function") return;
-
-  try {
-    await notify(textPromptNotifyEvent({ type: "text", text }));
-  } catch {
-    // The final Markdown packet still carries the same review state when UI notifications are unavailable.
-  }
-}
-
-function renderVisibleReviewSummary(output: Output): string {
-  const companyName = output.statusPayload.companyName === "TBD" ? "this company" : output.statusPayload.companyName;
-  const missingInputs = output.consumedContext.missing.slice(0, 5);
-  const nextAgent = output.statusPayload.nextAgents[0] ?? "Messaging";
-
-  if (output.conversationIntent === "save_state_question") {
-    return [
-      "**No. This is not saved in workspace context yet.**",
-      "",
-      "This is a session draft only. It has not been saved to Guild workspace context or Context Hub artifacts.",
-      "",
-      "To make it reusable by other agents, paste the Ready-To-Publish Workspace Context block from the draft turn or explicitly authorize a separate workspace context edit/publish lifecycle step.",
-    ].join("\n");
-  }
-
-  if (output.conversationIntent === "approval_or_edit") {
-    if (needsVisiblePriorDraftForApproval(output)) {
-      return [
-        "**I noted the approval request, but I cannot see the prior company context draft in this run.**",
-        "",
-        output.persistenceState.persistence_note,
-        "",
-        "Paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly authorize a separate workspace context edit/publish lifecycle step with that block.",
-        "",
-        "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
-      ].join("\n");
-    }
-
-    return [
-      `**Company context ${output.persistenceState.approved_in_session ? "is approved in this session" : "has a session-only edit draft"}.**`,
-      "",
-      output.persistenceState.persistence_note,
-      "",
-      "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
-      "",
-      "Next step: use the Downstream Handoff Context below when starting ICP, Messaging, or another specialist agent unless a separate workspace context publish has been authorized.",
-    ].join("\n");
-  }
-
-  if (output.conversationIntent === "downstream_request_without_context") {
-    const requestedAgent = output.downstreamHandoff.find((handoff) => handoff.agent !== "Company Context Builder")?.agent ?? nextAgent;
-    return [
-      `**Setup comes first, then ${requestedAgent}.**`,
-      "",
-      `I preserved the downstream request for ${companyName}, but the Marketing OS needs approved company context before specialist work should run.`,
-      "",
-      missingInputs.length ? "Fastest next reply:" : "Next replies:",
-      ...(missingInputs.length
-        ? [`- \`${formatFocusedReply(companyName, missingInputs)}\``]
-        : ["- Paste readable company context or the Ready-To-Publish Workspace Context block.", `- Run ${requestedAgent} after approved context is visible.`]),
-      "",
-      "Nothing has been saved, published, scheduled, or sent to another system.",
-    ].join("\n");
-  }
-
-  if (output.conversationIntent === "missing_context") {
-    return [
-      `**I need a little more company context before drafting reusable artifacts for ${companyName}.**`,
-      "",
-      "Reply with rough notes; you do not need to fill out an internal schema.",
-      "",
-      ...focusedQuestions(output).map((question) => `- ${question}`),
-      "",
-      "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
-    ].join("\n");
-  }
-
-  if (output.status === "blocked" && needsReadableSourceText(output)) {
-    return [
-      "**I can see that you tried to provide company context, but I do not have readable file contents in this run.**",
-      "",
-      "Paste the relevant text, provide readable excerpts, or send a source URL through an agent that can fetch it, and I will extract the company context from it.",
-      "",
-      "I will not pretend the attachment was processed.",
-      "",
-      "Fast next replies:",
-      "- Paste the relevant company profile text.",
-      "- Send `Use my sources:` followed by rough notes.",
-      "- Send a URL plus the page text if this agent cannot fetch the page in the current run.",
-      "",
-      "Nothing has been saved.",
-    ].join("\n");
-  }
-
-  if (output.status === "blocked") {
-    return [
-      `**Company context for ${companyName} needs a few inputs before it can drive the Marketing OS.**`,
-      "",
-      missingInputs.length ? "Missing now:" : "Review needed:",
-      ...(missingInputs.length ? missingInputs.map((item) => `- ${item}`) : ["- Confirm the company description, audiences, goals, proof, and channels."]),
-      "",
-      "Send the missing facts or paste source material in one message, and I will draft the context packet again.",
-      "",
-      "Nothing has been saved, published, scheduled, or sent to another system.",
-    ].join("\n");
-  }
-
-  const channelScope = output.contextArtifacts.channelRegistry.approvedChannels.length
-    ? output.contextArtifacts.channelRegistry.approvedChannels
-    : output.contextArtifacts.channelRegistry.channelsTbd;
-
-  return [
-    `**I found enough to draft initial company context for ${companyName}.**`,
-    "",
-    `I extracted the company entity, audience groups, goals, channel scope, proof constraints, and downstream handoffs that were visible in the supplied source.`,
-    "",
-    `- Audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}`,
-    `- Goals: ${formatList(output.contextArtifacts.companyContext.goals)}`,
-    `- Channels: ${formatList(channelScope)}`,
-    `- Proof status: ${formatProofStatusSummary(output)}`,
-    ...(missingInputs.length ? ["", "Review gaps:", ...missingInputs.map((item) => `- ${item}`)] : []),
-    "",
-    "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
-    "",
-    "Use the Ready-To-Publish Workspace Context block below for a separate Guild workspace context publish step, or paste the Downstream Handoff Context into a downstream agent.",
-    `After approved context is visible, run ${nextAgent}.`,
-  ].join("\n");
-}
-
-function formatProofStatusSummary(output: Output): string {
-  const proofClaims = output.proofBackedClaims.filter(isReusableProofClaim);
-  if (proofClaims.length) return `${proofClaims.length} approved proof claim(s) captured`;
-  if (output.approvedFacts.some((claim) => isCompanyIdentityClaim(claim.claim))) {
-    return "company identity captured; proof claims need approval";
-  }
-  return "proof still needs approval";
 }
 
 function getRawContext(input: Input): string {
@@ -1861,20 +1718,6 @@ function normalizeOpenQuestions(existing: string[], missing: string[], conversat
   if (missing.some((item) => /goal/i.test(item))) questions.push("What is the current marketing goal?");
   if (missing.some((item) => /proof|evidence|claim/i.test(item))) questions.push("Which claims are proof-backed, and which should not be reused?");
   return [...new Set(questions)].slice(0, 5);
-}
-
-function focusedQuestions(output: Output): string[] {
-  return output.openQuestions.length ? output.openQuestions.slice(0, 5) : normalizeOpenQuestions([], output.consumedContext.missing, output.conversationIntent);
-}
-
-function formatFocusedReply(companyName: string, missingInputs: string[]): string {
-  const name = companyName === "this company" || companyName === "TBD" ? "Company name: ..." : `Company name: ${companyName}`;
-  const fields = [name];
-  if (missingInputs.some((item) => /description/i.test(item))) fields.push("Approved description: ...");
-  if (missingInputs.some((item) => /audience/i.test(item))) fields.push("Primary audiences: ...");
-  if (missingInputs.some((item) => /goal/i.test(item))) fields.push("Current goals: ...");
-  if (missingInputs.some((item) => /proof|claim|evidence/i.test(item))) fields.push("Proof-backed claims: ...");
-  return fields.join(" ");
 }
 
 function downstreamReceivesForAgent(agentName: (typeof agentValues)[number]): Array<(typeof artifactValues)[number]> {

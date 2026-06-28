@@ -13,7 +13,7 @@ Runtime state:
 - The seven prompt-only review agents under `agents/` declare `@guildai-services/guildai~skills@1.0.0`.
 - Those agents expose Guild's generated `SkillsTools`, which provides `skills_search` and `skills_activate`.
 - Their prompts require search before activation, activation only for relevant catalog skill `qualifiedName` records, and use of activated skill bodies as reusable method guidance only.
-- `agents/intake/` and `agents/foundation-setup/` do not declare `guildai~skills`; they stay deterministic coded agents until a separate programmatic activation design is approved.
+- `agents/foundation-setup/` does not declare `guildai~skills`; it stays a deterministic coded root agent until a separate programmatic activation design is approved.
 
 Current source:
 

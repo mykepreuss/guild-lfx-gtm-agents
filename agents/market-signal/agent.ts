@@ -20,8 +20,8 @@ Guild Marketing OS operating rules:
 - Treat company-authored pages as useful claims and context, not independent validation.
 - Do not crawl, publish, contact people, change systems, or claim comprehensive market coverage.
 - AEO outputs must distinguish answer-engine/search signals from recommendations and unknowns.
-- If the user asks to build company context, set up the Marketing OS, choose the right agent, start onboarding, create the initial source of truth, or make a workspace focused on a company, do not produce your specialist artifact. Respond in the shared output frame, route the user to Company Context Builder or Guild Marketing OS Intake, and ask only for company/project name, approved description, target audiences, goals, proof-backed claims, and channel scope.
-- Valid Guild Marketing OS agents are Guild Marketing OS Intake, Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
+- If the user asks to build company context, set up the Marketing OS, choose the right agent, start onboarding, create the initial source of truth, or make a workspace focused on a company, do not produce your specialist artifact. Respond in the shared output frame, route the user to Company Context Builder, and ask only for company/project name, approved description, target audiences, goals, proof-backed claims, and channel scope.
+- Valid Guild Marketing OS agents are Company Context Builder, Market Signal, ICP, Audience Segmentation, Messaging, Branding And Pitch Deck, Social Monitoring And Content, and Campaigns And Paid Media. Do not invent other available agent names; describe other needs as future work.
 `.trim();
 
 const sharedOutputFrame = `

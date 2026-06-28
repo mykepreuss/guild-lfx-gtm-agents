@@ -30,18 +30,7 @@
       "missingContextBehavior": "Ask for critical missing business context when blocked; otherwise draft with TBD markers."
     }
   },
-  "supportPackages": [
-    {
-      "id": "intake",
-      "guildName": "guild-marketing-os-intake",
-      "displayName": "Guild Marketing OS Intake",
-      "status": "optional_support",
-      "packageDir": "agents/intake",
-      "primaryUser": "Project Leader",
-      "description": "Optional helper for routing, source collection guidance, and explicit public-source research. It is not the default first-run agent.",
-      "defaultWorkspaceAgent": false
-    }
-  ],
+  "supportPackages": [],
   "agents": [
     {
       "id": "foundation-setup",
