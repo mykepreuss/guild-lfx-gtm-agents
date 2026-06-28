@@ -222,7 +222,9 @@ async function runPublishFlow(label, wrapInput) {
   const first = await foundationAgent.start({ type: "text", text: wrapInput(fixture) }, task);
   assert.equal(first.type, "output", label);
   assert.match(first.output.text, /Company Context Approval Packet/, label);
+  assert.match(first.output.text, /Company: Webflow/, label);
   assert.match(first.output.text, /saved_to_workspace_context: false/, label);
+  assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", `${label}: company name should resolve from fixture heading`);
   assert.equal(state.lastSourceText, fixture, `${label}: source text should preserve exact fixture`);
 
   const approval = await foundationAgent.start({ type: "text", text: wrapInput("Context approved save to workspace context") }, task);
@@ -294,6 +296,15 @@ async function runPublishFlow(label, wrapInput) {
 await runPublishFlow("direct input", (text) => text);
 await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
 await runPublishFlow("Guild chat envelope with injected managed context", guildChatEnvelopeWithManagedContext);
+const approvedOutputForAuditTests = state.approvedOutput;
+
+state = undefined;
+const cliArtifactFirst = await foundationAgent.start({ type: "text", text: guildChatEnvelopeWithManagedContext(`chat ${fixture}`) }, task);
+assert.equal(cliArtifactFirst.type, "output", "Guild chat initial command artifact");
+assert.match(cliArtifactFirst.output.text, /Conversation intent: source_available/, "Guild chat initial command artifact");
+assert.match(cliArtifactFirst.output.text, /Company: Webflow/, "Guild chat initial command artifact");
+assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "CLI artifact should not hide fixture heading company name");
+assert.equal(state.lastSourceText, fixture, "CLI artifact should be stripped from persisted source text");
 
 assert.equal(stripCitationMarkers("A citeturn1 B"), "A  B", "citation markers should be stripped");
 assert.equal(removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"), "Keep\n\nDone", "fenced diagram blocks should be removed");
@@ -309,7 +320,7 @@ assert.doesNotMatch(cleanedFixture, /```text/, "cleaned source should not includ
 assert.match(cleanedFixture, /- Attribute: Legal entity; Current finding: Webflow, Inc\./, "cleaned source should collapse tables into bullets");
 
 state = {
-  approvedOutput: state.approvedOutput,
+  approvedOutput: approvedOutputForAuditTests,
   approvedSourceText: fixture,
   workspaceContextStatus: "approved_pending_publish",
 };

@@ -516,12 +516,14 @@ function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { 
 
 function stripGuildRuntimePreamble(value: string): string {
   const withoutLeadingSpace = value.replace(/^\s+/, "");
-  if (!withoutLeadingSpace.startsWith("* This session was started at")) return stripLeadingManagedWorkspaceContext(value);
+  if (!withoutLeadingSpace.startsWith("* This session was started at")) {
+    return stripGuildCliChatCommandArtifact(stripLeadingManagedWorkspaceContext(value));
+  }
   const withoutRuntimePreamble = withoutLeadingSpace.replace(
     /^\* This session was started at[\s\S]*?```json\n[\s\S]*?\n```\n\n?/,
     "",
   );
-  return stripLeadingManagedWorkspaceContext(withoutRuntimePreamble);
+  return stripGuildCliChatCommandArtifact(stripLeadingManagedWorkspaceContext(withoutRuntimePreamble));
 }
 
 function stripLeadingManagedWorkspaceContext(value: string): string {
@@ -533,6 +535,14 @@ function stripLeadingManagedWorkspaceContext(value: string): string {
     current = leadingTrimmed.slice(endIndex + managedContextEnd.length).replace(/^\s+/, "");
   }
   return current;
+}
+
+function stripGuildCliChatCommandArtifact(value: string): string {
+  const withoutLeadingSpace = value.replace(/^\s+/, "");
+  if (/^chat\s+#{1,6}\s+/i.test(withoutLeadingSpace)) {
+    return withoutLeadingSpace.replace(/^chat\s+/i, "");
+  }
+  return value;
 }
 
 function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {
@@ -2184,7 +2194,9 @@ Required JSON shape:
 The workspace_context_brief must use these exact Markdown section headings:
 ${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
 
-Must preserve if present: dates, numbers, named products, named audiences, proof metrics, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
+Must preserve if present: dates, numbers, named products, named audiences, proof metrics, third-party review ratings, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
+Do not infer appointment dates, causality, guarantees, compliance workarounds, or operational readiness unless the source states them directly.
+For HIPAA/PHI caveats, preserve the source nuance exactly: use "may not be HIPAA compliant" and "do not provide Protected Health Information / PHI" when that is what the source says; do not soften it to "not HIPAA out of the box."
 Must strip citation artifacts, raw source markers, long table formatting, diagrams, pseudo-queries, and code scaffolding.
 
 Company: ${approvedOutput.statusPayload.companyName}
