@@ -496,31 +496,42 @@ function finalizeOutput(output: Output): z.infer<typeof outputSchema> {
 }
 
 function getRawContext(input: Input): string {
-  const rawText = input.text.trim();
-  return extractEmbeddedTextInput(rawText) ?? rawText;
+  const rawText = stripGuildRuntimePreamble(input.text).trim();
+  return extractEmbeddedTextInput(rawText, { trim: true }) ?? rawText;
 }
 
 function getSourceTextForPersistence(input: Input): string {
-  return extractEmbeddedTextInput(input.text) ?? input.text;
+  const rawText = stripGuildRuntimePreamble(input.text);
+  return extractEmbeddedTextInput(rawText, { trim: false }) ?? rawText;
 }
 
 function getSourceLabels(_input: Input): string[] {
   return [];
 }
 
-function extractEmbeddedTextInput(value: string): string | undefined {
+function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { trim: true }): string | undefined {
   for (const candidate of [value, fencedJson(value), firstJsonObject(value)]) {
     if (!candidate) continue;
     try {
       const parsed = JSON.parse(candidate) as unknown;
       if (isRecord(parsed) && parsed.type === "text" && typeof parsed.text === "string") {
-        return parsed.text.trim();
+        const text = stripGuildRuntimePreamble(parsed.text);
+        return options.trim ? text.trim() : text;
       }
     } catch {
       // Try the next candidate.
     }
   }
   return undefined;
+}
+
+function stripGuildRuntimePreamble(value: string): string {
+  const withoutLeadingSpace = value.replace(/^\s+/, "");
+  if (!withoutLeadingSpace.startsWith("* This session was started at")) return value;
+  return withoutLeadingSpace.replace(
+    /^\* This session was started at[\s\S]*?```json\n[\s\S]*?\n```\n\n?/,
+    "",
+  );
 }
 
 function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {
@@ -1843,7 +1854,7 @@ function publishSummaryForOutput(output: Output): string {
 }
 
 function renderManagedWorkspaceContextBlock(output: Output, approvedSourceText: string | undefined): string {
-  const sourceText = approvedSourceText;
+  const sourceText = approvedSourceText ? stripGuildRuntimePreamble(approvedSourceText) : undefined;
   return [
     managedContextStart,
     "# Guild Marketing OS Managed Company Context",
