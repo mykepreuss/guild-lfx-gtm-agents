@@ -14,6 +14,9 @@ const mode = args.has("--adversarial") ? "adversarial" : "smoke";
 const fullSuite = args.has("--full");
 const suite = mode === "smoke" && !fullSuite ? "fast" : "full";
 const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${mode}-${suite}-`));
+const useLocalBundle = args.has("--bundle-local") || process.env.GUILD_E2E_USE_LOCAL_BUNDLE === "1";
+const bundledCaseDirs = new Set(["agents/foundation-setup"]);
+const preparedBundles = new Set();
 
 const requiredHeadings = [
   "## Consumed Context",
@@ -184,12 +187,13 @@ const smokeCases = [
     prompt: "Approve company context",
     requiredPatterns: [
       /approval_or_edit/i,
-      /approved_in_session: true/i,
+      /approved_in_session: false/i,
+      /prior company context draft is not visible|cannot see the prior company context draft|cannot see the prior draft/i,
       /saved_to_workspace_context: false/i,
       /saved_to_context_artifacts: false/i,
-      /Run ICP|Run Messaging/i,
+      /Paste the ready-to-save Company Context block|rerun from visible source text/i,
     ],
-    forbiddenPatterns: [/successfully saved/i, /published/i, /installed/i],
+    forbiddenPatterns: [/approved_in_session: true/i, /Company: TBD[\s\S]{0,120}approved_in_session: true/i, /successfully saved/i, /published/i, /installed/i],
   },
   {
     id: "foundation-edit-remove-pricing-claims",
@@ -223,6 +227,30 @@ const smokeCases = [
       /Legal Reviewer/i,
     ],
     forbiddenPatterns: [/SOC 2 compliant \(user_supplied/i, /performance by 300.*user_supplied/i, /pricing approval.*user_supplied/i],
+  },
+  {
+    id: "foundation-public-source-high-risk-claims",
+    dir: "agents/foundation-setup",
+    prompt: [
+      "# Webflow Company Profile",
+      "",
+      "Webflow is a visual website platform for marketing teams and enterprise web teams.",
+      "The source says Webflow has 3.5M users, $335M in total funding, 99.99% uptime, enterprise compliance, and is the leading agentic web marketing platform.",
+      "Primary audiences: marketers, agencies, designers, developers, and enterprise teams.",
+      "Current goals: create reusable company context and prepare handoffs to ICP and Messaging.",
+      "Channels in scope: website, email, social content, pitch materials, and campaign planning.",
+      "Proof-backed claims: 3.5M users; $335M total funding; 99.99% uptime; enterprise compliance; leading agentic web marketing platform.",
+    ].join("\n"),
+    requiredPatterns: [
+      /source_available/i,
+      /Company: Webflow/i,
+      /Claims Needing Approval/i,
+      /sensitive_claim_guardrail/i,
+      /3\.5M users|\$335M|99\.99% uptime|enterprise compliance|leading agentic web marketing platform/i,
+      /No paid media spend/i,
+      /"readiness": "draft"|Readiness: draft/i,
+    ],
+    forbiddenPatterns: [/Claims Needing Approval[\s\S]{0,120}None identified/i, /"readiness": "review_ready"/i],
   },
   {
     id: "intake",
@@ -399,6 +427,7 @@ const fastSmokeCaseIds = new Set([
   "foundation-approve-company-context",
   "foundation-edit-remove-pricing-claims",
   "foundation-unsupported-sensitive-claim",
+  "foundation-public-source-high-risk-claims",
   "intake",
   "intake-use-my-sources",
   "intake-blank-campaign-starts-with-context",
@@ -485,11 +514,14 @@ function selectCases() {
 function runCase(testCase) {
   const logPath = path.join(logDir, `${testCase.id}.log`);
   const guildArgs = ["agent", "test", "--workspace", workspace, "--events", "none", "--mode", "json"];
+  const caseDir = path.join(rootDir, testCase.dir);
+  const bundleFile = prepareBundleIfNeeded(testCase, caseDir);
+  if (bundleFile) guildArgs.push("--bundle", bundleFile);
   if (noCache) guildArgs.push("--no-cache");
 
   console.log(`RUN ${testCase.id}`);
   const result = spawnSync("guild", guildArgs, {
-    cwd: path.join(rootDir, testCase.dir),
+    cwd: caseDir,
     input: `${JSON.stringify(buildInput(testCase))}\n`,
     encoding: "utf8",
     timeout: timeoutMs,
@@ -530,6 +562,24 @@ function runCase(testCase) {
 
   console.log(`PASS ${testCase.id}`);
   return { ok: true };
+}
+
+function prepareBundleIfNeeded(testCase, caseDir) {
+  if (!useLocalBundle || !bundledCaseDirs.has(testCase.dir)) return undefined;
+  if (!preparedBundles.has(testCase.dir)) {
+    console.log(`BUNDLE ${testCase.dir}`);
+    const result = spawnSync("npm", ["run", "bundle"], {
+      cwd: caseDir,
+      encoding: "utf8",
+      timeout: timeoutMs,
+    });
+    if (result.status !== 0) {
+      const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+      throw new Error(`Failed to bundle ${testCase.dir}\n${output}`);
+    }
+    preparedBundles.add(testCase.dir);
+  }
+  return "agent.js.gz";
 }
 
 function buildInput(testCase) {

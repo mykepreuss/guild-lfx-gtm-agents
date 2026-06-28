@@ -329,6 +329,18 @@ function renderVisibleReviewSummary(output: Output): string {
   }
 
   if (output.conversationIntent === "approval_or_edit") {
+    if (needsVisiblePriorDraftForApproval(output)) {
+      return [
+        "**I noted the approval request, but I cannot see the prior company context draft in this run.**",
+        "",
+        output.persistenceState.persistence_note,
+        "",
+        "Paste the ready-to-save Company Context block or rerun from visible source text before marking the draft approved.",
+        "",
+        "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
+      ].join("\n");
+    }
+
     return [
       `**Company context ${output.persistenceState.approved_in_session ? "is approved in this session" : "has a session-only edit draft"}.**`,
       "",
@@ -817,6 +829,11 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     addUserSuppliedClaim(output.proofBackedClaims, fact);
   }
 
+  for (const fact of extractSensitiveClaimMentions(rawContext)) {
+    blockedClaims.push(sensitiveClaimGuardrail(fact));
+    claimsNeedingApproval.push(sensitiveClaimNeedsApproval(fact));
+  }
+
   if (explicitProjectName && (output.workspaceContextDraft.includes("Company: TBD") || output.workspaceContextDraft.includes("Project: TBD") || output.workspaceContextDraft.includes("Project: teams"))) {
     output.workspaceContextDraft = renderWorkspaceContextDraft(explicitProjectName, output.statusPayload.readiness);
   }
@@ -845,6 +862,8 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.contextArtifacts.proofAndConstraints.approvedClaims = proofNormalization.approved;
   output.proofBackedClaims = proofBackedNormalization.approved;
   assumptionsAndMissingEvidence.push(...factNormalization.downgraded, ...proofNormalization.downgraded, ...proofBackedNormalization.downgraded);
+  claimsNeedingApproval.push(...factNormalization.sensitive, ...proofNormalization.sensitive, ...proofBackedNormalization.sensitive);
+  blockedClaims.push(...factNormalization.sensitive, ...proofNormalization.sensitive, ...proofBackedNormalization.sensitive);
 
   if (!hasExplicitApprovedChannelScope(rawContext)) {
     output.contextArtifacts.channelRegistry.approvedChannels = [];
@@ -910,6 +929,12 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   }
 
   output.approvalGates = mergeApprovalGates(output.approvalGates);
+  for (const claim of collectSensitiveOutputClaims(output)) {
+    blockedClaims.push(sensitiveClaimGuardrail(claim));
+    claimsNeedingApproval.push(sensitiveClaimNeedsApproval(claim));
+  }
+  output.contextArtifacts.proofAndConstraints.constraints = mergeDefaultConstraints(output.contextArtifacts.proofAndConstraints.constraints);
+  output.contextArtifacts.channelRegistry.blockedActions = mergeDefaultConstraints(output.contextArtifacts.channelRegistry.blockedActions);
   output.assumptionsAndMissingEvidence = dedupeClaims(assumptionsAndMissingEvidence);
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence]);
   output.proofBackedClaims = dedupeClaims([...output.proofBackedClaims, ...output.contextArtifacts.proofAndConstraints.approvedClaims]);
@@ -918,6 +943,15 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
     ...output.assumptionsAndMissingEvidence.filter((claim) => claim.status === "assumption" || claim.status === "missing"),
   ]);
+  if (output.claimsNeedingApproval.some((claim) => claim.source === "sensitive_claim_guardrail")) {
+    blockers.add("Sensitive or proof-dependent claims need approval before review-ready reuse.");
+  }
+  if (isSensitiveClaim(output.workspaceContextDraft)) {
+    output.workspaceContextDraft = [
+      renderWorkspaceContextDraft(output.statusPayload.projectName, output.statusPayload.readiness),
+      "Sensitive claims are withheld from this workspace-context draft until approved evidence and owner review are supplied.",
+    ].join("\n");
+  }
   output.consumedContext.missing = [...missing];
   output.contextArtifacts.companyContext.missingContext = [...missing];
   output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
@@ -944,6 +978,24 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     if (output.statusPayload.readiness === "review_ready") output.statusPayload.readiness = "draft";
     if (output.aeoReadiness.status === "review_ready") output.aeoReadiness.status = "draft";
     if (output.contextArtifacts.dashboardSignals.readiness === "review_ready") output.contextArtifacts.dashboardSignals.readiness = "draft";
+  }
+
+  if (output.statusPayload.readiness === "review_ready" && hasSensitiveOrMissingProofGaps(output)) {
+    output.statusPayload.readiness = "draft";
+    output.aeoReadiness.status = output.aeoReadiness.status === "blocked" ? "blocked" : "draft";
+    output.contextArtifacts.dashboardSignals.readiness = output.contextArtifacts.dashboardSignals.readiness === "blocked" ? "blocked" : "draft";
+    output.contextArtifacts.dashboardSignals.blockers = [
+      ...new Set([
+        ...output.contextArtifacts.dashboardSignals.blockers,
+        "Sensitive or proof-dependent claims need approval before review-ready reuse.",
+      ]),
+    ];
+    output.statusPayload.blockers = [
+      ...new Set([
+        ...output.statusPayload.blockers,
+        "Sensitive or proof-dependent claims need approval before review-ready reuse.",
+      ]),
+    ];
   }
 
   return output;
@@ -1058,9 +1110,10 @@ function dedupeClaims(claims: Claim[]): Claim[] {
   });
 }
 
-function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approved: Claim[]; downgraded: Claim[] } {
+function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approved: Claim[]; downgraded: Claim[]; sensitive: Claim[] } {
   const approved: Claim[] = [];
   const downgraded: Claim[] = [];
+  const sensitive: Claim[] = [];
 
   for (const claim of claims) {
     if (claim.status !== "approved" && claim.status !== "user_supplied") {
@@ -1068,7 +1121,12 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
       continue;
     }
 
-    if (isGroundedInInput(claim.claim, rawContext)) {
+    if (isSensitiveClaim(claim.claim)) {
+      sensitive.push(sensitiveClaimGuardrail(claim.claim));
+      continue;
+    }
+
+    if (isCompanyNameClaimGrounded(claim.claim, rawContext) || isGroundedInInput(claim.claim, rawContext)) {
       approved.push({
         ...claim,
         status: "user_supplied",
@@ -1084,7 +1142,13 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
     }
   }
 
-  return { approved: dedupeClaims(approved), downgraded: dedupeClaims(downgraded) };
+  return { approved: dedupeClaims(approved), downgraded: dedupeClaims(downgraded), sensitive: dedupeClaims(sensitive) };
+}
+
+function isCompanyNameClaimGrounded(claim: string, rawContext: string): boolean {
+  const match = claim.match(/^Company name:\s*(.+)$/i);
+  const name = match?.[1]?.trim();
+  return Boolean(name && normalizeForGrounding(rawContext).includes(normalizeForGrounding(name)));
 }
 
 function isGroundedInInput(claim: string, rawContext: string): boolean {
@@ -1344,23 +1408,34 @@ function buildSaveStateQuestionOutput(input: Input): Output {
 function buildApprovalOrEditOutput(input: Input): Output {
   const rawContext = getRawContext(input);
   const isEdit = /\bedit\s+company context\s*:/i.test(rawContext) || /\b(remove|delete)\b/i.test(rawContext);
+  const bareApprovalCommand = isBareApprovalCommand(rawContext);
+  const hasVisibleDraftContext = hasVisibleApprovalContext(rawContext);
   const editInstruction = rawContext.match(/\bedit\s+company context\s*:\s*([^\n\r]+)/i)?.[1]?.trim() ?? rawContext.trim();
-  const output = buildFallbackOutput(input, [], "approval_or_edit");
+  const approvalWithoutVisibleDraft = !isEdit && (bareApprovalCommand || !hasVisibleDraftContext);
+  const output = buildFallbackOutput(
+    input,
+    approvalWithoutVisibleDraft ? ["Approval request received, but no prior draft content is visible to this agent run."] : [],
+    "approval_or_edit",
+  );
   const editClaim = isEdit ? `Requested edit: ${editInstruction}` : "User approved company context in this session.";
 
-  output.status = isEdit ? "needs_input" : "ready_for_review";
+  output.status = isEdit || approvalWithoutVisibleDraft ? "needs_input" : "ready_for_review";
   output.persistenceState = {
-    drafted_in_session: true,
-    approved_in_session: !isEdit,
+    drafted_in_session: hasVisibleDraftContext || isEdit,
+    approved_in_session: !isEdit && !approvalWithoutVisibleDraft,
     saved_to_workspace_context: false,
     saved_to_context_artifacts: false,
-    persistence_note: isEdit
-      ? "The edit is reflected as a session-only draft change. It has not been saved to Guild workspace context or Context Hub artifacts."
-      : "Approved in session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+    persistence_note: approvalWithoutVisibleDraft
+      ? "Approval intent was noted, but this run cannot see the prior draft content. No company context has been approved or saved."
+      : isEdit
+        ? "The edit is reflected as a session-only draft change. It has not been saved to Guild workspace context or Context Hub artifacts."
+        : "Approved in session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
   };
   output.consumedContext.used = [editClaim];
-  output.consumedContext.missing = isEdit ? ["Review the edited session draft", "Separate persistence step"] : ["Separate persistence step"];
-  output.contextArtifacts.companyContext.status = isEdit ? "needs_input" : "draft";
+  output.consumedContext.missing = approvalWithoutVisibleDraft
+    ? ["Visible prior company context draft", "Separate persistence step"]
+    : isEdit ? ["Review the edited session draft", "Separate persistence step"] : ["Separate persistence step"];
+  output.contextArtifacts.companyContext.status = isEdit || approvalWithoutVisibleDraft ? "needs_input" : "draft";
   output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
   output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims([
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
@@ -1373,15 +1448,42 @@ function buildApprovalOrEditOutput(input: Input): Output {
         }]
       : []),
   ]);
-  output.extractedClaims = [userSuppliedClaim(editClaim)];
+  output.extractedClaims = approvalWithoutVisibleDraft
+    ? [{
+        claim: "Approval request cannot be applied because the prior company context draft is not visible in this agent run.",
+        status: "blocked",
+        source: "approval_context_gap",
+        notes: "Paste the ready-to-save company context block or rerun from visible source text before marking a draft approved.",
+      }]
+    : [userSuppliedClaim(editClaim)];
   output.claimsNeedingApproval = output.contextArtifacts.proofAndConstraints.blockedClaims;
-  output.openQuestions = isEdit
+  output.openQuestions = approvalWithoutVisibleDraft
+    ? ["Can you paste the prior Company Context Draft or use `Show ready-to-save company context block` from the draft turn?"]
+    : isEdit
     ? ["Does this edit fully replace the prior draft?", "Should the edited draft be approved in this session?"]
     : ["Which separate persistence workflow should save this if/when authorized?"];
-  output.statusPayload.readiness = isEdit ? "draft" : "review_ready";
-  output.statusPayload.blockers = ["Session approval/edit is not durable persistence."];
-  output.downstreamHandoff = defaultDownstreamHandoff();
+  output.statusPayload.readiness = approvalWithoutVisibleDraft || isEdit ? "draft" : "review_ready";
+  output.statusPayload.blockers = approvalWithoutVisibleDraft
+    ? ["Prior company context draft is not visible in this run.", "Session approval/edit is not durable persistence."]
+    : ["Session approval/edit is not durable persistence."];
+  output.contextArtifacts.dashboardSignals.readiness = output.statusPayload.readiness;
+  output.contextArtifacts.dashboardSignals.blockers = output.statusPayload.blockers;
+  output.downstreamHandoff = approvalWithoutVisibleDraft
+    ? [{
+        agent: "Company Context Builder",
+        receives: ["company-context"],
+        reason: "Needs the prior visible draft or pasted ready-to-save company context before approval can be applied.",
+      }]
+    : defaultDownstreamHandoff();
   return output;
+}
+
+function hasVisibleApprovalContext(rawContext: string): boolean {
+  return /Company Context Draft \(company-context\)|Status Payload|Guild Workspace Context Draft|^Company:\s+\S/im.test(rawContext);
+}
+
+function isBareApprovalCommand(rawContext: string): boolean {
+  return /^\s*(?:approve|approved|confirm|looks good|ship it)\s+(?:company context|the company context|this|it|the draft)\s*\.?\s*$/i.test(rawContext.trim());
 }
 
 function buildDownstreamWithoutContextOutput(input: Input): Output {
@@ -1495,7 +1597,70 @@ function isPricingOrSensitiveEdit(rawContext: string): boolean {
 }
 
 function isSensitiveClaim(claim: string): boolean {
-  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|production-ready|production readiness|uptime|availability)\b/i.test(claim);
+  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|only|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\$[0-9]/i.test(claim);
+}
+
+function sensitiveClaimGuardrail(claim: string): Claim {
+  return {
+    claim,
+    status: "blocked",
+    source: "sensitive_claim_guardrail",
+    notes: "Pricing, legal, compliance, security, guarantee, funding, revenue, scale, ranking, production-readiness, and performance claims require separate owner approval and evidence.",
+  };
+}
+
+function sensitiveClaimNeedsApproval(claim: string): Claim {
+  return {
+    claim,
+    status: "blocked",
+    source: "sensitive_claim_guardrail",
+    notes: "Do not reuse until approved evidence and an owner approval are supplied.",
+  };
+}
+
+function mergeDefaultConstraints(values: readonly string[]): string[] {
+  return [...new Set([...values.filter(Boolean), ...defaultConstraints])];
+}
+
+function extractSensitiveClaimMentions(rawContext: string): string[] {
+  return rawContext
+    .split(/\r?\n|(?<=[.!?])\s+/)
+    .map((line) => line.trim().replace(/^[-*]\s+/, ""))
+    .filter((line) => line.length > 8 && isSensitiveClaim(line))
+    .slice(0, 20);
+}
+
+function collectSensitiveOutputClaims(output: Output): string[] {
+  const candidates = [
+    output.workspaceContextDraft,
+    output.contextArtifacts.companyContext.category,
+    ...output.contextArtifacts.companyContext.goals,
+    output.contextArtifacts.messagingSource.overview,
+    output.contextArtifacts.messagingSource.positioning,
+    ...output.contextArtifacts.messagingSource.answerReadyLanguage,
+    output.contextArtifacts.brandKit.voice,
+    output.contextArtifacts.brandKit.visualDirection,
+    ...output.contextArtifacts.brandKit.constraints,
+    output.aeoReadiness.entityClarity,
+    ...output.aeoReadiness.answerReadyOpportunities,
+    ...output.aeoReadiness.missingProof,
+    ...output.openQuestions,
+    ...output.approvedFacts.map((claim) => claim.claim),
+    ...output.proofBackedClaims.map((claim) => claim.claim),
+    ...output.contextArtifacts.proofAndConstraints.approvedClaims.map((claim) => claim.claim),
+  ];
+
+  return [...new Set(candidates.map((candidate) => candidate.trim()).filter((candidate) => candidate.length > 8 && isSensitiveClaim(candidate)))].slice(0, 30);
+}
+
+function hasSensitiveOrMissingProofGaps(output: Output): boolean {
+  return (
+    output.claimsNeedingApproval.some((claim) => claim.source === "sensitive_claim_guardrail" || claim.status === "missing" || claim.status === "assumption") ||
+    output.contextArtifacts.proofAndConstraints.blockedClaims.some((claim) => claim.source === "sensitive_claim_guardrail") ||
+    output.aeoReadiness.missingProof.some((value) => !isTbdish(value)) ||
+    output.contextArtifacts.messagingSource.proofNeeds.some((value) => !isTbdish(value)) ||
+    output.openQuestions.length > 0
+  );
 }
 
 function focusedMissingInputsForProject(projectName: string): string[] {
@@ -2066,6 +2231,9 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
     return `I preserved the request for ${requestedAgent}, but setup comes first. The Marketing OS needs approved company context before downstream agents should produce specialist work. Nothing has been saved.`;
   }
   if (output.conversationIntent === "approval_or_edit") {
+    if (needsVisiblePriorDraftForApproval(output)) {
+      return "I noted the approval request, but this run cannot see the prior company context draft. Paste the ready-to-save Company Context block or rerun from visible source text before marking it approved. Nothing has been saved to Guild workspace context or Context Hub artifacts.";
+    }
     return `${output.persistenceState.persistence_note} Nothing has been saved to Guild workspace context or Context Hub artifacts. Next replies: \`Run ICP\`, \`Run Messaging\`, or \`Show ready-to-save company context block\`.`;
   }
   if (output.conversationIntent === "missing_context") {
@@ -2073,6 +2241,12 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   }
   const projectName = output.statusPayload.projectName === "TBD" ? "this company" : output.statusPayload.projectName;
   return `I found enough to draft initial company context for ${projectName}. I extracted the company entity, audience groups, product surface, proof-sensitive claims, and downstream handoffs. Nothing has been saved to Guild workspace context or Context Hub artifacts.`;
+}
+
+function needsVisiblePriorDraftForApproval(output: Pick<Output, "conversationIntent" | "persistenceState" | "statusPayload">): boolean {
+  return output.conversationIntent === "approval_or_edit" &&
+    !output.persistenceState.approved_in_session &&
+    output.statusPayload.blockers.some((blocker) => /prior company context draft is not visible/i.test(blocker));
 }
 
 function formatAudienceSegments(segments: readonly AudienceSegment[]): string {
