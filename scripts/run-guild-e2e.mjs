@@ -17,6 +17,7 @@ const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `guild-marketing-os-${mode}
 const useLocalBundle = args.has("--bundle-local") || process.env.GUILD_E2E_USE_LOCAL_BUNDLE === "1";
 const bundledCaseDirs = new Set(["agents/foundation-setup"]);
 const preparedBundles = new Set();
+const webflowCompanyProfileFixture = fs.readFileSync(path.join(rootDir, "scripts/fixtures/webflow-company-profile.md"), "utf8");
 const jsonCompanyNameWebflowPattern = /\\?"companyName\\?":\s*\\?"Webflow\\?"/i;
 const jsonCompanyNameOtherAgentsPattern = /\\?"companyName\\?":\s*\\?"other agents\\?"/i;
 const jsonConversationIntentApprovalOrEditPattern = /\\?"conversationIntent\\?":\s*\\?"approval_or_edit\\?"/i;
@@ -52,15 +53,7 @@ const smokeCases = [
   {
     id: "foundation-first-run-company-context",
     dir: "agents/foundation-setup",
-    prompt: [
-      "Company name: Webflow.",
-      "Approved description: Webflow is a visual website platform for teams that need to design, build, manage, and optimize web experiences.",
-      "Primary audiences: marketing leaders, web teams, agencies, designers, developers, and enterprise digital teams.",
-      "Current goals: create approved company context, improve message consistency, strengthen answer-engine readiness, and route the next Marketing OS agent.",
-      "Proof-backed claims or source excerpts: user-supplied source packet says Webflow combines visual site design, CMS, hosting, collaboration, optimization, AI, and extensibility features.",
-      "Channels in scope: website, email, social content, pitch materials, and campaign planning.",
-      "Anything not approved for reuse: pricing claims, compliance claims, performance guarantees, live publishing, CRM activation, and paid spend changes.",
-    ].join("\n"),
+    prompt: webflowCompanyProfileFixture,
     requiredPatterns: [
       /source_available/i,
       /Company Context Approval Packet/i,
@@ -81,6 +74,7 @@ const smokeCases = [
       /Dashboard Signals Draft \(dashboard-signals\)/i,
       jsonCompanyNameWebflowPattern,
       jsonSavedToWorkspaceFalsePattern,
+      /workspace_context_status: not_requested/i,
       /Messaging|ICP|Market Signal|Audience Segmentation/i,
     ],
     forbiddenPatterns: [/Conversation intent: approval_or_edit/i, jsonConversationIntentApprovalOrEditPattern, /Company: TBD/i, /Reply with one/i, /successfully published/i, /successfully installed/i, /credentials configured/i, /trigger created/i],
@@ -166,7 +160,8 @@ const smokeCases = [
       /drafted_in_session: true/i,
       /saved_to_workspace_context: false/i,
       /saved_to_context_artifacts: false/i,
-      /Separate persistence step/i,
+      /publish approved context to workspace context/i,
+      /workspace_context_status: not_requested/i,
       /Ready-To-Publish Workspace Context/i,
     ],
     forbiddenPatterns: [/successfully saved/i, /has been saved to Guild workspace context/i, /Workspace initialized/i, /GitHub/i, /Slack/i],

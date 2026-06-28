@@ -7,7 +7,8 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 - The user has explicitly approved Guild package initialization and testing for the eight V1 deliverable source packages.
 - Re-running `guild agent init` and `guild agent test` is allowed only when maintaining these existing package records.
 - Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests.
-- Do not run save, publish, unpublish, workspace install, workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
+- Do not run save, publish, unpublish, workspace install, direct CLI workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
+- The Company Context Builder has one approved runtime persistence path: after a draft is approved, the user must send exactly `publish approved context to workspace context` before the agent publishes its managed workspace-context block.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
 - The Guild CLI may be installed locally. Informational checks such as `guild --version` and `guild agent init --help` are acceptable.
 - Use https://docs.guild.ai for current Guild platform, CLI, SDK, and Agent Hub behavior. Use https://www.guild.ai/glossary for Guild terminology.
@@ -23,7 +24,7 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 - The Company Context Builder is the structured Zod-backed `agent()` root. Keep its input/output schemas explicit and keep its output reviewable.
 - The seven downstream prompt-only review agents must set `useWorkspaceAgents: false` to avoid implicit agent-to-agent calls before orchestration is explicitly designed.
 - `context-hub/` holds starter templates for approved user-owned company context artifacts.
-- `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep it short because Guild injects workspace context into every agent run.
+- `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep unmanaged text short because Guild injects workspace context into every agent run; managed company-corpus blocks are owned by the Company Context Builder publish flow.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
 - Old local labs, generated delivery packets, and local-only Agent Hub exemplars have been removed.
 
@@ -54,7 +55,7 @@ Treat this repo as a Guild-native starter pack until explicit production-autonom
 
 - Guild workspace context is the Platform Context runtime layer injected into every agent run.
 - `context-hub/` is a source-controlled starter set of approved context artifact templates, not the runtime injection layer.
-- The Company Context Builder creates or updates approved context artifacts; other agents reuse them through Guild workspace context summaries, user input, approved artifacts, and future skills.
+- The Company Context Builder drafts approved context artifacts and can publish a managed Guild workspace context block after the exact two-step confirmation. Other agents treat published workspace context as their first source of truth, then approved artifacts, current-session input, skills, and approved connected data.
 - Do not embed customer-specific context into public Agent Hub package behavior.
 - Keep customer-specific source material out of public context artifact files. Put private source material in `_private/` only.
 - Run `npm run check:context` when changing `context-hub/`.

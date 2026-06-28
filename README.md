@@ -17,7 +17,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
-- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, workspace context publish, or public visibility changes have been run.
+- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, or public visibility changes have been run. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
@@ -31,7 +31,7 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 
 1. A user enters business context into the default Company Context Builder chat.
 2. The Company Context Builder returns a visible review summary plus a Markdown approval packet containing approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-3. Guild workspace context keeps a concise always-on Platform Context summary.
+3. After approval, the exact confirmation `publish approved context to workspace context` publishes a managed Guild workspace context block.
 4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
@@ -45,7 +45,7 @@ Use Guild surfaces this way:
 - **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant by agents that declare `guildai~skills`.
 - **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
-Do not dump full context artifacts into Guild workspace context. Keep it concise because Guild injects workspace context into every agent run.
+The Company Context Builder may publish an approved managed source-corpus block into Guild workspace context after the exact two-step confirmation. Other workspace context should stay concise because Guild injects it into every agent run.
 
 ## Important Guild Boundary
 
@@ -75,10 +75,11 @@ Not allowed until separately approved for the specific lifecycle change:
 ```sh
 guild agent unpublish
 guild workspace agent add
-guild workspace context publish
 guild credentials
 guild trigger create
 ```
+
+Direct CLI workspace context publishing remains disallowed from this repo. The approved path is the Company Context Builder chat flow: approve the draft, then send exactly `publish approved context to workspace context`.
 
 `guild.json` is managed by Guild and should not be hand-written or edited by hand in this repo.
 
@@ -107,9 +108,9 @@ Confirmed V1 suite order:
 
 All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the source of truth for package names, order, context requirements, and operating boundaries.
 
-The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, and downstream handoffs, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
+The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, downstream handoffs, and workspace-context persistence state, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet.
+The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes workspace context only after the exact confirmation phrase.
 
 ## Runtime Skill Activation
 
@@ -126,11 +127,12 @@ Safe V1 behavior:
 - Draft reviewable marketing artifacts from user-supplied or approved context.
 - Mark missing facts as `TBD` and separate evidence from assumptions.
 - Recommend approval gates, downstream handoffs, and AEO/readiness inputs.
+- Persist approved company context to Guild workspace context through the Company Context Builder's exact two-step confirmation flow.
 - Block live publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes.
 
 Not yet production autonomous:
 
-- No durable shared state or production context database.
+- No production context database beyond Guild workspace context and per-session Company Context Builder state.
 - No source connectors, CRM/ad platform/social publishing adapters, or credentialed actions.
 - No autonomous agent-to-agent orchestration.
 - No production load, concurrency, permission, or workspace-composition validation for hundreds of users.
@@ -165,7 +167,7 @@ guild agent init --name guild-marketing-os-company-context-builder --agent-type 
 guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
 ```
 
-Do not run `guild agent save` or `guild agent publish` directly from this monorepo. Use `npm run publish:guild-agent` after explicit approval to publish an agent package through a temporary Guild clone. Do not install agents, configure credentials, publish workspace context, change visibility, or create triggers unless that lifecycle step is explicitly approved for the current change.
+Do not run `guild agent save` or `guild agent publish` directly from this monorepo. Use `npm run publish:guild-agent` after explicit approval to publish an agent package through a temporary Guild clone. Do not install agents, configure credentials, change visibility, or create triggers unless that lifecycle step is explicitly approved for the current change. Direct CLI workspace context publish is not the normal path; use the Company Context Builder approval flow.
 
 ## References
 

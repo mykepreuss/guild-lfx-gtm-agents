@@ -8,6 +8,7 @@
     "check:context": "node scripts/check-guild-native.mjs --context",
     "check:guild-native": "node scripts/check-guild-native.mjs",
     "publish:guild-agent": "node scripts/publish-guild-agent.mjs",
+    "test:foundation-state": "node scripts/test-foundation-state.mjs",
     "test:guild-adversarial": "node scripts/run-guild-e2e.mjs --adversarial",
     "test:guild-smoke": "node scripts/run-guild-e2e.mjs --smoke",
     "test:guild-smoke:full": "node scripts/run-guild-e2e.mjs --smoke --full",

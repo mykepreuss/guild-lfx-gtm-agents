@@ -587,6 +587,31 @@ function validateTestHarness() {
   if (packageJson?.scripts?.["publish:guild-agent"] !== "node scripts/publish-guild-agent.mjs") {
     fail("package.json must include publish:guild-agent script.");
   }
+  if (packageJson?.scripts?.["test:foundation-state"] !== "node scripts/test-foundation-state.mjs") {
+    fail("package.json must include test:foundation-state script.");
+  }
+
+  const fixtureFile = "scripts/fixtures/webflow-company-profile.md";
+  if (!exists(fixtureFile)) {
+    fail(`${fixtureFile} is missing.`);
+  } else {
+    const fixture = readText(fixtureFile);
+    for (const snippet of [
+      "# Webflow Company Profile",
+      "## Executive summary",
+      "## Knowledge graph design",
+      "citeturn5view0",
+      "```mermaid",
+      "Some requested dimensions remain only partially public.",
+    ]) {
+      if (!fixture.includes(snippet)) {
+        fail(`${fixtureFile} must preserve exact Webflow context packet content including: ${snippet}`);
+      }
+    }
+    if (!content.includes("webflowCompanyProfileFixture")) {
+      fail(`${file} must use the exact Webflow company profile fixture in smoke tests.`);
+    }
+  }
 }
 
 validateContextHub();

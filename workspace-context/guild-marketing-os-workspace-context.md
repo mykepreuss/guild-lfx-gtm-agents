@@ -32,13 +32,13 @@ Approved company context is organized into these artifacts:
 - `proof-and-constraints`
 - `dashboard-signals`
 
-The full artifact bodies should stay in `context-hub/`, Guild-managed artifact sources, or another approved source system. Guild workspace context should summarize only the parts every agent needs on every run.
+The hand-authored workspace context should summarize only the parts every agent needs on every run. Full source-corpus blocks may appear only inside the Company Context Builder managed block.
 
 ## Source Hierarchy
 
-1. User-provided context in the current Guild session.
-2. Published Guild workspace context.
-3. Approved context artifacts.
+1. Published Guild workspace context.
+2. Approved context artifacts.
+3. User-provided context in the current Guild session.
 4. Activated Guild Skills for reusable methods.
 5. Connected system data only when the agent has an approved integration and the user has granted access.
 

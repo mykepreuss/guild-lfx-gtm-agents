@@ -1,4 +1,4 @@
-import { agent, noTools, type Task } from "@guildai/agents-sdk";
+import { agent, guildServiceTool, output as agentOutput, type Task } from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -45,7 +45,7 @@ const defaultConstraints = [
   "No CRM activation.",
   "No credential setup.",
   "No workspace install.",
-  "No workspace context publish.",
+  "No workspace context publish except through the exact approved Company Context Builder publish confirmation.",
   "No context artifact persistence.",
   "No trigger setup.",
   "No visibility changes.",
@@ -82,6 +82,9 @@ const structuredOutputSchema = z.object({
     approved_in_session: z.boolean(),
     saved_to_workspace_context: z.boolean(),
     saved_to_context_artifacts: z.boolean(),
+    workspace_context_id: z.string().optional(),
+    workspace_context_status: z.enum(["not_requested", "approved_pending_publish", "published", "blocked"]).optional(),
+    workspace_context_summary: z.string().optional(),
     persistence_note: z.string(),
   }),
   consumedContext: z.object({
@@ -187,9 +190,134 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
-const tools = noTools;
+const agentStateSchema = z.object({
+  lastOutput: structuredOutputSchema.optional(),
+  approvedOutput: structuredOutputSchema.optional(),
+  lastSourceText: z.string().optional(),
+  approvedSourceText: z.string().optional(),
+  approvedAt: z.string().optional(),
+  workspaceContextId: z.string().optional(),
+  workspaceContextStatus: z.enum(["not_requested", "approved_pending_publish", "published", "blocked"]).optional(),
+  workspaceContextSummary: z.string().optional(),
+  workspaceId: z.string().optional(),
+});
+type AgentState = z.infer<typeof agentStateSchema>;
+
+const sessionResponseSchema = z.object({
+  id: z.string(),
+  workspace: z.object({
+    id: z.string(),
+    name: z.string(),
+    full_name: z.string(),
+  }).passthrough(),
+}).passthrough();
+
+const workspaceResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  full_name: z.string(),
+  context: z.object({
+    id: z.string().nullable().optional(),
+    compiled: z.string().optional(),
+    generated: z.string().optional(),
+    manual: z.string().optional(),
+  }).passthrough(),
+}).passthrough();
+
+const workspaceContextVersionSchema = z.object({
+  id: z.string(),
+  status: z.string().optional(),
+  manual_context: z.string().optional(),
+  context: z.string().optional(),
+  summary: z.string().nullable().optional(),
+}).passthrough();
+
+const tools = {
+  guild_get_current_session: guildServiceTool("guild", {
+    description: "Get the current Guild session and its workspace.",
+    inputSchema: z.object({ session_id: z.string() }),
+    outputSchema: sessionResponseSchema,
+    endpoint: {
+      method: "GET",
+      path: "/api/sessions/{session_id}",
+      description: "Get session by ID",
+      parameters: [{ name: "session_id", type: "path", schema: z.string() }],
+      parameterSchema: z.object({ session_id: z.string() }),
+      responseSchema: sessionResponseSchema,
+      errors: [],
+    },
+  }),
+  guild_get_workspace_context: guildServiceTool("guild", {
+    description: "Get the current published Guild workspace context.",
+    inputSchema: z.object({ workspace_id: z.string() }),
+    outputSchema: workspaceResponseSchema,
+    endpoint: {
+      method: "GET",
+      path: "/api/workspaces/{workspace_id}",
+      description: "Get workspace by ID",
+      parameters: [{ name: "workspace_id", type: "path", schema: z.string() }],
+      parameterSchema: z.object({ workspace_id: z.string() }),
+      responseSchema: workspaceResponseSchema,
+      errors: [],
+    },
+  }),
+  guild_create_workspace_context: guildServiceTool("guild", {
+    description: "Create a draft Guild workspace context version.",
+    inputSchema: z.object({
+      workspace_id: z.string(),
+      status: z.literal("DRAFT"),
+      context: z.string(),
+      summary: z.string().nullable(),
+    }),
+    outputSchema: workspaceContextVersionSchema,
+    endpoint: {
+      method: "POST",
+      path: "/api/workspaces/{workspace_id}/contexts",
+      description: "Create workspace context draft",
+      format: "application/json",
+      parameters: [
+        { name: "workspace_id", type: "path", schema: z.string() },
+        { name: "status", type: "body", schema: z.literal("DRAFT") },
+        { name: "context", type: "body", schema: z.string() },
+        { name: "summary", type: "body", schema: z.string().nullable() },
+      ],
+      parameterSchema: z.object({
+        workspace_id: z.string(),
+        status: z.literal("DRAFT"),
+        context: z.string(),
+        summary: z.string().nullable(),
+      }),
+      responseSchema: workspaceContextVersionSchema,
+      errors: [],
+    },
+  }),
+  guild_publish_workspace_context: guildServiceTool("guild", {
+    description: "Publish a draft Guild workspace context version.",
+    inputSchema: z.object({
+      context_id: z.string(),
+      status: z.literal("PUBLISHED"),
+    }),
+    outputSchema: workspaceContextVersionSchema,
+    endpoint: {
+      method: "PATCH",
+      path: "/api/contexts/{context_id}",
+      description: "Publish workspace context version",
+      format: "application/json",
+      parameters: [
+        { name: "context_id", type: "path", schema: z.string() },
+        { name: "status", type: "body", schema: z.literal("PUBLISHED") },
+      ],
+      parameterSchema: z.object({
+        context_id: z.string(),
+        status: z.literal("PUBLISHED"),
+      }),
+      responseSchema: workspaceContextVersionSchema,
+      errors: [],
+    },
+  }),
+};
 type Tools = typeof tools;
-type AgentTask = Task<Tools>;
+type AgentTask = Task<Tools, AgentState>;
 
 const requiredHeadings = [
   "## Consumed Context",
@@ -200,6 +328,9 @@ const requiredHeadings = [
   "## Status Payload",
   "## Downstream Handoff",
 ];
+
+const managedContextStart = "<!-- guild-marketing-os-context:start -->";
+const managedContextEnd = "<!-- guild-marketing-os-context:end -->";
 
 const forbiddenLiveActionClaims = [
   "successfully published",
@@ -262,62 +393,98 @@ export default agent({
   inputSchema,
   outputSchema,
   tools,
-  async run(input: Input, task: AgentTask) {
-    const rawContext = getRawContext(input);
-    const conversationIntent = classifyConversationIntent(rawContext);
-
-    if (conversationIntent === "save_state_question") {
-      return finalizeOutput(buildSaveStateQuestionOutput(input));
-    }
-
-    if (conversationIntent === "approval_or_edit") {
-      return finalizeOutput(buildApprovalOrEditOutput(input));
-    }
-
-    if (conversationIntent === "attachment_unreadable") {
-      return finalizeOutput(buildReadableSourceNeededOutput(input, conversationIntent));
-    }
-
-    if (conversationIntent === "downstream_request_without_context") {
-      return finalizeOutput(buildDownstreamWithoutContextOutput(input));
-    }
-
-    if (conversationIntent === "missing_context") {
-      return finalizeOutput(buildMissingContextOutput(input));
-    }
-
-    const fallback = buildFallbackOutput(input, [], conversationIntent);
-
-    const { text } = await task.llm.generateText({
-      prompt: buildExtractionPrompt(input, rawContext, conversationIntent),
-    });
-
-    const parsed = parseJsonObject(text);
-    const parseWarnings: string[] = [];
-    let candidate = fallback;
-
-    if (parsed === undefined) {
-      parseWarnings.push("The LLM response was not valid JSON.");
-    } else {
-      const parsedOutput = llmOutputSchema.safeParse(cleanParsedOutput(parsed));
-      if (parsedOutput.success) {
-        candidate = {
-          ...parsedOutput.data,
-          type: "text",
-          text: parsedOutput.data.text ?? "",
-          markdownPacket: parsedOutput.data.markdownPacket ?? "",
-        };
-      } else {
-        parseWarnings.push(`The LLM response did not match the structured output schema: ${formatSchemaIssues(parsedOutput.error.issues)}.`);
-      }
-    }
-
-    const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
-    return finalizeOutput(guarded);
+  stateSchema: agentStateSchema,
+  async start(input: Input, task: AgentTask) {
+    const state = await restoreState(task);
+    const result = await runFoundationTurn(input, task, state);
+    await task.save(result.state);
+    return agentOutput(result.output);
   },
 });
 
-async function finalizeOutput(output: Output): Promise<z.infer<typeof outputSchema>> {
+async function runFoundationTurn(
+  input: Input,
+  task: AgentTask,
+  state: AgentState,
+): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
+  const rawContext = getRawContext(input);
+  const conversationIntent = classifyConversationIntent(rawContext);
+
+  if (isWorkspaceContextPublishConfirmation(rawContext)) {
+    const publishResult = await buildWorkspaceContextPublishOutput(input, task, state);
+    return finalizeTurn(publishResult.output, publishResult.state);
+  }
+
+  if (conversationIntent === "save_state_question") {
+    return finalizeTurn(buildSaveStateQuestionOutput(input, state), state);
+  }
+
+  if (conversationIntent === "approval_or_edit") {
+    const approved = buildApprovalOrEditOutput(input, state);
+    return finalizeTurn(approved.output, approved.state);
+  }
+
+  if (conversationIntent === "attachment_unreadable") {
+    return finalizeTurn(buildReadableSourceNeededOutput(input, conversationIntent), state);
+  }
+
+  if (conversationIntent === "downstream_request_without_context") {
+    return finalizeTurn(buildDownstreamWithoutContextOutput(input), state);
+  }
+
+  if (conversationIntent === "missing_context") {
+    return finalizeTurn(buildMissingContextOutput(input), state);
+  }
+
+  const fallback = buildFallbackOutput(input, [], conversationIntent);
+
+  const { text } = await task.llm.generateText({
+    prompt: buildExtractionPrompt(input, rawContext, conversationIntent),
+  });
+
+  const parsed = parseJsonObject(text);
+  const parseWarnings: string[] = [];
+  let candidate = fallback;
+
+  if (parsed === undefined) {
+    parseWarnings.push("The LLM response was not valid JSON.");
+  } else {
+    const parsedOutput = llmOutputSchema.safeParse(cleanParsedOutput(parsed));
+    if (parsedOutput.success) {
+      candidate = {
+        ...parsedOutput.data,
+        type: "text",
+        text: parsedOutput.data.text ?? "",
+        markdownPacket: parsedOutput.data.markdownPacket ?? "",
+      };
+    } else {
+      parseWarnings.push(`The LLM response did not match the structured output schema: ${formatSchemaIssues(parsedOutput.error.issues)}.`);
+    }
+  }
+
+  const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
+  return finalizeTurn(guarded, {
+    ...state,
+    lastOutput: guarded,
+    lastSourceText: getSourceTextForPersistence(input),
+    workspaceContextStatus: state.workspaceContextStatus ?? "not_requested",
+  });
+}
+
+async function restoreState(task: AgentTask): Promise<AgentState> {
+  const restored = await task.restore();
+  const parsed = agentStateSchema.safeParse(restored ?? {});
+  return parsed.success ? parsed.data : {};
+}
+
+function finalizeTurn(output: Output, state: AgentState): { output: z.infer<typeof outputSchema>; state: AgentState } {
+  return {
+    output: finalizeOutput(output),
+    state,
+  };
+}
+
+function finalizeOutput(output: Output): z.infer<typeof outputSchema> {
   const markdownPacket = renderMarkdownPacket(output);
   const parsedOutput = structuredOutputSchema.parse({
     ...output,
@@ -331,6 +498,10 @@ async function finalizeOutput(output: Output): Promise<z.infer<typeof outputSche
 function getRawContext(input: Input): string {
   const rawText = input.text.trim();
   return extractEmbeddedTextInput(rawText) ?? rawText;
+}
+
+function getSourceTextForPersistence(input: Input): string {
+  return extractEmbeddedTextInput(input.text) ?? input.text;
 }
 
 function getSourceLabels(_input: Input): string[] {
@@ -388,9 +559,14 @@ function isApprovalOrEdit(rawContext: string): boolean {
 
 function isContextPersistenceRequest(rawContext: string): boolean {
   return /\bthis\s+is\s+correct\b[\s\S]{0,160}\b(?:add|save|persist|store|publish|put|use)\b[\s\S]{0,160}\b(?:context|workspace context|other agents?|downstream agents?|agents)\b/i.test(rawContext) ||
+    /\bcontext\s+approved\b[\s\S]{0,80}\b(?:save|persist|store|publish|put|use)\b[\s\S]{0,80}\b(?:workspace context|context)\b/i.test(rawContext) ||
     /\b(?:add|save|persist|store|publish|put|use|make)\b[\s\S]{0,120}\b(?:company context|workspace context|context)\b[\s\S]{0,120}\b(?:other agents?|downstream agents?|agents|workspace|context hub|reference|reuse)\b/i.test(rawContext) ||
     /\b(?:make|use)\s+this\s+(?:the\s+)?(?:approved\s+)?(?:company|workspace)\s+context\b/i.test(rawContext) ||
     /\bshow\s+ready-to-(?:save|publish)\s+company context block\b/i.test(rawContext);
+}
+
+function isWorkspaceContextPublishConfirmation(rawContext: string): boolean {
+  return rawContext.trim().toLowerCase() === "publish approved context to workspace context";
 }
 
 function isAttachmentUnreadableTurn(rawContext: string): boolean {
@@ -1268,31 +1444,55 @@ function applyReadableSourceNeededState(output: Output): Output {
   return output;
 }
 
-function buildSaveStateQuestionOutput(input: Input): Output {
+function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Output {
   const output = buildFallbackOutput(input, ["No persistence operation has been run in this agent."], "save_state_question");
+  const savedToWorkspace = state.workspaceContextStatus === "published" && Boolean(state.workspaceContextId);
+  const approvedOnly = !savedToWorkspace && Boolean(state.approvedOutput);
+  const draftedOnly = !savedToWorkspace && !approvedOnly && Boolean(state.lastOutput);
   output.status = "needs_input";
   output.persistenceState = {
-    drafted_in_session: true,
-    approved_in_session: false,
-    saved_to_workspace_context: false,
+    drafted_in_session: Boolean(state.lastOutput ?? state.approvedOutput) || true,
+    approved_in_session: Boolean(state.approvedOutput),
+    saved_to_workspace_context: savedToWorkspace,
     saved_to_context_artifacts: false,
-    persistence_note: "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+    workspace_context_id: state.workspaceContextId,
+    workspace_context_status: state.workspaceContextStatus ?? "not_requested",
+    workspace_context_summary: state.workspaceContextSummary,
+    persistence_note: savedToWorkspace
+      ? `Yes. The approved company context has been published to Guild workspace context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}. Context Hub artifact files were not changed.`
+      : approvedOnly
+        ? "The latest company context is approved in this session and waiting for the exact publish confirmation. It has not been saved to Guild workspace context or Context Hub artifacts."
+        : draftedOnly
+          ? "The latest company context is drafted in this session only. It has not been approved or saved to Guild workspace context or Context Hub artifacts."
+          : "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
   };
   output.consumedContext.used = ["User asked whether company context is saved or approved."];
-  output.consumedContext.missing = ["Explicit approval", "Separate persistence step"];
+  output.consumedContext.missing = savedToWorkspace
+    ? ["Context Hub artifact persistence"]
+    : approvedOnly
+      ? ["Exact publish confirmation: publish approved context to workspace context", "Context Hub artifact persistence"]
+      : ["Explicit approval", "Exact publish confirmation: publish approved context to workspace context"];
   output.contextArtifacts.companyContext.status = "needs_input";
   output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
   output.contextArtifacts.dashboardSignals.status = "needs_input";
   output.contextArtifacts.dashboardSignals.readiness = "draft";
   output.contextArtifacts.dashboardSignals.blockers = ["Session draft is not persisted."];
-  output.workspaceContextDraft = "No Guild workspace context update has been saved. The current Company Context block is a session draft only.";
+  output.workspaceContextDraft = savedToWorkspace
+    ? `Guild workspace context published. Context id: ${state.workspaceContextId ?? "TBD"}.`
+    : approvedOnly
+      ? "Approved company context is staged in this session. Reply exactly `publish approved context to workspace context` to publish it."
+      : "No Guild workspace context update has been saved. The current Company Context block is a session draft only.";
   output.openQuestions = [
-    "Should the current draft be approved in this session?",
+    savedToWorkspace ? "Should Context Hub artifact files be updated separately?" : "Should the current draft be approved in this session?",
     "Do any claims need to be removed before a future persistence step?",
-    "Which approved source should be used if a separate save/publish workflow is later authorized?",
+    approvedOnly ? "Should I publish the approved company context after the exact confirmation phrase?" : "Which approved source should be used if a separate save/publish workflow is later authorized?",
   ];
   output.statusPayload.readiness = "draft";
-  output.statusPayload.blockers = ["Not saved to workspace context.", "Not saved to Context Hub artifacts."];
+  output.statusPayload.blockers = savedToWorkspace
+    ? ["Context Hub artifacts were not persisted."]
+    : approvedOnly
+      ? ["Awaiting exact workspace context publish confirmation.", "Not saved to Context Hub artifacts."]
+      : ["Not saved to workspace context.", "Not saved to Context Hub artifacts."];
   output.downstreamHandoff = [
     {
       agent: "Company Context Builder",
@@ -1303,12 +1503,29 @@ function buildSaveStateQuestionOutput(input: Input): Output {
   return output;
 }
 
-function buildApprovalOrEditOutput(input: Input): Output {
+function buildApprovalOrEditOutput(input: Input, state: AgentState = {}): { output: Output; state: AgentState } {
   const rawContext = getRawContext(input);
   const isEdit = /\bedit\s+company context\s*:/i.test(rawContext) || /\b(remove|delete)\b/i.test(rawContext);
   const isPersistenceRequest = isContextPersistenceRequest(rawContext);
   const bareApprovalCommand = isBareApprovalCommand(rawContext);
   const hasVisibleDraftContext = hasVisibleApprovalContext(rawContext);
+  const storedDraft = state.lastOutput;
+
+  if (!isEdit && storedDraft) {
+    const approvedOutput = approveStoredDraft(storedDraft, isPersistenceRequest);
+    return {
+      output: approvedOutput,
+      state: {
+        ...state,
+        lastOutput: storedDraft,
+        approvedOutput,
+        approvedSourceText: state.lastSourceText,
+        approvedAt: new Date().toISOString(),
+        workspaceContextStatus: "approved_pending_publish",
+      },
+    };
+  }
+
   const editInstruction = rawContext.match(/\bedit\s+company context\s*:\s*([^\n\r]+)/i)?.[1]?.trim() ?? rawContext.trim();
   const approvalWithoutVisibleDraft = !isEdit && (bareApprovalCommand || !hasVisibleDraftContext);
   const output = buildFallbackOutput(
@@ -1382,7 +1599,284 @@ function buildApprovalOrEditOutput(input: Input): Output {
         reason: "Needs the prior visible draft, pasted Ready-To-Publish Workspace Context block, or explicit lifecycle approval before persistence can be applied.",
       }]
     : defaultDownstreamHandoff();
+  return {
+    output,
+    state: {
+      ...state,
+      lastOutput: isEdit ? output : state.lastOutput,
+      approvedOutput: !isEdit && !approvalWithoutVisibleDraft ? output : state.approvedOutput,
+      approvedSourceText: !isEdit && !approvalWithoutVisibleDraft ? state.lastSourceText : state.approvedSourceText,
+      approvedAt: !isEdit && !approvalWithoutVisibleDraft ? new Date().toISOString() : state.approvedAt,
+      workspaceContextStatus: !isEdit && !approvalWithoutVisibleDraft ? "approved_pending_publish" : state.workspaceContextStatus,
+    },
+  };
+}
+
+function approveStoredDraft(draft: Output, isPersistenceRequest: boolean): Output {
+  const output = structuredOutputSchema.parse({
+    ...draft,
+    conversationIntent: "approval_or_edit",
+    status: draft.status === "blocked" ? "needs_input" : "ready_for_review",
+    persistenceState: {
+      ...draft.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: false,
+      saved_to_context_artifacts: false,
+      workspace_context_status: "approved_pending_publish",
+      workspace_context_summary: publishSummaryForOutput(draft),
+      persistence_note: isPersistenceRequest
+        ? "Company context approved in this session. It is staged for workspace context publishing, but has not been saved yet. Reply exactly `publish approved context to workspace context` to publish it."
+        : "Company context approved in this session. It has not been saved yet. Reply exactly `publish approved context to workspace context` to publish it to Guild workspace context.",
+    },
+    consumedContext: {
+      ...draft.consumedContext,
+      used: [...new Set([...draft.consumedContext.used, "User approved company context in this session."])],
+      missing: [
+        ...new Set([
+          ...draft.consumedContext.missing.filter((item) => !/explicit approval|owner approval/i.test(item)),
+          "Exact publish confirmation: publish approved context to workspace context",
+        ]),
+      ],
+    },
+    approvalGates: draft.approvalGates.map((gate) => gate.ownerRole === "Company Context Owner" ? { ...gate, status: "approved" as const } : gate),
+    statusPayload: {
+      ...draft.statusPayload,
+      readiness: draft.statusPayload.readiness === "blocked" ? "draft" : "review_ready",
+      blockers: [
+        ...new Set([
+          ...draft.statusPayload.blockers.filter((blocker) => !/owner approval|not saved|session approval/i.test(blocker)),
+          "Awaiting exact workspace context publish confirmation.",
+          "Context Hub artifacts were not persisted.",
+        ]),
+      ],
+    },
+    contextArtifacts: {
+      ...draft.contextArtifacts,
+      dashboardSignals: {
+        ...draft.contextArtifacts.dashboardSignals,
+        readiness: draft.contextArtifacts.dashboardSignals.readiness === "blocked" ? "draft" : "review_ready",
+        blockers: [
+          ...new Set([
+            ...draft.contextArtifacts.dashboardSignals.blockers.filter((blocker) => !/owner approval|not saved|session approval/i.test(blocker)),
+            "Awaiting exact workspace context publish confirmation.",
+          ]),
+        ],
+      },
+    },
+  });
+
   return output;
+}
+
+async function buildWorkspaceContextPublishOutput(
+  input: Input,
+  task: AgentTask,
+  state: AgentState,
+): Promise<{ output: Output; state: AgentState }> {
+  if (!state.approvedOutput) {
+    const output = buildFallbackOutput(input, ["Approved company context is required before publishing workspace context."], "approval_or_edit");
+    output.status = "needs_input";
+    output.persistenceState = {
+      ...normalizePersistenceState(undefined, "approval_or_edit"),
+      workspace_context_status: "blocked",
+      persistence_note: "Publish confirmation received, but no approved company context is available in this session. Nothing has been saved.",
+    };
+    output.consumedContext.used = ["Exact publish confirmation received without approved session context."];
+    output.consumedContext.missing = ["Approved company context"];
+    output.statusPayload.blockers = ["Approve a company context draft before publishing workspace context."];
+    output.contextArtifacts.dashboardSignals.blockers = output.statusPayload.blockers;
+    output.openQuestions = ["Should the current company context draft be approved first?"];
+    return { output, state: { ...state, workspaceContextStatus: "blocked" } };
+  }
+
+  const approvedOutput = state.approvedOutput;
+  const summary = publishSummaryForOutput(approvedOutput);
+
+  try {
+    const session = sessionResponseSchema.parse(await task.tools.guild_get_current_session({ session_id: task.sessionId }));
+    const workspaceId = session.workspace.id;
+    const workspace = workspaceResponseSchema.parse(await task.tools.guild_get_workspace_context({ workspace_id: workspaceId }));
+    const currentManualContext = workspace.context.manual ?? "";
+    const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, state.approvedSourceText);
+    const updatedManualContext = replaceManagedWorkspaceContextBlock(currentManualContext, managedBlock);
+    const draftContext = workspaceContextVersionSchema.parse(await task.tools.guild_create_workspace_context({
+      workspace_id: workspaceId,
+      status: "DRAFT",
+      context: updatedManualContext,
+      summary,
+    }));
+    const publishedContext = workspaceContextVersionSchema.parse(await task.tools.guild_publish_workspace_context({
+      context_id: draftContext.id,
+      status: "PUBLISHED",
+    }));
+    const contextId = publishedContext.id || draftContext.id;
+    const publishedOutput = markWorkspaceContextPublished(approvedOutput, contextId, summary);
+
+    return {
+      output: publishedOutput,
+      state: {
+        ...state,
+        lastOutput: publishedOutput,
+        approvedOutput: publishedOutput,
+        workspaceId,
+        workspaceContextId: contextId,
+        workspaceContextStatus: "published",
+        workspaceContextSummary: summary,
+      },
+    };
+  } catch (error) {
+    const blockedOutput = markWorkspaceContextPublishBlocked(approvedOutput, error);
+    return {
+      output: blockedOutput,
+      state: {
+        ...state,
+        lastOutput: blockedOutput,
+        approvedOutput,
+        workspaceContextStatus: "blocked",
+        workspaceContextSummary: summary,
+      },
+    };
+  }
+}
+
+function markWorkspaceContextPublished(approvedOutput: Output, contextId: string, summary: string): Output {
+  return structuredOutputSchema.parse({
+    ...approvedOutput,
+    conversationIntent: "approval_or_edit",
+    status: "ready_for_review",
+    persistenceState: {
+      ...approvedOutput.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: true,
+      saved_to_context_artifacts: false,
+      workspace_context_id: contextId,
+      workspace_context_status: "published",
+      workspace_context_summary: summary,
+      persistence_note: `Published approved company context to Guild workspace context as ${contextId}. Context Hub artifact files were not changed.`,
+    },
+    consumedContext: {
+      ...approvedOutput.consumedContext,
+      used: [...new Set([...approvedOutput.consumedContext.used, "Published approved company context to Guild workspace context."])],
+      missing: [
+        ...new Set(approvedOutput.consumedContext.missing.filter((item) => !/publish confirmation|workspace context/i.test(item))),
+        "Context Hub artifact persistence",
+      ],
+    },
+    workspaceContextDraft: `Published to Guild workspace context. Context id: ${contextId}. Summary: ${summary}`,
+    statusPayload: {
+      ...approvedOutput.statusPayload,
+      blockers: [
+        ...new Set([
+          ...approvedOutput.statusPayload.blockers.filter((blocker) => !/workspace context|not saved|publish confirmation|Context Hub artifacts were not persisted/i.test(blocker)),
+          "Context Hub artifacts were not persisted.",
+        ]),
+      ],
+    },
+    contextArtifacts: {
+      ...approvedOutput.contextArtifacts,
+      dashboardSignals: {
+        ...approvedOutput.contextArtifacts.dashboardSignals,
+        blockers: [
+          ...new Set([
+            ...approvedOutput.contextArtifacts.dashboardSignals.blockers.filter((blocker) => !/workspace context|not saved|publish confirmation/i.test(blocker)),
+            "Context Hub artifacts were not persisted.",
+          ]),
+        ],
+      },
+    },
+  });
+}
+
+function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unknown): Output {
+  const message = error instanceof Error ? error.message : String(error);
+  const safeMessage = message.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer <redacted>");
+
+  return structuredOutputSchema.parse({
+    ...approvedOutput,
+    conversationIntent: "approval_or_edit",
+    status: "needs_input",
+    persistenceState: {
+      ...approvedOutput.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: false,
+      saved_to_context_artifacts: false,
+      workspace_context_status: "blocked",
+      workspace_context_summary: publishSummaryForOutput(approvedOutput),
+      persistence_note: `Workspace context publish was attempted after exact confirmation, but Guild did not confirm the write. The approved context remains staged for retry. Error: ${safeMessage}`,
+    },
+    statusPayload: {
+      ...approvedOutput.statusPayload,
+      blockers: [
+        ...new Set([
+          ...approvedOutput.statusPayload.blockers,
+          "Workspace context publish did not complete.",
+        ]),
+      ],
+    },
+    contextArtifacts: {
+      ...approvedOutput.contextArtifacts,
+      dashboardSignals: {
+        ...approvedOutput.contextArtifacts.dashboardSignals,
+        blockers: [
+          ...new Set([
+            ...approvedOutput.contextArtifacts.dashboardSignals.blockers,
+            "Workspace context publish did not complete.",
+          ]),
+        ],
+      },
+    },
+    openQuestions: [
+      ...new Set([
+        ...approvedOutput.openQuestions,
+        "Should I retry workspace context publishing after the runtime write issue is resolved?",
+      ]),
+    ],
+  });
+}
+
+function publishSummaryForOutput(output: Output): string {
+  const companyName = output.statusPayload.companyName === "TBD" ? "company" : output.statusPayload.companyName;
+  return `Guild Marketing OS company context for ${companyName}, approved through Company Context Builder.`;
+}
+
+function renderManagedWorkspaceContextBlock(output: Output, approvedSourceText: string | undefined): string {
+  const sourceText = approvedSourceText;
+  return [
+    managedContextStart,
+    "# Guild Marketing OS Managed Company Context",
+    "",
+    "Status: published",
+    `Company: ${output.statusPayload.companyName}`,
+    `Readiness: ${output.statusPayload.readiness}`,
+    `Summary: ${publishSummaryForOutput(output)}`,
+    "",
+    "## Runtime Summary",
+    renderReadyToPublishWorkspaceContext(output),
+    "",
+    "## Downstream Handoff Context",
+    renderDownstreamHandoffContext(output),
+    ...(sourceText?.trim() ? ["", "## Approved Source Corpus", sourceText] : []),
+    managedContextEnd,
+  ].join("\n");
+}
+
+function replaceManagedWorkspaceContextBlock(currentContext: string, managedBlock: string): string {
+  const trimmedBlock = managedBlock.trim();
+  const start = currentContext.indexOf(managedContextStart);
+  const end = currentContext.indexOf(managedContextEnd);
+
+  if (start !== -1 && end !== -1 && end > start) {
+    return [
+      currentContext.slice(0, start).trimEnd(),
+      trimmedBlock,
+      currentContext.slice(end + managedContextEnd.length).trimStart(),
+    ].filter(Boolean).join("\n\n").trim() + "\n";
+  }
+
+  return [currentContext.trim(), trimmedBlock].filter(Boolean).join("\n\n").trim() + "\n";
 }
 
 function hasVisibleApprovalContext(rawContext: string): boolean {
@@ -1491,8 +1985,11 @@ function normalizePersistenceState(value: Output["persistenceState"] | undefined
   return {
     drafted_in_session: value?.drafted_in_session ?? conversationIntent === "source_available",
     approved_in_session: value?.approved_in_session ?? false,
-    saved_to_workspace_context: false,
+    saved_to_workspace_context: value?.saved_to_workspace_context ?? false,
     saved_to_context_artifacts: false,
+    workspace_context_id: value?.workspace_context_id,
+    workspace_context_status: value?.workspace_context_status ?? "not_requested",
+    workspace_context_summary: value?.workspace_context_summary,
     persistence_note:
       value?.persistence_note ??
       "Drafted in this session only. Not saved to Guild workspace context or Context Hub artifacts.",
@@ -2168,7 +2665,9 @@ function renderReadyToPublishWorkspaceContext(output: Omit<Output, "markdownPack
     `Required artifacts: ${formatList(output.statusPayload.requiredArtifacts)}`,
     `Recommended next agents: ${formatList(output.statusPayload.nextAgents)}`,
     `Blocked actions: ${formatList(output.contextArtifacts.channelRegistry.blockedActions)}`,
-    "Persistence rule: this block may be published only through a separate approved Guild workspace context edit/publish lifecycle step.",
+    output.persistenceState.saved_to_workspace_context
+      ? `Persistence state: published to Guild workspace context${output.persistenceState.workspace_context_id ? ` as ${output.persistenceState.workspace_context_id}` : ""}.`
+      : "Persistence rule: this block may be published only after approval and the exact confirmation phrase `publish approved context to workspace context`.",
   ].join("\n");
 }
 
@@ -2197,7 +2696,9 @@ function renderDownstreamHandoffContext(output: Omit<Output, "markdownPacket">):
     ])}`,
     `Operating constraints: ${formatList(output.contextArtifacts.proofAndConstraints.constraints)}`,
     `Recommended next agents: ${formatList(output.statusPayload.nextAgents)}`,
-    "Persistence state: session draft only unless separately published to Guild workspace context.",
+    output.persistenceState.saved_to_workspace_context
+      ? `Persistence state: published Guild workspace context${output.persistenceState.workspace_context_id ? ` (${output.persistenceState.workspace_context_id})` : ""}.`
+      : "Persistence state: session draft only unless separately published to Guild workspace context.",
   ].join("\n");
 }
 
@@ -2234,6 +2735,9 @@ function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
 - approved_in_session: ${String(output.persistenceState.approved_in_session)}
 - saved_to_workspace_context: ${String(output.persistenceState.saved_to_workspace_context)}
 - saved_to_context_artifacts: ${String(output.persistenceState.saved_to_context_artifacts)}
+- workspace_context_id: ${output.persistenceState.workspace_context_id ?? "TBD"}
+- workspace_context_status: ${output.persistenceState.workspace_context_status ?? "not_requested"}
+- workspace_context_summary: ${output.persistenceState.workspace_context_summary ?? "TBD"}
 - Note: ${output.persistenceState.persistence_note}
 
 ### Company Context Draft (company-context)
@@ -2285,13 +2789,17 @@ ${output.workspaceContextDraft}
 \`\`\`text
 ${renderReadyToPublishWorkspaceContext(output)}
 \`\`\`
-This block has not been saved. Use it only in a separate Guild workspace context edit/publish lifecycle step after explicit approval.
+${output.persistenceState.saved_to_workspace_context
+  ? `This block has been published to Guild workspace context as ${output.persistenceState.workspace_context_id ?? "a published context revision"}.`
+  : "This block has not been saved. Use it only after explicit approval, then reply exactly `publish approved context to workspace context`."}
 
 ### Context For Downstream Agents
 \`\`\`text
 ${renderDownstreamHandoffContext(output)}
 \`\`\`
-Paste this block into a downstream agent if workspace context has not been published yet.
+${output.persistenceState.saved_to_workspace_context
+  ? "Downstream agents should treat published Guild workspace context as their first source of truth."
+  : "Paste this block into a downstream agent if workspace context has not been published yet."}
 
 ## Assumptions And Missing Evidence
 ### Approved Or User-Supplied Facts
@@ -2345,6 +2853,9 @@ ${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `-
 
 function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   if (output.conversationIntent === "save_state_question") {
+    if (output.persistenceState.saved_to_workspace_context) {
+      return `${output.persistenceState.persistence_note} Downstream agents should treat published Guild workspace context as their first source of truth.`;
+    }
     return "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts. To make it reusable by other agents, use the Ready-To-Publish Workspace Context block in a separate approved workspace context edit/publish step, or paste the Downstream Handoff Context into a downstream agent.";
   }
   if (output.conversationIntent === "attachment_unreadable") {
@@ -2355,6 +2866,15 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
     return `I preserved the request for ${requestedAgent}, but setup comes first. The Marketing OS needs approved company context before downstream agents should produce specialist work. Nothing has been saved.`;
   }
   if (output.conversationIntent === "approval_or_edit") {
+    if (output.persistenceState.saved_to_workspace_context) {
+      return `${output.persistenceState.persistence_note} Downstream agents should now use Guild workspace context as their first source of truth.`;
+    }
+    if (output.persistenceState.workspace_context_status === "approved_pending_publish") {
+      return `${output.persistenceState.persistence_note} No workspace context write has run yet.`;
+    }
+    if (output.persistenceState.workspace_context_status === "blocked") {
+      return output.persistenceState.persistence_note;
+    }
     if (needsVisiblePriorDraftForApproval(output)) {
       return "I noted the approval or persistence request, but this run cannot see the prior company context draft. Paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly approve a separate workspace context edit/publish lifecycle step with that block. Nothing has been saved to Guild workspace context or Context Hub artifacts.";
     }

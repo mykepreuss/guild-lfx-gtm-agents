@@ -22,11 +22,19 @@ Returned output:
 
 - canonical `type: "text"` and `text`
 - full Markdown review packet containing approved context artifact drafts, approved facts and missing evidence, approval gates, AEO readiness, status payload, and downstream handoff
+- persistence state showing whether the packet is drafted, approved, staged, blocked, or published to Guild workspace context
 - short inline review summary at the top of the Markdown packet
 
 ## V1 Boundary
 
-Review-only. This agent does not publish, schedule, install, spend, sync, update platform context, or modify live systems.
+Review-first. This agent does not schedule, install, spend, sync, trigger, change visibility, or modify external live systems.
+
+The only runtime mutation it may perform is the explicit workspace-context persistence flow:
+
+1. Draft company context from readable source text.
+2. User approves the draft in a follow-up turn.
+3. User sends exactly `publish approved context to workspace context`.
+4. The agent replaces its managed workspace-context block and publishes that Guild context revision.
 
 ## Test
 

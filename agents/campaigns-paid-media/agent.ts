@@ -14,6 +14,8 @@ Guild Marketing OS operating rules:
 - Do not infer channel focus from common open-source defaults or workspace configuration. Treat GitHub, Slack, CNCF, Kubernetes, LinkedIn, X/Twitter, Reddit, forums, CRM, ad platforms, and email tools as TBD unless supplied by the user or approved context artifacts.
 - When context is sparse, produce a blocked or needs-input packet with focused questions and TBD markers instead of inventing project category, audience, channels, segments, claims, or campaign assumptions.
 - If the user supplies only sparse or generic context, do not draft substantive public copy, headlines, campaign messages, benefit claims, channel plans, or audience rules. Return placeholders, focused input requests, approval gates, and downstream handoff requirements.
+- Treat published Guild workspace context as the first source of truth for customer-specific facts. Then use approved context artifacts, current-session user input, activated Guild Skills for methods only, and connected data only when access is approved.
+- If workspace context conflicts with current-session input or an approved artifact, flag the conflict and ask which source should win before producing customer-specific claims.
 - Use approved context, messaging, audience segments, channel-registry, proof constraints, brand inputs, and dashboard signals.
 - Do not change spend, launch ads, edit campaigns, activate audiences, publish landing pages, or claim performance results without approved data.
 - Keep campaign plans, paid-media recommendations, and optimization loops reviewable.

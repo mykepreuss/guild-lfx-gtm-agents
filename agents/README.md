@@ -4,7 +4,7 @@ Guild-native source packages live here. Each package is a standalone Guild TypeS
 
 The Company Context Builder is the chat-native default entrypoint. It starts the V1 Marketing OS where the business case starts: user-supplied company context becomes reviewable context artifact drafts, approval gates, AEO readiness, status, and downstream routing before specialist agents produce work.
 
-The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, a short inline review summary, and a chat-renderable Markdown approval packet.
+The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, workspace-context persistence state, a short inline review summary, and a chat-renderable Markdown approval packet.
 
 The other seven V1 packages run as prompt-only one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns. The seven prompt-only agents set `useWorkspaceAgents: false`. V1 agent chaining is a human-guided workflow, not implicit workspace-agent orchestration.
 
@@ -25,9 +25,10 @@ V1 contains eight deliverable source packages:
 - `guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json` is approved for package validation.
 - Use `npm run test:guild-smoke` and `npm run test:guild-adversarial` from the repo root for committed Guild CLI test coverage.
 - Re-run `guild agent init` only when intentionally repairing or reinitializing one of these existing package records.
-- Do not run `guild agent save`, `guild agent publish`, workspace install, credentials, triggers, or visibility changes until the user explicitly approves those lifecycle steps.
+- Do not run `guild agent save`, `guild agent publish`, direct CLI workspace context publish, workspace install, credentials, triggers, or visibility changes until the user explicitly approves those lifecycle steps.
 - Keep customer-specific facts out of agent package code.
-- Put reusable behavior in `agent.ts`, concise always-on company context in Guild workspace context, and approved company context artifacts in the approved context artifacts.
+- Put reusable behavior in `agent.ts`, published company context in Guild workspace context, and approved company context artifacts in the approved context artifacts.
+- Downstream agents treat published Guild workspace context as their first source of truth, then approved context artifacts, current-session user input, activated skills for methods, and approved connected data.
 
 ## Package Shape
 
