@@ -17,7 +17,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
-- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, or public visibility changes have been run. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow, which calls the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` publish bridge instead of raw Guild service endpoints or direct CLI workspace-context publishing.
+- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow, which calls the private Blaxel-hosted `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` publish bridge instead of raw Guild service endpoints or direct CLI workspace-context publishing.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
@@ -211,7 +211,7 @@ The Guild test commands require an authenticated Guild CLI session and run live 
 
 ## Setting Up `guild-marketing-os` In Guild
 
-Use this runbook to stand up the Guild Marketing OS workspace, publish the Company Context Builder, and enable chat-native workspace context publishing through the Vercel-hosted bridge.
+Use this runbook to stand up the Guild Marketing OS workspace, publish the Company Context Builder, and enable chat-native workspace context publishing through the Blaxel-hosted bridge.
 
 ### Prerequisites
 
@@ -225,16 +225,19 @@ guild doctor
 
 - Node.js 20+ and npm.
 - GitHub access to this monorepo. GitHub is the source of truth; Guild is a deployment target.
-- A Vercel account or team that can create projects, configure production environment variables, and assign a production domain.
+- A Blaxel account or team workspace that can deploy private agent-hosted HTTP endpoints.
+- Blaxel CLI access: `bl version` and `bl workspaces` should work locally.
 - A host-side Guild API token for the bridge. This token must be allowed to read, draft, and publish workspace context for the target workspace.
-- A generated bridge shared secret for the Guild integration credential. Do not commit this value.
+- A long-lived Blaxel API key or service-account token for the Guild integration credential. Do not use a short-lived CLI session token for production.
 
 Default production identifiers used by this repository:
 
 - Guild workspace: `michaelpreuss/guild-marketing-os`
 - Guild owner: `michaelpreuss`
 - Workspace context bridge integration: `michaelpreuss~guild-marketing-os-workspace-context@1.0.1`
-- Vercel bridge project: `guild-marketing-os-workspace-context`
+- Blaxel workspace: `knicks`
+- Blaxel bridge resource: `guild-marketing-os-workspace-context`
+- Blaxel bridge URL: `https://agt-guild-marketing-os-workspace-context-hxboop.bl.run`
 - Managed workspace context markers:
   - `<!-- guild-marketing-os-context:start -->`
   - `<!-- guild-marketing-os-context:end -->`
@@ -285,49 +288,55 @@ This helper clones the Guild agent package into a temporary directory, copies tr
 
 Do not run `guild agent save` or `guild agent publish` directly from this GitHub monorepo.
 
-### 4. Deploy The Workspace Context Bridge To Vercel
+### 4. Deploy The Workspace Context Bridge To Blaxel
 
 The Company Context Builder does not call raw Guild service endpoints. It calls the hosted bridge through the Guild integration contract, and the bridge performs the supported workspace-context draft and publish lifecycle.
 
-From the bridge package:
+Set the target Blaxel workspace explicitly. Do not commit this value into `blaxel.toml`.
+
+```sh
+export BLAXEL_WORKSPACE=knicks
+```
+
+Run Blaxel deploy commands from the bridge package with recursion disabled. Do not run `bl deploy -d services/workspace-context-publish-bridge` from the repo root; with current Blaxel CLI behavior that can package unrelated workspace files.
 
 ```sh
 cd services/workspace-context-publish-bridge
-npm install
 npm test
-vercel link
+bl deploy --dryrun --recursive=false -w "$BLAXEL_WORKSPACE"
 ```
 
-In Vercel, create or select the project `guild-marketing-os-workspace-context`, then set production environment variables:
+Deploy with the host-side Guild token as a Blaxel runtime secret:
 
 ```sh
-vercel env add GUILD_API_TOKEN production
-vercel env add BRIDGE_API_TOKEN production
-vercel env add GUILD_ALLOWED_WORKSPACE_FULL_NAMES production
+bl deploy \
+  -w "$BLAXEL_WORKSPACE" \
+  --recursive=false \
+  -s GUILD_API_TOKEN="$GUILD_API_TOKEN"
 ```
 
-Use these values:
+Production runtime values:
 
-- `GUILD_API_TOKEN`: host-side Guild API token with workspace-context read/write/publish permission.
-- `BRIDGE_API_TOKEN`: random shared secret that will also be configured on the Guild integration credential.
-- `GUILD_ALLOWED_WORKSPACE_FULL_NAMES`: `michaelpreuss/guild-marketing-os`
+- `GUILD_API_TOKEN`: required Blaxel secret; host-side Guild token with workspace-context read/write/publish permission.
+- `GUILD_ALLOWED_WORKSPACE_FULL_NAMES`: committed in `services/workspace-context-publish-bridge/blaxel.toml` as `michaelpreuss/guild-marketing-os`.
+- `BRIDGE_API_TOKEN`: leave unset for Blaxel private production. The Blaxel private endpoint is the request gate.
 
 Optional environment variables:
 
 - `GUILD_ALLOWED_WORKSPACE_IDS`: comma-separated workspace id allow-list for stricter scoping.
 - `GUILD_API_BASE_URL`: defaults to `https://app.guild.ai/api`.
-- `PORT`: defaults to `8787` for local runs.
+- `HOST`: set by Blaxel; local default is `0.0.0.0`.
+- `PORT`: set by Blaxel; local default is `8787`.
 
-Deploy to production:
-
-```sh
-vercel --prod
-```
-
-Verify the production bridge:
+Resolve and verify the private Blaxel bridge URL:
 
 ```sh
-curl https://<vercel-production-host>/health
+export BLAXEL_BRIDGE_URL="$(bl get agent guild-marketing-os-workspace-context -w "$BLAXEL_WORKSPACE" -o json | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const j=JSON.parse(s); const item=Array.isArray(j)?j[0]:j; console.log(item.metadata?.url ?? item.url)})')"
+
+curl -fsS \
+  "$BLAXEL_BRIDGE_URL/health" \
+  -H "Authorization: Bearer $BLAXEL_API_KEY" \
+  -H "X-Blaxel-Workspace: $BLAXEL_WORKSPACE"
 ```
 
 Expected response:
@@ -336,7 +345,16 @@ Expected response:
 {"status":"ok"}
 ```
 
-An unauthenticated `POST /workspace-context/publish` should return `401`; that confirms the bridge is not publicly writable.
+Unauthenticated `GET /health` should fail with `401` or `403`, confirming Blaxel is enforcing private access. An authenticated malformed publish request should reach the bridge and return `400 invalid_request`, proving Blaxel is forwarding the configured route:
+
+```sh
+curl -i \
+  "$BLAXEL_BRIDGE_URL/workspace-context/publish" \
+  -H "Authorization: Bearer $BLAXEL_API_KEY" \
+  -H "X-Blaxel-Workspace: $BLAXEL_WORKSPACE" \
+  -H "content-type: application/json" \
+  --data '{}'
+```
 
 ### 5. Configure The Guild Bridge Integration
 
@@ -345,12 +363,23 @@ Create or update the hosted Guild integration with this contract:
 - Owner: `michaelpreuss`
 - Service name: `guild-marketing-os-workspace-context`
 - Version: `1.0.1`
-- Base URL: the Vercel production bridge URL.
+- Base URL: the direct Blaxel bridge URL from `bl get agent guild-marketing-os-workspace-context`
 - Operation: `workspace_context_publish`
 - Method/path: `POST /workspace-context/publish`
 - Request schema: `services/workspace-context-publish-bridge/schemas/publish-request.schema.json`
 - Response schema: `services/workspace-context-publish-bridge/schemas/publish-response.schema.json`
-- Auth: API key or bearer token mapped to the same value as Vercel `BRIDGE_API_TOKEN`.
+- Auth: API key mapped to `Authorization: Bearer {token}` using a long-lived Blaxel API key or service-account token.
+
+Update the existing integration in place after the Blaxel live checks pass:
+
+```sh
+guild integration update michaelpreuss~guild-marketing-os-workspace-context \
+  --base-url "$BLAXEL_BRIDGE_URL"
+
+guild integration connect michaelpreuss~guild-marketing-os-workspace-context \
+  --owner michaelpreuss \
+  --token "$BLAXEL_API_KEY"
+```
 
 The Company Context Builder source should continue to call:
 
@@ -398,7 +427,8 @@ npm run test:guild-smoke
 
 ### Troubleshooting
 
-- `401` from the bridge means the Guild integration credential does not match Vercel `BRIDGE_API_TOKEN`.
+- `401` or `403` before the bridge response means the Guild integration credential does not match the Blaxel private endpoint auth.
+- `400 invalid_request` from an authenticated malformed publish request is expected during route-forwarding smoke tests.
 - A workspace allow-list failure means `GUILD_ALLOWED_WORKSPACE_FULL_NAMES` or `GUILD_ALLOWED_WORKSPACE_IDS` does not include the target workspace.
 - If no workspace context version is published, inspect the Company Context Builder event log. Unsupported new claims block publishing by design during the compaction audit.
 - If `npm run publish:guild-agent` fails before publishing, fix the GitHub repo state first: commit, push, pull/rebase if behind, and rerun from the monorepo root.

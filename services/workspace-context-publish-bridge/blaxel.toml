@@ -1,0 +1,30 @@
+name = "guild-marketing-os-workspace-context"
+type = "agent"
+public = false
+
+[entrypoint]
+prod = "npm start"
+dev = "npm start"
+
+[runtime]
+generation = "mk3"
+memory = 1024
+
+[env]
+GUILD_ALLOWED_WORKSPACE_FULL_NAMES = "michaelpreuss/guild-marketing-os"
+
+[[triggers]]
+id = "health"
+type = "http"
+
+[triggers.configuration]
+path = "/health"
+retry = 0
+
+[[triggers]]
+id = "workspace-context-publish"
+type = "http"
+
+[triggers.configuration]
+path = "/workspace-context/publish"
+retry = 0

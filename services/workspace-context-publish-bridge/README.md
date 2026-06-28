@@ -30,12 +30,19 @@ Required:
 
 - `GUILD_API_TOKEN`: host-side Guild API token used by the bridge to call `https://app.guild.ai/api`.
 
-Recommended:
+Blaxel production:
 
-- `BRIDGE_API_TOKEN`: shared token expected from the Guild integration call to this bridge. Accepted as `Authorization: Bearer <token>` or `X-API-Key`.
+- `GUILD_API_TOKEN` must be deployed as a Blaxel runtime secret.
+- `GUILD_ALLOWED_WORKSPACE_FULL_NAMES` is committed in `blaxel.toml` as `michaelpreuss/guild-marketing-os`.
+- `BRIDGE_API_TOKEN` should be left unset. Blaxel private endpoint auth is the production request gate.
+
+Local testing:
+
+- `BRIDGE_API_TOKEN`: optional local shared token. Accepted as `Authorization: Bearer <token>` or `X-API-Key`.
 - `GUILD_ALLOWED_WORKSPACE_IDS`: comma-separated allow-list of workspace ids.
 - `GUILD_ALLOWED_WORKSPACE_FULL_NAMES`: comma-separated allow-list such as `michaelpreuss/guild-marketing-os`.
 - `GUILD_API_BASE_URL`: defaults to `https://app.guild.ai/api`.
+- `HOST`: defaults to `0.0.0.0`.
 - `PORT`: defaults to `8787`.
 
 ## Local Run
@@ -53,20 +60,37 @@ Health check:
 curl http://localhost:8787/health
 ```
 
-## Vercel Deploy
+## Blaxel Deploy
 
-This package includes Vercel serverless entrypoints under `api/` and rewrites in `vercel.json`, so the public bridge path remains:
+This package includes `blaxel.toml` for a private Blaxel agent-hosted HTTP bridge. The external paths remain:
 
 - `GET /health`
 - `POST /workspace-context/publish`
 
-Set production environment variables before promoting a deployment:
+Deploy from this package directory with recursion disabled. Do not run `bl deploy -d services/workspace-context-publish-bridge` from the repo root; with current Blaxel CLI behavior that can package unrelated workspace files.
 
 ```sh
-GUILD_ALLOWED_WORKSPACE_FULL_NAMES=michaelpreuss/guild-marketing-os
-GUILD_API_TOKEN=<host-side Guild token>
-BRIDGE_API_TOKEN=<shared secret configured in the Guild integration credential>
+export BLAXEL_WORKSPACE=knicks
+
+bl deploy --dryrun --recursive=false -w "$BLAXEL_WORKSPACE"
+bl deploy \
+  -w "$BLAXEL_WORKSPACE" \
+  --recursive=false \
+  -s GUILD_API_TOKEN="$GUILD_API_TOKEN"
 ```
+
+Resolve and verify the private bridge URL with a long-lived Blaxel API key or service-account token:
+
+```sh
+export BLAXEL_BRIDGE_URL="$(bl get agent guild-marketing-os-workspace-context -w "$BLAXEL_WORKSPACE" -o json | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const j=JSON.parse(s); const item=Array.isArray(j)?j[0]:j; console.log(item.metadata?.url ?? item.url)})')"
+
+curl -fsS \
+  "$BLAXEL_BRIDGE_URL/health" \
+  -H "Authorization: Bearer $BLAXEL_API_KEY" \
+  -H "X-Blaxel-Workspace: $BLAXEL_WORKSPACE"
+```
+
+Unauthenticated `GET /health` should fail with `401` or `403`.
 
 ## Guild Integration Contract
 
@@ -75,12 +99,12 @@ Create or update the hosted Guild integration as:
 - owner: `michaelpreuss`
 - service/name: `guild-marketing-os-workspace-context`
 - version: `1.0.1`
-- base URL: the deployed bridge host
+- base URL: the direct Blaxel bridge URL from `bl get agent guild-marketing-os-workspace-context`
 - operation: `workspace_context_publish`
 - method/path: `POST /workspace-context/publish`
 - request schema: `schemas/publish-request.schema.json`
 - response schema: `schemas/publish-response.schema.json`
-- auth: API key or bearer token mapped to `BRIDGE_API_TOKEN`
+- auth: API key mapped to `Authorization: Bearer {token}` with a long-lived Blaxel API key or service-account token
 
 The Company Context Builder package version `1.0.25` calls this operation through `guildServiceTool("guild-marketing-os-workspace-context", { owner: "michaelpreuss", versionNumber: "1.0.1" })`.
 

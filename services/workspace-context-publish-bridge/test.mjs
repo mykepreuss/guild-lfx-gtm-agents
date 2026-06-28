@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import net from "node:net";
+import { setTimeout as sleep } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
 import {
   BridgeError,
   isBridgeRequestAuthorized,
@@ -123,4 +128,82 @@ assert.equal(isBridgeRequestAuthorized({ "x-api-key": "bridge-token" }, "bridge-
 assert.equal(isBridgeRequestAuthorized({ authorization: "Bearer wrong" }, "bridge-token"), false);
 assert.equal(isBridgeRequestAuthorized({}, undefined), true);
 
+await assertServerRoutesByPathname();
+
 console.log("Workspace context publish bridge test OK.");
+
+async function assertServerRoutesByPathname() {
+  const port = await getAvailablePort();
+  const serverPath = fileURLToPath(new URL("./server.mjs", import.meta.url));
+  const serverProcess = spawn(process.execPath, [serverPath], {
+    env: {
+      ...process.env,
+      HOST: "127.0.0.1",
+      PORT: String(port),
+      BRIDGE_API_TOKEN: "",
+      GUILD_API_TOKEN: "",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  serverProcess.stderr.setEncoding("utf8");
+  serverProcess.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  try {
+    const health = await waitForJson(`http://127.0.0.1:${port}/health?environment=blaxel-smoke`);
+    assert.deepEqual(health, { status: "ok" });
+
+    const publishResponse = await fetch(`http://127.0.0.1:${port}/workspace-context/publish?environment=blaxel-smoke`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    const publishBody = await publishResponse.json();
+    assert.equal(publishResponse.status, 400);
+    assert.equal(publishBody.error, "invalid_request");
+  } finally {
+    if (serverProcess.exitCode === null && serverProcess.signalCode === null) {
+      serverProcess.kill();
+      await Promise.race([once(serverProcess, "exit"), sleep(2000)]);
+    }
+  }
+
+  if (serverProcess.exitCode !== null && serverProcess.exitCode !== 0) {
+    throw new Error(`Server process exited early: ${stderr}`);
+  }
+}
+
+async function waitForJson(url) {
+  let lastError;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return await response.json();
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(100);
+  }
+  throw lastError ?? new Error(`Timed out waiting for ${url}`);
+}
+
+async function getAvailablePort() {
+  const server = net.createServer();
+  return await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close(() => {
+        if (!address || typeof address === "string") {
+          reject(new Error("Could not allocate a local test port."));
+        } else {
+          resolve(address.port);
+        }
+      });
+    });
+  });
+}

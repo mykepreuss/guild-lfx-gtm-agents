@@ -6,6 +6,7 @@ import {
   publishWorkspaceContext,
 } from "./bridge.mjs";
 
+const host = process.env.HOST ?? "0.0.0.0";
 const port = Number.parseInt(process.env.PORT ?? "8787", 10);
 const bridgeApiToken = process.env.BRIDGE_API_TOKEN;
 const options = {
@@ -17,10 +18,11 @@ const options = {
 
 const server = http.createServer(async (request, response) => {
   try {
-    if (request.method === "GET" && request.url === "/health") {
+    const pathname = getRequestPathname(request);
+    if (request.method === "GET" && pathname === "/health") {
       return sendJson(response, 200, { status: "ok" });
     }
-    if (request.method !== "POST" || request.url !== "/workspace-context/publish") {
+    if (request.method !== "POST" || pathname !== "/workspace-context/publish") {
       return sendJson(response, 404, { error: "not_found", message: "Route not found." });
     }
     if (!isBridgeRequestAuthorized(request.headers, bridgeApiToken)) {
@@ -37,9 +39,13 @@ const server = http.createServer(async (request, response) => {
   }
 });
 
-server.listen(port, () => {
-  process.stdout.write(`Workspace context publish bridge listening on :${port}\n`);
+server.listen(port, host, () => {
+  process.stdout.write(`Workspace context publish bridge listening on ${host}:${port}\n`);
 });
+
+function getRequestPathname(request) {
+  return new URL(request.url ?? "/", "http://localhost").pathname;
+}
 
 function sendJson(response, status, body) {
   response.writeHead(status, { "content-type": "application/json" });
