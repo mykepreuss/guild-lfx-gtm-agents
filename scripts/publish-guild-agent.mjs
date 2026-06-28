@@ -191,7 +191,7 @@ function assertGuildReady() {
 }
 
 function resolveTargets(catalog) {
-  const packages = [catalog.entrypoint, ...(catalog.agents ?? [])].filter(Boolean);
+  const packages = dedupePackages([catalog.entrypoint, ...(catalog.agents ?? [])].filter(Boolean));
   if (args.all) return packages;
 
   const selector = args.agent;
@@ -204,6 +204,16 @@ function resolveTargets(catalog) {
   );
   if (!target) throw new Error(`Unknown agent selector: ${selector}`);
   return [target];
+}
+
+function dedupePackages(packages) {
+  const seen = new Set();
+  return packages.filter((candidate) => {
+    const key = [candidate.id, candidate.guildName, candidate.packageDir].filter(Boolean).join("|");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function readCatalog() {
