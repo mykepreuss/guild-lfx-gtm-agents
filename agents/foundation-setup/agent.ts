@@ -222,6 +222,38 @@ const sparseMarkers = [
   "build the full marketing strategy anyway",
   "confident claims",
 ];
+const sourcePacketFieldLabels = [
+  "Company name",
+  "Brand name",
+  "Organization name",
+  "Org name",
+  "Product name",
+  "Company",
+  "Brand",
+  "Organization",
+  "Org",
+  "Product",
+  "Approved description",
+  "Company description",
+  "Product description",
+  "Description",
+  "Primary audiences",
+  "Primary audience",
+  "Audiences",
+  "Audience",
+  "Current goals",
+  "Goals",
+  "Channels in scope",
+  "Approved channels",
+  "Channel scope",
+  "Channels",
+  "Proof-backed claims or source excerpts",
+  "Proof-backed claims",
+  "Approved proof",
+  "Proof points",
+  "Evidence",
+  "Anything not approved for reuse",
+].sort((a, b) => b.length - a.length);
 
 export default agent({
   identifier: "guild_marketing_os_company_context_builder",
@@ -2060,12 +2092,20 @@ function extractLineAfterLabels(rawContext: string, labels: readonly string[]): 
   for (const rawLine of rawContext.split(/\r?\n/)) {
     const line = rawLine.trim().replace(/^[-*]\s+/, "");
     for (const label of sortedLabels) {
-      const match = line.match(new RegExp(`^${escapeRegExp(label)}\\s*:\\s*(.+)$`, "i"));
-      const value = match?.[1]?.trim().replace(/[.。]+$/, "").trim();
+      const match = line.match(new RegExp(`(?:^|[.;。]\\s*)${escapeRegExp(label)}\\s*:\\s*(.+)$`, "i"));
+      const value = match?.[1] ? cleanLabeledFieldValue(match[1]) : undefined;
       if (value) return value;
     }
   }
   return undefined;
+}
+
+function cleanLabeledFieldValue(value: string): string | undefined {
+  const nextLabelPattern = new RegExp(`(?:^|[.;。]\\s*)(?:${sourcePacketFieldLabels.map(escapeRegExp).join("|")})\\s*:`, "i");
+  const nextLabel = value.match(nextLabelPattern);
+  const truncated = nextLabel?.index === undefined ? value : value.slice(0, nextLabel.index);
+  const cleaned = truncated.trim().replace(/[.。]+$/, "").trim();
+  return cleaned || undefined;
 }
 
 function extractListAfterLabels(rawContext: string, labels: readonly string[]): string[] {

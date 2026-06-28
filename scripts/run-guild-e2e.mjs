@@ -144,6 +144,19 @@ const smokeCases = [
     forbiddenPatterns: [/Company: TBD/i, /successfully published/i, /credentials configured/i],
   },
   {
+    id: "foundation-one-line-source-packet",
+    dir: "agents/foundation-setup",
+    prompt: "Company name: Webflow. Approved description: Webflow is a visual website platform for teams that need to design, build, manage, and optimize web experiences. Primary audiences: marketing leaders, web teams, agencies, designers, developers, and enterprise digital teams. Current goals: create approved company context and route the next Marketing OS agent. Proof-backed claims or source excerpts: user-supplied source packet says Webflow combines visual site design, CMS, hosting, collaboration, optimization, AI, and extensibility features. Channels in scope: website, email, social content, pitch materials, and campaign planning. Anything not approved for reuse: pricing claims, compliance claims, performance guarantees, live publishing, CRM activation, and paid spend changes.",
+    requiredPatterns: [
+      /source_available/i,
+      /Company: Webflow/i,
+      jsonCompanyNameWebflowPattern,
+      /Primary audiences: marketing leaders, web teams, agencies, designers, developers, enterprise digital teams/i,
+      jsonSavedToWorkspaceFalsePattern,
+    ],
+    forbiddenPatterns: [/companyName\\?":\s*\\?"Webflow\. Approved description/i, /Company: Webflow\. Approved description/i],
+  },
+  {
     id: "foundation-save-state-question",
     dir: "agents/foundation-setup",
     prompt: "Is this now saved in our workspace context?",
@@ -364,6 +377,7 @@ const fastSmokeCaseIds = new Set([
   "foundation-first-run-company-context",
   "foundation-placeholder-source-intro",
   "foundation-pasted-messy-company-source",
+  "foundation-one-line-source-packet",
   "foundation-save-state-question",
   "foundation-blank-campaign-preserves-downstream-goal",
   "foundation-partial-company-description",
