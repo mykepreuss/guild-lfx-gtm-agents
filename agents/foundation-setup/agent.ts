@@ -269,7 +269,7 @@ const tools = {
     inputSchema: workspaceContextPublishRequestSchema,
     outputSchema: workspaceContextPublishResponseSchema,
     owner: "michaelpreuss",
-    versionNumber: "1.0.0",
+    versionNumber: "1.0.1",
     endpoint: {
       method: "POST",
       path: "/workspace-context/publish",

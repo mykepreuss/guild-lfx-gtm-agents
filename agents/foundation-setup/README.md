@@ -34,7 +34,7 @@ The only runtime mutation it may perform is the explicit workspace-context persi
 1. Draft company context from readable source text.
 2. User approves the draft in a follow-up turn.
 3. User sends exactly `publish approved context to workspace context`.
-4. The agent compacts the approved source corpus, audits the compacted brief, and sends only the managed block to the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` publish bridge.
+4. The agent compacts the approved source corpus, audits the compacted brief, and sends only the managed block to the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` publish bridge.
 5. The bridge resolves the session workspace, preserves unmanaged context, replaces the managed workspace-context block, creates a draft, publishes the Guild context revision, and returns published/draft/previous ids for status and rollback metadata.
 
 ## Test

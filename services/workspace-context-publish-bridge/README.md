@@ -2,7 +2,7 @@
 
 Host-controlled bridge for the Company Context Builder workspace-context publish flow.
 
-The deployed agent must not call raw internal Guild service endpoints. Instead, after the user has approved the company context and sent the exact confirmation phrase, the agent calls this bridge through the `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` service contract.
+The deployed agent must not call raw internal Guild service endpoints. Instead, after the user has approved the company context and sent the exact confirmation phrase, the agent calls this bridge through the `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` service contract.
 
 ## Operation
 
@@ -74,7 +74,7 @@ Create or update the hosted Guild integration as:
 
 - owner: `michaelpreuss`
 - service/name: `guild-marketing-os-workspace-context`
-- version: `1.0.0`
+- version: `1.0.1`
 - base URL: the deployed bridge host
 - operation: `workspace_context_publish`
 - method/path: `POST /workspace-context/publish`
@@ -82,7 +82,7 @@ Create or update the hosted Guild integration as:
 - response schema: `schemas/publish-response.schema.json`
 - auth: API key or bearer token mapped to `BRIDGE_API_TOKEN`
 
-The Company Context Builder package version `1.0.24` calls this operation through `guildServiceTool("guild-marketing-os-workspace-context", { owner: "michaelpreuss", versionNumber: "1.0.0" })`.
+The Company Context Builder package version `1.0.25` calls this operation through `guildServiceTool("guild-marketing-os-workspace-context", { owner: "michaelpreuss", versionNumber: "1.0.1" })`.
 
 ## Test
 

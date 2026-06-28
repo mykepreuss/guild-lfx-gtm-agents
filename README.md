@@ -17,7 +17,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.
 - The seven prompt-only review agents explicitly set `useWorkspaceAgents: false` for deterministic behavior before autonomous orchestration is designed.
 - A committed Guild smoke/adversarial test harness is available under `scripts/run-guild-e2e.mjs`.
-- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, or public visibility changes have been run. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow, which calls the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` publish bridge instead of raw Guild service endpoints or direct CLI workspace-context publishing.
+- Current private/team workspace package publish and install steps have been run for testing in `michaelpreuss/guild-marketing-os`; no triggers, credentials, or public visibility changes have been run. Workspace context publish is available only through the Company Context Builder's two-step chat-gated approval flow, which calls the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` publish bridge instead of raw Guild service endpoints or direct CLI workspace-context publishing.
 - All eight V1 agents are committed deliverables.
 - Old local labs, generated demo packets, and local-only exemplars have been removed.
 - Approved context artifact templates are present under `context-hub/`.
@@ -45,7 +45,7 @@ Use Guild surfaces this way:
 - **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant by agents that declare `guildai~skills`.
 - **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
-The Company Context Builder may publish an approved compact workspace context brief after the exact two-step confirmation. Its chat-native write path delegates the actual workspace read, managed-block replacement, draft creation, publish, and rollback metadata to the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` bridge. The full approved source corpus remains in session state for audit and should not be injected wholesale into Guild workspace context.
+The Company Context Builder may publish an approved compact workspace context brief after the exact two-step confirmation. Its chat-native write path delegates the actual workspace read, managed-block replacement, draft creation, publish, and rollback metadata to the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` bridge. The full approved source corpus remains in session state for audit and should not be injected wholesale into Guild workspace context.
 
 ## Important Guild Boundary
 

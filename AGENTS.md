@@ -8,7 +8,7 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 - Re-running `guild agent init` and `guild agent test` is allowed only when maintaining these existing package records.
 - Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests.
 - Do not run save, publish, unpublish, workspace install, direct CLI workspace context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
-- The Company Context Builder has one approved runtime persistence path: after a draft is approved, the user must send exactly `publish approved context to workspace context` before the agent publishes its managed workspace-context block through the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` bridge.
+- The Company Context Builder has one approved runtime persistence path: after a draft is approved, the user must send exactly `publish approved context to workspace context` before the agent publishes its managed workspace-context block through the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` bridge.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
 - The Guild CLI may be installed locally. Informational checks such as `guild --version` and `guild agent init --help` are acceptable.
 - Use https://docs.guild.ai for current Guild platform, CLI, SDK, and Agent Hub behavior. Use https://www.guild.ai/glossary for Guild terminology.
