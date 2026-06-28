@@ -258,8 +258,8 @@ const smokeCases = [
       /Claims Needing Approval[\s\S]{0,120}None identified/i,
       /"readiness": "review_ready"/i,
       /### Company Context Draft \(company-context\)[\s\S]*agentic web marketing[\s\S]*### Messaging Source Draft/i,
-      /### Messaging Source Draft \(messaging-source\)[\s\S]*(?:3\.5M users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)[\s\S]*### Brand Kit Draft/i,
-      /## Downstream Handoff[\s\S]*(?:3\.5M users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)/i,
+      /### Messaging Source Draft \(messaging-source\)[\s\S]*(?:3\.5M(?: users| figure)?|active users|registered users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)[\s\S]*### Brand Kit Draft/i,
+      /## Downstream Handoff[\s\S]*(?:3\.5M(?: users| figure)?|active users|registered users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)/i,
     ],
   },
   {

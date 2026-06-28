@@ -1711,6 +1711,7 @@ function scrubReusableGuardedClaims(output: Output): void {
   messagingSource.proofNeeds = scrubGuardedList(messagingSource.proofNeeds, reusableProofNeeds);
   if (hasGuardrailClaims) {
     messagingSource.answerReadyLanguage = [];
+    messagingSource.proofNeeds = reusableProofNeeds;
   }
   if (
     hasGuardrailClaims ||
