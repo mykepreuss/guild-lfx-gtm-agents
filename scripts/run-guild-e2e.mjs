@@ -68,6 +68,7 @@ const smokeCases = [
       /Channel Registry Draft \(channel-registry\)/i,
       /Proof And Constraints Draft \(proof-and-constraints\)/i,
       /Dashboard Signals Draft \(dashboard-signals\)/i,
+      /"companyName": "Webflow"/i,
       /"saved_to_workspace_context": false/i,
       /Messaging|ICP|Market Signal|Audience Segmentation/i,
     ],
@@ -116,6 +117,7 @@ const smokeCases = [
       /source_available/i,
       /I found enough to draft initial company context for Webflow/i,
       /Company Context Draft \(company-context\)/i,
+      /"companyName": "Webflow"/i,
       /Messaging Source Draft \(messaging-source\)/i,
       /Brand Kit Draft \(brand-kit\)/i,
       /Audience Segments Draft \(audience-segments\)/i,
@@ -188,12 +190,13 @@ const smokeCases = [
     requiredPatterns: [
       /approval_or_edit/i,
       /approved_in_session: false/i,
+      /User requested company context approval in this session/i,
       /prior company context draft is not visible|cannot see the prior company context draft|cannot see the prior draft/i,
       /saved_to_workspace_context: false/i,
       /saved_to_context_artifacts: false/i,
       /Paste the ready-to-save Company Context block|rerun from visible source text/i,
     ],
-    forbiddenPatterns: [/approved_in_session: true/i, /Company: TBD[\s\S]{0,120}approved_in_session: true/i, /successfully saved/i, /published/i, /installed/i],
+    forbiddenPatterns: [/approved_in_session: true/i, /User approved company context in this session/i, /Company: TBD[\s\S]{0,120}approved_in_session: true/i, /successfully saved/i, /published/i, /installed/i],
   },
   {
     id: "foundation-edit-remove-pricing-claims",
@@ -244,13 +247,20 @@ const smokeCases = [
     requiredPatterns: [
       /source_available/i,
       /Company: Webflow/i,
+      /"companyName": "Webflow"/i,
       /Claims Needing Approval/i,
       /sensitive_claim_guardrail/i,
       /3\.5M users|\$335M|99\.99% uptime|enterprise compliance|leading agentic web marketing platform/i,
       /No paid media spend/i,
       /"readiness": "draft"|Readiness: draft/i,
     ],
-    forbiddenPatterns: [/Claims Needing Approval[\s\S]{0,120}None identified/i, /"readiness": "review_ready"/i],
+    forbiddenPatterns: [
+      /Claims Needing Approval[\s\S]{0,120}None identified/i,
+      /"readiness": "review_ready"/i,
+      /### Company Context Draft \(company-context\)[\s\S]*agentic web marketing[\s\S]*### Messaging Source Draft/i,
+      /### Messaging Source Draft \(messaging-source\)[\s\S]*(?:3\.5M users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)[\s\S]*### Brand Kit Draft/i,
+      /## Downstream Handoff[\s\S]*(?:3\.5M users|\$335M|99\.99% uptime|enterprise compliance|agentic web marketing|user count)/i,
+    ],
   },
   {
     id: "intake",
@@ -560,6 +570,15 @@ function runCase(testCase) {
     }
   }
 
+  if (testCase.dir === "agents/foundation-setup") {
+    if (/"projectName"\s*:/i.test(output)) {
+      return failCase(testCase, "Foundation output still includes legacy projectName", logPath);
+    }
+    if (/(?:approved_in_session:\s*false|"approved_in_session": false)/i.test(output) && hasUnapprovedAudienceEvidence(output)) {
+      return failCase(testCase, "Foundation output marks audience evidence approved before approval", logPath);
+    }
+  }
+
   console.log(`PASS ${testCase.id}`);
   return { ok: true };
 }
@@ -580,6 +599,12 @@ function prepareBundleIfNeeded(testCase, caseDir) {
     preparedBundles.add(testCase.dir);
   }
   return "agent.js.gz";
+}
+
+function hasUnapprovedAudienceEvidence(output) {
+  return output
+    .split(/\r?\n/)
+    .some((line) => /^\s*Status:/i.test(line) && /\bEvidence:\s*approved\b/i.test(line.split(/Missing evidence:/i)[0]));
 }
 
 function buildInput(testCase) {
