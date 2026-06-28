@@ -190,6 +190,19 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
+type WorkspaceContextAudit = z.infer<typeof workspaceContextAuditSchema>;
+type WorkspaceContextCompaction = z.infer<typeof workspaceContextCompactionSchema>;
+type CompactedWorkspaceContext = {
+  brief: string;
+  sourceCorpusSummary: string;
+  audit: WorkspaceContextAudit;
+  estimatedSourceTokens: number;
+  estimatedBriefTokens: number;
+  regeneratedAfterAudit: boolean;
+};
+type WorkspaceContextCompactionResult =
+  | { status: "ready"; context: CompactedWorkspaceContext }
+  | { status: "blocked"; reason: string; audit?: WorkspaceContextAudit; cleanedSourceText?: string };
 const agentStateSchema = z.object({
   lastOutput: structuredOutputSchema.optional(),
   approvedOutput: structuredOutputSchema.optional(),
@@ -231,6 +244,19 @@ const workspaceContextVersionSchema = z.object({
   context: z.string().optional(),
   summary: z.string().nullable().optional(),
 }).passthrough();
+
+const workspaceContextCompactionSchema = z.object({
+  workspace_context_brief: z.string(),
+  source_corpus_summary: z.string(),
+  estimated_token_reduction: z.string().optional(),
+});
+
+const workspaceContextAuditSchema = z.object({
+  lost_material_facts: z.array(z.string()),
+  unsupported_new_claims: z.array(z.string()),
+  overcompressed_nuance: z.array(z.string()),
+  recommended_fixes: z.array(z.string()),
+});
 
 const tools = {
   guild_get_current_session: guildServiceTool("guild", {
@@ -331,6 +357,20 @@ const requiredHeadings = [
 
 const managedContextStart = "<!-- guild-marketing-os-context:start -->";
 const managedContextEnd = "<!-- guild-marketing-os-context:end -->";
+const targetWorkspaceContextTokenMin = 2500;
+const targetWorkspaceContextTokenMax = 4000;
+const requiredWorkspaceBriefSections = [
+  "Company Identity",
+  "Positioning And Strategy",
+  "Products And Platform",
+  "Audiences And Buying Motion",
+  "Pricing And Commercial Model",
+  "Proof Points",
+  "Compliance And Constraints",
+  "Competitive Landscape",
+  "Open Questions And Unknowns",
+  "Downstream Operating Rules",
+] as const;
 
 const forbiddenLiveActionClaims = [
   "successfully published",
@@ -1702,14 +1742,30 @@ async function buildWorkspaceContextPublishOutput(
   }
 
   const approvedOutput = state.approvedOutput;
-  const summary = publishSummaryForOutput(approvedOutput);
+  const compactionResult = await buildCompactedWorkspaceContext(approvedOutput, state.approvedSourceText, task);
+
+  if (compactionResult.status === "blocked") {
+    const blockedOutput = markWorkspaceContextCompactionBlocked(approvedOutput, compactionResult);
+    return {
+      output: blockedOutput,
+      state: {
+        ...state,
+        lastOutput: blockedOutput,
+        approvedOutput,
+        workspaceContextStatus: "blocked",
+        workspaceContextSummary: publishSummaryForOutput(approvedOutput),
+      },
+    };
+  }
+
+  const summary = publishSummaryForOutput(approvedOutput, compactionResult.context);
 
   try {
     const session = sessionResponseSchema.parse(await task.tools.guild_get_current_session({ session_id: task.sessionId }));
     const workspaceId = session.workspace.id;
     const workspace = workspaceResponseSchema.parse(await task.tools.guild_get_workspace_context({ workspace_id: workspaceId }));
     const currentManualContext = workspace.context.manual ?? "";
-    const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, state.approvedSourceText);
+    const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, compactionResult.context);
     const updatedManualContext = replaceManagedWorkspaceContextBlock(currentManualContext, managedBlock);
     const draftContext = workspaceContextVersionSchema.parse(await task.tools.guild_create_workspace_context({
       workspace_id: workspaceId,
@@ -1765,17 +1821,17 @@ function markWorkspaceContextPublished(approvedOutput: Output, contextId: string
       workspace_context_id: contextId,
       workspace_context_status: "published",
       workspace_context_summary: summary,
-      persistence_note: `Published approved company context to Guild workspace context as ${contextId}. Context Hub artifact files were not changed.`,
+      persistence_note: `Published compacted workspace context brief to Guild workspace context as ${contextId}. The full approved source corpus remains in Company Context Builder session state only. Context Hub artifact files were not changed.`,
     },
     consumedContext: {
       ...approvedOutput.consumedContext,
-      used: [...new Set([...approvedOutput.consumedContext.used, "Published approved company context to Guild workspace context."])],
+      used: [...new Set([...approvedOutput.consumedContext.used, "Published compacted workspace context brief to Guild workspace context."])],
       missing: [
         ...new Set(approvedOutput.consumedContext.missing.filter((item) => !/publish confirmation|workspace context/i.test(item))),
         "Context Hub artifact persistence",
       ],
     },
-    workspaceContextDraft: `Published to Guild workspace context. Context id: ${contextId}. Summary: ${summary}`,
+    workspaceContextDraft: `Published compacted workspace context brief to Guild workspace context. Context id: ${contextId}. Summary: ${summary}`,
     statusPayload: {
       ...approvedOutput.statusPayload,
       blockers: [
@@ -1848,13 +1904,73 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
   });
 }
 
-function publishSummaryForOutput(output: Output): string {
-  const companyName = output.statusPayload.companyName === "TBD" ? "company" : output.statusPayload.companyName;
-  return `Guild Marketing OS company context for ${companyName}, approved through Company Context Builder.`;
+function markWorkspaceContextCompactionBlocked(approvedOutput: Output, result: Extract<WorkspaceContextCompactionResult, { status: "blocked" }>): Output {
+  const auditDetails = result.audit
+    ? [
+      result.audit.unsupported_new_claims.length ? `Unsupported new claims: ${result.audit.unsupported_new_claims.join("; ")}` : "",
+      result.audit.lost_material_facts.length ? `Lost material facts: ${result.audit.lost_material_facts.join("; ")}` : "",
+      result.audit.overcompressed_nuance.length ? `Over-compressed nuance: ${result.audit.overcompressed_nuance.join("; ")}` : "",
+    ].filter(Boolean).join(" ")
+    : "";
+  const note = [
+    `Workspace context compaction blocked publishing before any workspace write. ${result.reason}`,
+    auditDetails,
+  ].filter(Boolean).join(" ");
+
+  return structuredOutputSchema.parse({
+    ...approvedOutput,
+    conversationIntent: "approval_or_edit",
+    status: "needs_input",
+    persistenceState: {
+      ...approvedOutput.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: false,
+      saved_to_context_artifacts: false,
+      workspace_context_status: "blocked",
+      workspace_context_summary: publishSummaryForOutput(approvedOutput),
+      persistence_note: note,
+    },
+    statusPayload: {
+      ...approvedOutput.statusPayload,
+      blockers: [
+        ...new Set([
+          ...approvedOutput.statusPayload.blockers,
+          "Workspace context compaction audit did not pass.",
+        ]),
+      ],
+    },
+    contextArtifacts: {
+      ...approvedOutput.contextArtifacts,
+      dashboardSignals: {
+        ...approvedOutput.contextArtifacts.dashboardSignals,
+        blockers: [
+          ...new Set([
+            ...approvedOutput.contextArtifacts.dashboardSignals.blockers,
+            "Workspace context compaction audit did not pass.",
+          ]),
+        ],
+      },
+    },
+    openQuestions: [
+      ...new Set([
+        ...approvedOutput.openQuestions,
+        "Should the approved source corpus be refined before retrying compacted workspace context publishing?",
+      ]),
+    ],
+  });
 }
 
-function renderManagedWorkspaceContextBlock(output: Output, approvedSourceText: string | undefined): string {
-  const sourceText = approvedSourceText ? stripGuildRuntimePreamble(approvedSourceText) : undefined;
+function publishSummaryForOutput(output: Output, compactedContext?: CompactedWorkspaceContext): string {
+  const companyName = output.statusPayload.companyName === "TBD" ? "company" : output.statusPayload.companyName;
+  if (!compactedContext) return `Guild Marketing OS company context for ${companyName}, approved through Company Context Builder.`;
+  const reduction = compactedContext.estimatedSourceTokens > 0
+    ? Math.max(0, Math.round((1 - compactedContext.estimatedBriefTokens / compactedContext.estimatedSourceTokens) * 100))
+    : 0;
+  return `Compacted Guild Marketing OS workspace context brief for ${companyName}; source ${compactedContext.estimatedSourceTokens} tokens to brief ${compactedContext.estimatedBriefTokens} tokens; audit passed; ~${reduction}% reduction.`;
+}
+
+function renderManagedWorkspaceContextBlock(output: Output, compactedContext: CompactedWorkspaceContext): string {
   return [
     managedContextStart,
     "# Guild Marketing OS Managed Company Context",
@@ -1869,9 +1985,344 @@ function renderManagedWorkspaceContextBlock(output: Output, approvedSourceText: 
     "",
     "## Downstream Handoff Context",
     renderDownstreamHandoffContext(output),
-    ...(sourceText?.trim() ? ["", "## Approved Source Corpus", sourceText] : []),
+    "",
+    "## Workspace Context Brief",
+    compactedContext.brief.trim(),
+    "",
+    "## Source Corpus Summary",
+    compactedContext.sourceCorpusSummary.trim(),
+    "",
+    "## Compaction Audit",
+    renderCompactionAudit(compactedContext),
     managedContextEnd,
   ].join("\n");
+}
+
+async function buildCompactedWorkspaceContext(
+  approvedOutput: Output,
+  approvedSourceText: string | undefined,
+  task: AgentTask,
+): Promise<WorkspaceContextCompactionResult> {
+  const sourceText = approvedSourceText?.trim()
+    ? approvedSourceText
+    : [
+      renderReadyToPublishWorkspaceContext(approvedOutput),
+      "",
+      renderDownstreamHandoffContext(approvedOutput),
+    ].join("\n");
+  const cleanedSourceText = cleanApprovedSourceForWorkspaceContext(sourceText);
+  const estimatedSourceTokens = estimateWorkspaceContextTokens(cleanedSourceText);
+  const firstCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task);
+  if (!firstCompaction) {
+    return {
+      status: "blocked",
+      reason: "The LLM compaction response was missing or did not match the required JSON shape.",
+      cleanedSourceText,
+    };
+  }
+
+  const firstBriefCheck = validateWorkspaceContextBrief(firstCompaction.workspace_context_brief);
+  if (firstBriefCheck.length > 0) {
+    return {
+      status: "blocked",
+      reason: `The compacted workspace context brief is missing required sections: ${firstBriefCheck.join(", ")}.`,
+      cleanedSourceText,
+    };
+  }
+
+  const firstAudit = await requestWorkspaceContextAudit(cleanedSourceText, firstCompaction, task);
+  if (!firstAudit) {
+    return {
+      status: "blocked",
+      reason: "The LLM compaction audit response was missing or did not match the required JSON shape.",
+      cleanedSourceText,
+    };
+  }
+  if (firstAudit.unsupported_new_claims.length > 0) {
+    return {
+      status: "blocked",
+      reason: "The compacted workspace context brief introduced unsupported new claims.",
+      audit: firstAudit,
+      cleanedSourceText,
+    };
+  }
+
+  if (firstAudit.lost_material_facts.length === 0) {
+    return {
+      status: "ready",
+      context: buildCompactedWorkspaceContextPayload(cleanedSourceText, firstCompaction, firstAudit, false),
+    };
+  }
+
+  const regeneratedCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task, firstAudit);
+  if (!regeneratedCompaction) {
+    return {
+      status: "blocked",
+      reason: "The LLM regeneration response was missing or did not match the required JSON shape after the coverage audit found lost material facts.",
+      audit: firstAudit,
+      cleanedSourceText,
+    };
+  }
+  const regeneratedBriefCheck = validateWorkspaceContextBrief(regeneratedCompaction.workspace_context_brief);
+  if (regeneratedBriefCheck.length > 0) {
+    return {
+      status: "blocked",
+      reason: `The regenerated workspace context brief is missing required sections: ${regeneratedBriefCheck.join(", ")}.`,
+      audit: firstAudit,
+      cleanedSourceText,
+    };
+  }
+
+  const regeneratedAudit = await requestWorkspaceContextAudit(cleanedSourceText, regeneratedCompaction, task);
+  if (!regeneratedAudit) {
+    return {
+      status: "blocked",
+      reason: "The regenerated compaction audit response was missing or did not match the required JSON shape.",
+      audit: firstAudit,
+      cleanedSourceText,
+    };
+  }
+  if (regeneratedAudit.unsupported_new_claims.length > 0) {
+    return {
+      status: "blocked",
+      reason: "The regenerated workspace context brief introduced unsupported new claims.",
+      audit: regeneratedAudit,
+      cleanedSourceText,
+    };
+  }
+  if (regeneratedAudit.lost_material_facts.length > 0) {
+    return {
+      status: "blocked",
+      reason: "The regenerated workspace context brief still lost material facts from the approved source corpus.",
+      audit: regeneratedAudit,
+      cleanedSourceText,
+    };
+  }
+
+  return {
+    status: "ready",
+    context: buildCompactedWorkspaceContextPayload(cleanedSourceText, regeneratedCompaction, regeneratedAudit, true),
+  };
+}
+
+function buildCompactedWorkspaceContextPayload(
+  cleanedSourceText: string,
+  compaction: WorkspaceContextCompaction,
+  audit: WorkspaceContextAudit,
+  regeneratedAfterAudit: boolean,
+): CompactedWorkspaceContext {
+  return {
+    brief: compaction.workspace_context_brief.trim(),
+    sourceCorpusSummary: [
+      compaction.source_corpus_summary.trim(),
+      "",
+      "Full approved source corpus is retained in Company Context Builder session state only; it is not injected into always-on workspace context.",
+    ].join("\n").trim(),
+    audit,
+    estimatedSourceTokens: estimateWorkspaceContextTokens(cleanedSourceText),
+    estimatedBriefTokens: estimateWorkspaceContextTokens(compaction.workspace_context_brief),
+    regeneratedAfterAudit,
+  };
+}
+
+async function requestWorkspaceContextCompaction(
+  approvedOutput: Output,
+  cleanedSourceText: string,
+  task: AgentTask,
+  auditFeedback?: WorkspaceContextAudit,
+): Promise<WorkspaceContextCompaction | undefined> {
+  const { text } = await task.llm.generateText({
+    prompt: buildWorkspaceContextCompactionPrompt(approvedOutput, cleanedSourceText, auditFeedback),
+  });
+  const parsed = parseJsonObject(text);
+  const result = workspaceContextCompactionSchema.safeParse(parsed);
+  return result.success ? result.data : undefined;
+}
+
+async function requestWorkspaceContextAudit(
+  cleanedSourceText: string,
+  compaction: WorkspaceContextCompaction,
+  task: AgentTask,
+): Promise<WorkspaceContextAudit | undefined> {
+  const { text } = await task.llm.generateText({
+    prompt: buildWorkspaceContextAuditPrompt(cleanedSourceText, compaction),
+  });
+  const parsed = parseJsonObject(text);
+  const result = workspaceContextAuditSchema.safeParse(parsed);
+  return result.success ? result.data : undefined;
+}
+
+function buildWorkspaceContextCompactionPrompt(
+  approvedOutput: Output,
+  cleanedSourceText: string,
+  auditFeedback?: WorkspaceContextAudit,
+): string {
+  const auditInstruction = auditFeedback
+    ? [
+      "Coverage audit feedback from the previous attempt:",
+      `Lost material facts: ${auditFeedback.lost_material_facts.length ? auditFeedback.lost_material_facts.join("; ") : "None"}`,
+      `Over-compressed nuance: ${auditFeedback.overcompressed_nuance.length ? auditFeedback.overcompressed_nuance.join("; ") : "None"}`,
+      `Recommended fixes: ${auditFeedback.recommended_fixes.length ? auditFeedback.recommended_fixes.join("; ") : "None"}`,
+      "Regenerate once and include the missing material facts without adding unsupported new claims.",
+    ].join("\n")
+    : "This is the first compaction attempt.";
+
+  return `
+Workspace Context Compaction
+
+Return only valid JSON. Do not use markdown fences.
+
+Create a concise always-on Guild workspace context brief from the approved source corpus. Target ${targetWorkspaceContextTokenMin}-${targetWorkspaceContextTokenMax} tokens. Preserve material facts, nuance, explicit constraints, and explicit unknowns. Do not add facts that are not present in the source.
+
+Required JSON shape:
+{
+  "workspace_context_brief": "Markdown string with the required sections",
+  "source_corpus_summary": "Short summary of source corpus scope and retention note",
+  "estimated_token_reduction": "Short human-readable estimate"
+}
+
+The workspace_context_brief must use these exact Markdown section headings:
+${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
+
+Must preserve if present: dates, numbers, named products, named audiences, proof metrics, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
+Must strip citation artifacts, raw source markers, long table formatting, diagrams, pseudo-queries, and code scaffolding.
+
+Company: ${approvedOutput.statusPayload.companyName}
+Readiness: ${approvedOutput.statusPayload.readiness}
+Known next agents: ${approvedOutput.statusPayload.nextAgents.join(", ")}
+
+${auditInstruction}
+
+Cleaned approved source corpus:
+${cleanedSourceText}
+`.trim();
+}
+
+function buildWorkspaceContextAuditPrompt(cleanedSourceText: string, compaction: WorkspaceContextCompaction): string {
+  return `
+Workspace Context Compaction Audit
+
+Return only valid JSON. Do not use markdown fences.
+
+Compare the cleaned approved source corpus against the compacted workspace context brief. Be strict about material facts, named entities, numbers, dates, compliance caveats, pricing, proof metrics, competitors, acquisitions, and explicit unknowns.
+
+Required JSON shape:
+{
+  "lost_material_facts": string[],
+  "unsupported_new_claims": string[],
+  "overcompressed_nuance": string[],
+  "recommended_fixes": string[]
+}
+
+Use empty arrays when there are no issues. Put only claims that materially affect downstream Marketing OS agents in lost_material_facts. Put any claim in unsupported_new_claims if it appears in the brief but is not supported by the cleaned source.
+
+Cleaned approved source corpus:
+${cleanedSourceText}
+
+Compacted workspace context brief:
+${compaction.workspace_context_brief}
+
+Source corpus summary:
+${compaction.source_corpus_summary}
+`.trim();
+}
+
+function validateWorkspaceContextBrief(brief: string): string[] {
+  return requiredWorkspaceBriefSections.filter((section) => !new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}\\s*$`, "im").test(brief));
+}
+
+function renderCompactionAudit(compactedContext: CompactedWorkspaceContext): string {
+  const reduction = compactedContext.estimatedSourceTokens > 0
+    ? Math.max(0, Math.round((1 - compactedContext.estimatedBriefTokens / compactedContext.estimatedSourceTokens) * 100))
+    : 0;
+  return [
+    `Status: passed`,
+    `Estimated source tokens after deterministic cleanup: ${compactedContext.estimatedSourceTokens}`,
+    `Estimated published brief tokens: ${compactedContext.estimatedBriefTokens}`,
+    `Estimated reduction: ${reduction}%`,
+    `Regenerated after coverage audit: ${compactedContext.regeneratedAfterAudit ? "yes" : "no"}`,
+    `Lost material facts: ${compactedContext.audit.lost_material_facts.length ? compactedContext.audit.lost_material_facts.join("; ") : "none"}`,
+    `Unsupported new claims: ${compactedContext.audit.unsupported_new_claims.length ? compactedContext.audit.unsupported_new_claims.join("; ") : "none"}`,
+    `Over-compressed nuance: ${compactedContext.audit.overcompressed_nuance.length ? compactedContext.audit.overcompressed_nuance.join("; ") : "none"}`,
+    `Recommended fixes: ${compactedContext.audit.recommended_fixes.length ? compactedContext.audit.recommended_fixes.join("; ") : "none"}`,
+  ].join("\n");
+}
+
+export function cleanApprovedSourceForWorkspaceContext(value: string): string {
+  return convertMarkdownTablesToBullets(
+    removeFencedBlocks(
+      stripCitationMarkers(stripGuildRuntimePreamble(value)),
+    ),
+  )
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function stripCitationMarkers(value: string): string {
+  return value.replace(/cite[^]*/g, "");
+}
+
+export function removeFencedBlocks(value: string): string {
+  return value.replace(/```[\w-]*\n[\s\S]*?```/g, "");
+}
+
+export function convertMarkdownTablesToBullets(value: string): string {
+  const lines = value.split(/\r?\n/);
+  const output: string[] = [];
+
+  for (let index = 0; index < lines.length;) {
+    if (!isMarkdownTableLine(lines[index])) {
+      output.push(lines[index]);
+      index += 1;
+      continue;
+    }
+
+    const tableLines: string[] = [];
+    while (index < lines.length && isMarkdownTableLine(lines[index])) {
+      tableLines.push(lines[index]);
+      index += 1;
+    }
+
+    const bullets = markdownTableToBullets(tableLines);
+    if (bullets.length > 0) {
+      output.push(...bullets);
+    }
+  }
+
+  return output.join("\n");
+}
+
+export function estimateWorkspaceContextTokens(value: string): number {
+  return Math.ceil(value.length / 4);
+}
+
+function isMarkdownTableLine(line: string): boolean {
+  return /^\s*\|.*\|\s*$/.test(line);
+}
+
+function markdownTableToBullets(lines: string[]): string[] {
+  if (lines.length < 2) return lines;
+  const [headerLine, separatorLine, ...rowLines] = lines;
+  if (!/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(separatorLine)) return lines;
+
+  const headers = splitMarkdownTableRow(headerLine);
+  const bullets = rowLines
+    .map((rowLine) => splitMarkdownTableRow(rowLine))
+    .map((cells) => {
+      const parts = cells
+        .map((cell, index) => ({ header: headers[index]?.trim() ?? `Column ${index + 1}`, cell: cell.trim() }))
+        .filter(({ header, cell }) => cell && !/^evidence$/i.test(header))
+        .map(({ header, cell }) => `${header}: ${cell}`);
+      return parts.length ? `- ${parts.join("; ")}` : "";
+    })
+    .filter(Boolean);
+
+  return bullets.length ? bullets : [];
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
 
 function replaceManagedWorkspaceContextBlock(currentContext: string, managedBlock: string): string {

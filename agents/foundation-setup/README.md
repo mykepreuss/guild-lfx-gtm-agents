@@ -5,7 +5,7 @@ Package owner: `michaelpreuss`
 
 ## Purpose
 
-Turns raw company context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a Guild workspace context update, approval checkpoints, and next-agent routing.
+Turns raw company context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a compact Guild workspace context brief, approval checkpoints, and next-agent routing.
 
 This is the default first-run workspace agent for the V1 Marketing OS. It should make a project leader feel like the system is processing their company context, not routing them through a separate setup menu.
 
@@ -34,7 +34,7 @@ The only runtime mutation it may perform is the explicit workspace-context persi
 1. Draft company context from readable source text.
 2. User approves the draft in a follow-up turn.
 3. User sends exactly `publish approved context to workspace context`.
-4. The agent replaces its managed workspace-context block and publishes that Guild context revision.
+4. The agent compacts the approved source corpus, audits the compacted brief, replaces its managed workspace-context block, and publishes that Guild context revision.
 
 ## Test
 

@@ -32,7 +32,7 @@ Approved company context is organized into these artifacts:
 - `proof-and-constraints`
 - `dashboard-signals`
 
-The hand-authored workspace context should summarize only the parts every agent needs on every run. Full source-corpus blocks may appear only inside the Company Context Builder managed block.
+The hand-authored workspace context should summarize only the parts every agent needs on every run. Company-specific managed blocks should be compact workspace context briefs, not full source-corpus dumps.
 
 ## Source Hierarchy
 

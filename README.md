@@ -31,7 +31,7 @@ Create the smallest useful bridge from a clean Guild workspace to high-quality G
 
 1. A user enters business context into the default Company Context Builder chat.
 2. The Company Context Builder returns a visible review summary plus a Markdown approval packet containing approved context artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
-3. After approval, the exact confirmation `publish approved context to workspace context` publishes a managed Guild workspace context block.
+3. After approval, the exact confirmation `publish approved context to workspace context` publishes a compact managed Guild workspace context brief.
 4. Specialized methods live in private Guild Skills and are activated by review agents only when relevant to the current task.
 5. Additional Guild Marketing OS agents reuse the approved context instead of carrying customer-specific facts inside their package code.
 
@@ -45,7 +45,7 @@ Use Guild surfaces this way:
 - **Skills**: reusable methods, tone guides, review rubrics, and playbooks activated only when relevant by agents that declare `guildai~skills`.
 - **Triggers**: later scheduled or event-based runs, including a future read-only Context Steward.
 
-The Company Context Builder may publish an approved managed source-corpus block into Guild workspace context after the exact two-step confirmation. Other workspace context should stay concise because Guild injects it into every agent run.
+The Company Context Builder may publish an approved compact workspace context brief after the exact two-step confirmation. The full approved source corpus remains in session state for audit and should not be injected wholesale into Guild workspace context.
 
 ## Important Guild Boundary
 
@@ -110,7 +110,7 @@ All eight agents are committed V1 deliverables. Use `agents/catalog.json` as the
 
 The Company Context Builder is the structured root of the suite. It uses Zod schemas internally to force a typed packet for approved context artifact drafts, evidence status, approval gates, AEO readiness, status payloads, downstream handoffs, and workspace-context persistence state, then renders the packet into canonical text output for Guild chat. The downstream agents remain prompt-only review agents until their inputs or outputs need the same contract.
 
-The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes workspace context only after the exact confirmation phrase.
+The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes a compact workspace context brief only after the exact confirmation phrase.
 
 ## Runtime Skill Activation
 

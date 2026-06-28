@@ -21,16 +21,105 @@ if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
 
-const { default: foundationAgent } = await import(path.join(foundationDir, "dist/agent.js"));
+const {
+  default: foundationAgent,
+  cleanApprovedSourceForWorkspaceContext,
+  stripCitationMarkers,
+  removeFencedBlocks,
+  convertMarkdownTablesToBullets,
+} = await import(path.join(foundationDir, "dist/agent.js"));
 
 let state;
 let createdContextBody = "";
+let llmScenario = "successful";
+let compactionCalls = 0;
+let auditCalls = 0;
+
+const compactedBrief = `
+### Company Identity
+Webflow, Inc. is a privately held Delaware corporation founded in 2013 and headquartered in San Francisco. Public context lists 900+ team members in 25 countries, 3.5M users, and $335M in total funding.
+
+### Positioning And Strategy
+Webflow has moved from visual development platform to Website Experience Platform and now an agentic web marketing platform for teams that need to build, manage, personalize, experiment, and connect revenue-driving web experiences.
+
+### Products And Platform
+Core products and surfaces include visual design, CMS, hosting, collaboration, Localization, Analyze, Optimize, AEO, Webflow Cloud, DevLink, Figma to Webflow, apps, APIs, webhooks, OAuth, and marketplace extensions.
+
+### Audiences And Buying Motion
+Primary audiences are marketers, designers / creative teams, developers / engineering leaders, agencies / freelancers, startups, and enterprise teams. The buyer center is marketing-led but requires engineering guardrails for governance and integration.
+
+### Pricing And Commercial Model
+Webflow runs a hybrid self-serve and enterprise model spanning free and paid Site plans, Workspace plans, add-ons such as Analyze, Optimize, and Localization, a Team plan, and custom Enterprise.
+
+### Proof Points
+Public proof includes Orangetheory Fitness cost savings, Fivetran speed-to-market gains, Retool demo-booking lift from testing, Wave conversion and traffic improvements, and IONITY active-user growth.
+
+### Compliance And Constraints
+Trust context includes SOC 2 Type II, ISO 27001, ISO 27017 and PCI materials, U.S. data storage, DPF/SCC/UK IDTA transfer mechanisms, encryption in transit and at rest, SSO, SCIM, JIT, audit log API, and a clear not HIPAA / no PHI constraint.
+
+### Competitive Landscape
+Named competitors and comparison references include WordPress, Framer, Contentful, Sitecore, Wix. Webflow's wedge is visual control, managed infrastructure, integrated CMS, optimization, governance, APIs, and AEO readiness.
+
+### Open Questions And Unknowns
+Revenue figures are secondary estimates, public forward growth targets are unspecified, audited financials are unavailable, and education/nonprofit vertical targeting is unspecified in reviewed official sources.
+
+### Downstream Operating Rules
+Treat this compacted Guild workspace context as the first source of truth for Webflow-specific facts. Use the retained approved source corpus only when detailed provenance is needed. Do not take live publishing, spend, CRM, credential, trigger, install, or visibility actions without explicit approval.
+`.trim();
+
+const sourceCorpusSummary = [
+  "Compacted from the approved Webflow Company Profile covering company identity, product, pricing, audiences, channels, funding, technology, compliance, competitors, customers, proof, and knowledge graph design.",
+  "Raw citation markers, Mermaid diagrams, pseudo-query examples, code blocks, and long table formatting were stripped before LLM compaction.",
+].join("\n");
 
 const task = {
   sessionId: "session_test",
   console,
   llm: {
-    async generateText() {
+    async generateText({ prompt }) {
+      if (prompt.includes("Workspace Context Compaction Audit")) {
+        auditCalls += 1;
+        if (llmScenario === "unsupported_claim") {
+          return {
+            text: JSON.stringify({
+              lost_material_facts: [],
+              unsupported_new_claims: ["Unsupported claim: Webflow guarantees rankings."],
+              overcompressed_nuance: [],
+              recommended_fixes: ["Remove the unsupported ranking claim."],
+            }),
+          };
+        }
+        if (auditCalls === 1) {
+          return {
+            text: JSON.stringify({
+              lost_material_facts: ["Webflow is not HIPAA compliant / no PHI."],
+              unsupported_new_claims: [],
+              overcompressed_nuance: [],
+              recommended_fixes: ["Add the HIPAA limitation to Compliance And Constraints."],
+            }),
+          };
+        }
+        return {
+          text: JSON.stringify({
+            lost_material_facts: [],
+            unsupported_new_claims: [],
+            overcompressed_nuance: [],
+            recommended_fixes: [],
+          }),
+        };
+      }
+
+      if (prompt.includes("Workspace Context Compaction")) {
+        compactionCalls += 1;
+        return {
+          text: JSON.stringify({
+            workspace_context_brief: compactedBrief,
+            source_corpus_summary: sourceCorpusSummary,
+            estimated_token_reduction: "Reduced from full approved source corpus to concise always-on workspace context brief.",
+          }),
+        };
+      }
+
       return { text: "not json" };
     },
   },
@@ -112,6 +201,9 @@ function guildChatEnvelope(text) {
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
   createdContextBody = "";
+  llmScenario = "successful";
+  compactionCalls = 0;
+  auditCalls = 0;
 
   const first = await foundationAgent.start({ type: "text", text: wrapInput(fixture) }, task);
   assert.equal(first.type, "output", label);
@@ -138,10 +230,67 @@ async function runPublishFlow(label, wrapInput) {
   assert.doesNotMatch(createdContextBody, /This session was started/, label);
   assert.match(createdContextBody, /<!-- guild-marketing-os-context:start -->/, label);
   assert.match(createdContextBody, /<!-- guild-marketing-os-context:end -->/, label);
-  assert.ok(createdContextBody.includes(fixture), `${label}: published managed block must preserve the exact approved source fixture`);
+  assert.equal(state.approvedSourceText, fixture, `${label}: approved source text should remain exact in state after publish`);
+  assert.ok(!createdContextBody.includes(fixture), `${label}: published managed block must not include the raw full approved source fixture`);
+  assert.doesNotMatch(createdContextBody, /cite/, label);
+  assert.match(createdContextBody, /## Workspace Context Brief/, label);
+  assert.match(createdContextBody, /## Source Corpus Summary/, label);
+  assert.match(createdContextBody, /## Compaction Audit/, label);
+  assert.doesNotMatch(createdContextBody, /## Approved Source Corpus/, label);
+  for (const materialFact of [
+    "Webflow, Inc.",
+    "2013",
+    "3.5M users",
+    "$335M",
+    "Website Experience Platform",
+    "agentic web marketing platform",
+    "Analyze",
+    "Optimize",
+    "AEO",
+    "Webflow Cloud",
+    "SOC 2 Type II",
+    "ISO 27001",
+    "not HIPAA",
+    "WordPress",
+    "Framer",
+    "Contentful",
+    "Sitecore",
+  ]) {
+    assert.ok(createdContextBody.includes(materialFact), `${label}: compacted context should retain ${materialFact}`);
+  }
+  assert.equal(compactionCalls, 2, `${label}: publish should regenerate once after lost material facts`);
+  assert.equal(auditCalls, 2, `${label}: publish should audit initial and regenerated compactions`);
 }
 
 await runPublishFlow("direct input", (text) => text);
 await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
+
+assert.equal(stripCitationMarkers("A citeturn1 B"), "A  B", "citation markers should be stripped");
+assert.equal(removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"), "Keep\n\nDone", "fenced diagram blocks should be removed");
+assert.equal(
+  convertMarkdownTablesToBullets("| Name | Evidence |\n|---|---|\n| Webflow | citeturn1 |\n").trim(),
+  "- Name: Webflow",
+  "markdown tables should convert to bullets before citation stripping when used directly",
+);
+const cleanedFixture = cleanApprovedSourceForWorkspaceContext(fixture);
+assert.doesNotMatch(cleanedFixture, /cite/, "cleaned source should not include citation markers");
+assert.doesNotMatch(cleanedFixture, /```mermaid/, "cleaned source should not include Mermaid blocks");
+assert.doesNotMatch(cleanedFixture, /```text/, "cleaned source should not include pseudo-query blocks");
+assert.match(cleanedFixture, /- Attribute: Legal entity; Current finding: Webflow, Inc\./, "cleaned source should collapse tables into bullets");
+
+state = {
+  approvedOutput: state.approvedOutput,
+  approvedSourceText: fixture,
+  workspaceContextStatus: "approved_pending_publish",
+};
+createdContextBody = "";
+llmScenario = "unsupported_claim";
+compactionCalls = 0;
+auditCalls = 0;
+const blockedPublish = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
+assert.equal(blockedPublish.type, "output", "unsupported claim audit");
+assert.match(blockedPublish.output.text, /workspace_context_status: blocked/, "unsupported claim audit");
+assert.match(blockedPublish.output.text, /Workspace context compaction audit did not pass/, "unsupported claim audit");
+assert.equal(createdContextBody, "", "unsupported audit should block before workspace write");
 
 console.log("Foundation state/publish test OK.");
