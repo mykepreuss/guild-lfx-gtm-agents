@@ -295,7 +295,8 @@ async function finalizeOutput(task: AgentTask, output: Output): Promise<z.infer<
     text: markdownPacket,
     markdownPacket,
   });
-  await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
+  void task;
+  // Guild chat renders ui_notify as a separate message. Keep the first-run UX to one response.
   return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
 }
 
@@ -321,10 +322,7 @@ function renderVisibleReviewSummary(output: Output): string {
       "",
       "This is a session draft only. It has not been saved to Guild workspace context or Context Hub artifacts.",
       "",
-      "Next replies:",
-      "- `Approve company context`",
-      "- `Edit company context: ...`",
-      "- `Show ready-to-save company context block`",
+      "To make it reusable by other agents, paste the Ready-To-Publish Workspace Context block from the draft turn or explicitly authorize a separate workspace context edit/publish lifecycle step.",
     ].join("\n");
   }
 
@@ -335,7 +333,7 @@ function renderVisibleReviewSummary(output: Output): string {
         "",
         output.persistenceState.persistence_note,
         "",
-        "Paste the ready-to-save Company Context block or rerun from visible source text before marking the draft approved.",
+        "Paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly authorize a separate workspace context edit/publish lifecycle step with that block.",
         "",
         "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
       ].join("\n");
@@ -348,10 +346,7 @@ function renderVisibleReviewSummary(output: Output): string {
       "",
       "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
       "",
-      "Next replies:",
-      "- `Show ready-to-save company context block`",
-      "- `Run ICP`",
-      "- `Run Messaging`",
+      "Next step: use the Downstream Handoff Context below when starting ICP, Messaging, or another specialist agent unless a separate workspace context publish has been authorized.",
     ].join("\n");
   }
 
@@ -365,7 +360,7 @@ function renderVisibleReviewSummary(output: Output): string {
       missingInputs.length ? "Fastest next reply:" : "Next replies:",
       ...(missingInputs.length
         ? [`- \`${formatFocusedReply(companyName, missingInputs)}\``]
-        : ["- `Approve company context`", `- \`Run ${requestedAgent}\``]),
+        : ["- Paste readable company context or the Ready-To-Publish Workspace Context block.", `- Run ${requestedAgent} after approved context is visible.`]),
       "",
       "Nothing has been saved, published, scheduled, or sent to another system.",
     ].join("\n");
@@ -430,10 +425,8 @@ function renderVisibleReviewSummary(output: Output): string {
     "",
     "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
     "",
-    "Reply with one:",
-    "- `Approve company context` if the draft is safe to reuse.",
-    "- `Edit company context: ...` to replace or remove facts.",
-    `- \`Run ${nextAgent}\` after context is approved.`,
+    "Use the Ready-To-Publish Workspace Context block below for a separate Guild workspace context publish step, or paste the Downstream Handoff Context into a downstream agent.",
+    `After approved context is visible, run ${nextAgent}.`,
   ].join("\n");
 }
 
@@ -498,8 +491,16 @@ function isSaveStateQuestion(rawContext: string): boolean {
 function isApprovalOrEdit(rawContext: string): boolean {
   return /\bapprove\s+(?:this|it|the draft|the\s+company context|company context)\b/i.test(rawContext) ||
     /\b(?:approved|looks good|ship it|confirm)(?:\s+(?:this|it|the draft|the\s+company context|company context))?\b/i.test(rawContext) ||
+    isContextPersistenceRequest(rawContext) ||
     /\bedit\s+company context\s*:/i.test(rawContext) ||
     /\b(remove|delete)\s+.+\b(company context|claim|claims)\b/i.test(rawContext);
+}
+
+function isContextPersistenceRequest(rawContext: string): boolean {
+  return /\bthis\s+is\s+correct\b[\s\S]{0,160}\b(?:add|save|persist|store|publish|put|use)\b[\s\S]{0,160}\b(?:context|workspace context|other agents?|downstream agents?|agents)\b/i.test(rawContext) ||
+    /\b(?:add|save|persist|store|publish|put|use|make)\b[\s\S]{0,120}\b(?:company context|workspace context|context)\b[\s\S]{0,120}\b(?:other agents?|downstream agents?|agents|workspace|context hub|reference|reuse)\b/i.test(rawContext) ||
+    /\b(?:make|use)\s+this\s+(?:the\s+)?(?:approved\s+)?(?:company|workspace)\s+context\b/i.test(rawContext) ||
+    /\bshow\s+ready-to-(?:save|publish)\s+company context block\b/i.test(rawContext);
 }
 
 function isAttachmentUnreadableTurn(rawContext: string): boolean {
@@ -627,7 +628,7 @@ Rules:
 - Do not invent customer-specific facts, metrics, audience counts, connected systems, legal constraints, or performance results.
 - Use only the Raw context below as company evidence. Do not use workspace metadata, connected integration names, user profile data, attachment filenames, or attachment metadata as company context.
 - Classify this turn as ${conversationIntent}; preserve that exact conversationIntent in JSON.
-- Always set saved_to_workspace_context and saved_to_context_artifacts to false. This agent drafts ready-to-save blocks only; it does not persist them.
+- Always set saved_to_workspace_context and saved_to_context_artifacts to false. This agent drafts ready-to-publish blocks only; it does not persist them.
 - Set drafted_in_session true when a draft artifact block is produced. Set approved_in_session true only when the user explicitly approves the draft in the current turn.
 - If the Raw context only says a file or context is attached/provided but does not include readable source text, return status "blocked" and ask the user to paste the source text.
 - If context is sparse, return status "blocked" or "needs_input" and mark unsupported artifacts as "blocked" or "needs_input".
@@ -1415,18 +1416,25 @@ function buildSaveStateQuestionOutput(input: Input): Output {
 function buildApprovalOrEditOutput(input: Input): Output {
   const rawContext = getRawContext(input);
   const isEdit = /\bedit\s+company context\s*:/i.test(rawContext) || /\b(remove|delete)\b/i.test(rawContext);
+  const isPersistenceRequest = isContextPersistenceRequest(rawContext);
   const bareApprovalCommand = isBareApprovalCommand(rawContext);
   const hasVisibleDraftContext = hasVisibleApprovalContext(rawContext);
   const editInstruction = rawContext.match(/\bedit\s+company context\s*:\s*([^\n\r]+)/i)?.[1]?.trim() ?? rawContext.trim();
   const approvalWithoutVisibleDraft = !isEdit && (bareApprovalCommand || !hasVisibleDraftContext);
   const output = buildFallbackOutput(
     input,
-    approvalWithoutVisibleDraft ? ["Approval request received, but no prior draft content is visible to this agent run."] : [],
+    approvalWithoutVisibleDraft ? ["Approval or persistence request received, but no prior draft content is visible to this agent run."] : [],
     "approval_or_edit",
   );
   const editClaim = isEdit
     ? `Requested edit: ${editInstruction}`
-    : approvalWithoutVisibleDraft ? "User requested company context approval in this session." : "User approved company context in this session.";
+    : approvalWithoutVisibleDraft
+      ? isPersistenceRequest
+        ? "User requested company context approval or workspace-context persistence in this session."
+        : "User requested company context approval in this session."
+      : isPersistenceRequest
+        ? "User approved company context and requested workspace-context persistence in this session."
+        : "User approved company context in this session.";
 
   output.status = isEdit || approvalWithoutVisibleDraft ? "needs_input" : "ready_for_review";
   output.persistenceState = {
@@ -1435,14 +1443,14 @@ function buildApprovalOrEditOutput(input: Input): Output {
     saved_to_workspace_context: false,
     saved_to_context_artifacts: false,
     persistence_note: approvalWithoutVisibleDraft
-      ? "Approval intent was noted, but this run cannot see the prior draft content. No company context has been approved or saved."
+      ? "Approval or persistence intent was noted, but this run cannot see the prior draft content. No company context has been approved, saved, or published."
       : isEdit
         ? "The edit is reflected as a session-only draft change. It has not been saved to Guild workspace context or Context Hub artifacts."
-        : "Approved in session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+        : "Approved in session only. It is ready for a separate workspace context edit/publish lifecycle step, but nothing has been saved to Guild workspace context or Context Hub artifacts.",
   };
   output.consumedContext.used = [editClaim];
   output.consumedContext.missing = approvalWithoutVisibleDraft
-    ? ["Visible prior company context draft", "Separate persistence step"]
+    ? ["Visible Ready-To-Publish Workspace Context block", "Separate workspace context edit/publish approval"]
     : isEdit ? ["Review the edited session draft", "Separate persistence step"] : ["Separate persistence step"];
   output.contextArtifacts.companyContext.status = isEdit || approvalWithoutVisibleDraft ? "needs_input" : "draft";
   output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
@@ -1462,18 +1470,18 @@ function buildApprovalOrEditOutput(input: Input): Output {
         claim: "Approval request cannot be applied because the prior company context draft is not visible in this agent run.",
         status: "blocked",
         source: "approval_context_gap",
-        notes: "Paste the ready-to-save company context block or rerun from visible source text before marking a draft approved.",
+        notes: "Paste the Ready-To-Publish Workspace Context block or rerun from visible source text before marking a draft approved.",
       }]
     : [userSuppliedClaim(editClaim)];
   output.claimsNeedingApproval = output.contextArtifacts.proofAndConstraints.blockedClaims;
   output.openQuestions = approvalWithoutVisibleDraft
-    ? ["Can you paste the prior Company Context Draft or use `Show ready-to-save company context block` from the draft turn?"]
+    ? ["Can you paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly authorize a separate workspace context edit/publish lifecycle step with that block?"]
     : isEdit
     ? ["Does this edit fully replace the prior draft?", "Should the edited draft be approved in this session?"]
-    : ["Which separate persistence workflow should save this if/when authorized?"];
+    : ["Should this approved block be handled by a separate workspace context edit/publish lifecycle step?"];
   output.statusPayload.readiness = approvalWithoutVisibleDraft || isEdit ? "draft" : "review_ready";
   output.statusPayload.blockers = approvalWithoutVisibleDraft
-    ? ["Prior company context draft is not visible in this run.", "Session approval/edit is not durable persistence."]
+    ? ["Prior company context draft is not visible in this run.", "Workspace context publish requires a separate approved lifecycle step."]
     : ["Session approval/edit is not durable persistence."];
   output.contextArtifacts.dashboardSignals.readiness = output.statusPayload.readiness;
   output.contextArtifacts.dashboardSignals.blockers = output.statusPayload.blockers;
@@ -1481,14 +1489,14 @@ function buildApprovalOrEditOutput(input: Input): Output {
     ? [{
         agent: "Company Context Builder",
         receives: ["company-context"],
-        reason: "Needs the prior visible draft or pasted ready-to-save company context before approval can be applied.",
+        reason: "Needs the prior visible draft, pasted Ready-To-Publish Workspace Context block, or explicit lifecycle approval before persistence can be applied.",
       }]
     : defaultDownstreamHandoff();
   return output;
 }
 
 function hasVisibleApprovalContext(rawContext: string): boolean {
-  return /Company Context Draft \(company-context\)|Status Payload|Guild Workspace Context Draft|^Company:\s+\S/im.test(rawContext);
+  return /Company Context Draft \(company-context\)|Status Payload|Guild Workspace Context Draft|Ready-To-Publish Workspace Context|Downstream Handoff Context|^Company:\s+\S/im.test(rawContext);
 }
 
 function isBareApprovalCommand(rawContext: string): boolean {
@@ -2167,7 +2175,13 @@ function isGenericExtractedName(value: string): boolean {
     "marketing os",
     "guild marketing os",
     "company context",
+    "workspace context",
     "context",
+    "context for other agents",
+    "other agents",
+    "other agents to reference",
+    "downstream agents",
+    "agents",
     "project",
     "company",
     "my company",
@@ -2256,6 +2270,59 @@ function renderWorkspaceContextDraft(companyName: string, readiness: string): st
   ].join("\n");
 }
 
+function renderReadyToPublishWorkspaceContext(output: Omit<Output, "markdownPacket">): string {
+  return [
+    output.workspaceContextDraft,
+    `Required artifacts: ${formatList(output.statusPayload.requiredArtifacts)}`,
+    `Recommended next agents: ${formatList(output.statusPayload.nextAgents)}`,
+    `Blocked actions: ${formatList(output.contextArtifacts.channelRegistry.blockedActions)}`,
+    "Persistence rule: this block may be published only through a separate approved Guild workspace context edit/publish lifecycle step.",
+  ].join("\n");
+}
+
+function renderDownstreamHandoffContext(output: Omit<Output, "markdownPacket">): string {
+  const companyName = output.contextArtifacts.companyContext.companyName || output.statusPayload.companyName || "TBD";
+  const proofClaims = output.proofBackedClaims.filter(isReusableProofClaim).map((claim) => claim.claim);
+  const blockedClaimCount = output.claimsNeedingApproval.filter((claim) => claim.claim.trim()).length;
+  const blockedClaimCategories = summarizeBlockedClaimCategories(output.claimsNeedingApproval);
+  const approvedFacts = output.approvedFacts
+    .filter((claim) => claim.status === "approved" || claim.status === "user_supplied")
+    .map((claim) => claim.claim)
+    .slice(0, 8);
+
+  return [
+    "Block label: Downstream Handoff Context",
+    `Company: ${companyName}`,
+    `Readiness: ${output.statusPayload.readiness}`,
+    `Primary audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}`,
+    `Goals: ${formatList(output.contextArtifacts.companyContext.goals)}`,
+    `Approved or user-supplied facts: ${formatList(approvedFacts)}`,
+    `Reusable proof claims: ${formatList(proofClaims)}`,
+    `Claims blocked or needing approval: ${blockedClaimCount ? `${blockedClaimCount} withheld claim(s); categories: ${formatList(blockedClaimCategories)}` : "TBD"}`,
+    `Channel scope: ${formatList([
+      ...output.contextArtifacts.channelRegistry.approvedChannels,
+      ...output.contextArtifacts.channelRegistry.channelsTbd.map((channel) => `TBD: ${channel}`),
+    ])}`,
+    `Operating constraints: ${formatList(output.contextArtifacts.proofAndConstraints.constraints)}`,
+    `Recommended next agents: ${formatList(output.statusPayload.nextAgents)}`,
+    "Persistence state: session draft only unless separately published to Guild workspace context.",
+  ].join("\n");
+}
+
+function summarizeBlockedClaimCategories(claims: readonly Claim[]): string[] {
+  const categories = new Set<string>();
+  for (const claim of claims) {
+    const value = claim.claim;
+    if (/\$[0-9]|\bfunding\b|\brevenue\b|\barr\b|\bvaluation\b/i.test(value)) categories.add("financial proof");
+    if (/\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\bcustomer count\b|\baudience count\b|\bteam members\b|\bcountries\b/i.test(value)) categories.add("scale proof");
+    if (/\buptime\b|\bavailability\b|\bsla\b|\bperformance\b|\bfaster\b|\bconversion\b|\broi\b/i.test(value)) categories.add("performance proof");
+    if (/\bsecurity\b|\bsecure\b|\bcompliance\b|\bcompliant\b|\bsoc\s*2\b|\bhipaa\b|\bgdpr\b|\bprivacy\b/i.test(value)) categories.add("legal or trust proof");
+    if (/\bleading\b|\bleader\b|\b#1\b|\bbest\b|\bonly\b|\branked\b|\branking\b/i.test(value)) categories.add("positioning proof");
+  }
+  if (!categories.size && claims.length) categories.add("owner approval required");
+  return [...categories];
+}
+
 function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
   return `${renderPacketSummary(output)}
 
@@ -2322,6 +2389,18 @@ ${formatAudienceSegments(output.contextArtifacts.audienceSegments)}
 ### Guild Workspace Context Draft
 ${output.workspaceContextDraft}
 
+### Ready-To-Publish Workspace Context
+\`\`\`text
+${renderReadyToPublishWorkspaceContext(output)}
+\`\`\`
+This block has not been saved. Use it only in a separate Guild workspace context edit/publish lifecycle step after explicit approval.
+
+### Context For Downstream Agents
+\`\`\`text
+${renderDownstreamHandoffContext(output)}
+\`\`\`
+Paste this block into a downstream agent if workspace context has not been published yet.
+
 ## Assumptions And Missing Evidence
 ### Approved Or User-Supplied Facts
 ${formatClaims(output.approvedFacts)}
@@ -2374,7 +2453,7 @@ ${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `-
 
 function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   if (output.conversationIntent === "save_state_question") {
-    return "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.";
+    return "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts. To make it reusable by other agents, use the Ready-To-Publish Workspace Context block in a separate approved workspace context edit/publish step, or paste the Downstream Handoff Context into a downstream agent.";
   }
   if (output.conversationIntent === "attachment_unreadable") {
     return "I can see that you tried to provide company context, but I cannot read the attachment contents in this run. Paste the relevant text or provide readable excerpts, and I will extract the company context from it. Nothing has been saved.";
@@ -2385,15 +2464,15 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   }
   if (output.conversationIntent === "approval_or_edit") {
     if (needsVisiblePriorDraftForApproval(output)) {
-      return "I noted the approval request, but this run cannot see the prior company context draft. Paste the ready-to-save Company Context block or rerun from visible source text before marking it approved. Nothing has been saved to Guild workspace context or Context Hub artifacts.";
+      return "I noted the approval or persistence request, but this run cannot see the prior company context draft. Paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly approve a separate workspace context edit/publish lifecycle step with that block. Nothing has been saved to Guild workspace context or Context Hub artifacts.";
     }
-    return `${output.persistenceState.persistence_note} Nothing has been saved to Guild workspace context or Context Hub artifacts. Next replies: \`Run ICP\`, \`Run Messaging\`, or \`Show ready-to-save company context block\`.`;
+    return `${output.persistenceState.persistence_note} Nothing has been saved to Guild workspace context or Context Hub artifacts. Use the Downstream Handoff Context below for downstream agents unless a separate workspace context publish has been authorized.`;
   }
   if (output.conversationIntent === "missing_context") {
     return "I do not have enough company context yet. Reply with rough notes, pasted text, or a readable source packet; you do not need to fill out an internal schema. Nothing has been saved.";
   }
   const companyName = output.statusPayload.companyName === "TBD" ? "this company" : output.statusPayload.companyName;
-  return `I found enough to draft initial company context for ${companyName}. I extracted the company entity, audience groups, product surface, proof-sensitive claims, and downstream handoffs. Nothing has been saved to Guild workspace context or Context Hub artifacts.`;
+  return `I found enough to draft initial company context for ${companyName}. I extracted the company entity, audience groups, product surface, proof-sensitive claims, and downstream handoffs. Nothing has been saved to Guild workspace context or Context Hub artifacts. Use the Ready-To-Publish Workspace Context block for a separate approved publish step, or paste the Downstream Handoff Context into downstream agents.`;
 }
 
 function needsVisiblePriorDraftForApproval(output: Pick<Output, "conversationIntent" | "persistenceState" | "statusPayload">): boolean {
