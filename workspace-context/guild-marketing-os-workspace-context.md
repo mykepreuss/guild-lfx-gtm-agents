@@ -6,7 +6,7 @@ Last reviewed: 2026-06-23
 
 ## Project
 
-Project name: Open Source Cloud Native Project
+Company name: Open Source Cloud Native Project
 
 Operating mode: Guild-native Guild Marketing OS setup with no live publishing, scheduling, paid media, or external system changes unless explicitly approved.
 
@@ -22,9 +22,9 @@ AEO and AI-readiness outputs must use approved entity facts, proof-backed claims
 
 ## Approved Context Artifacts
 
-Approved project context is organized into these artifacts:
+Approved company context is organized into these artifacts:
 
-- `project-context`
+- `company-context`
 - `messaging-source`
 - `brand-kit`
 - `audience-segments`
@@ -52,4 +52,4 @@ If sources conflict, ask the project leader which source should win.
 
 ## First Agent
 
-Use `guild-marketing-os-company-context-builder` to bootstrap or refresh the project foundation. It should produce approved context artifact drafts, a Guild workspace context update, an approval checklist, and recommended next agents.
+Use `guild-marketing-os-company-context-builder` to bootstrap or refresh the company foundation. It should produce approved context artifact drafts, a Guild workspace context update, an approval checklist, and recommended next agents.

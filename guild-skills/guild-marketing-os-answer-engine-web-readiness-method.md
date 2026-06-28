@@ -2,7 +2,7 @@
 
 Status: live private
 
-Use when a Guild Marketing OS agent needs to evaluate or draft website, AEO, AI-readiness, schema, `llms.txt`, content architecture, or answer-ready recommendations from approved project context.
+Use when a Guild Marketing OS agent needs to evaluate or draft website, AEO, AI-readiness, schema, `llms.txt`, content architecture, or answer-ready recommendations from approved company context.
 
 ## Method
 
@@ -51,7 +51,7 @@ Every answer-engine and web-readiness packet should include:
 - Branding And Pitch Deck receives web narrative and brand-system implications.
 - Market Signal receives external citation, competitor, and search-signal gaps.
 - Campaigns And Paid Media receives landing-page clarity, FAQ, proof, and destination gaps.
-- Company Context Builder receives updates to project context, messaging source, proof constraints, and channel registry.
+- Company Context Builder receives updates to company context, messaging source, proof constraints, and channel registry.
 - Dashboard Signals receives answer presence, answer correctness, citation, freshness, and inbound-fit fields.
 
 ## Claim Rules

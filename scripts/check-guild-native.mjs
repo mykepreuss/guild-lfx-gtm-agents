@@ -12,7 +12,7 @@ const ignoredWalkEntries = new Set(["node_modules", ".git", "dist"]);
 
 const requiredContextFiles = [
   "README.md",
-  "project-context.md",
+  "company-context.md",
   "messaging-source.md",
   "brand-kit.md",
   "audience-segments.md",
@@ -20,6 +20,7 @@ const requiredContextFiles = [
   "proof-and-constraints.md",
   "dashboard-signals.md",
 ];
+const legacyCompanyContextArtifact = "project" + "-context";
 
 const publicScanRoots = [
   ".gitignore",
@@ -194,6 +195,10 @@ function validateContextHub() {
     return;
   }
 
+  if (exists(`context-hub/${legacyCompanyContextArtifact}.md`)) {
+    fail(`context-hub/${legacyCompanyContextArtifact}.md must be renamed to context-hub/company-context.md.`);
+  }
+
   for (const file of requiredContextFiles) {
     const relativePath = path.join("context-hub", file);
     if (!exists(relativePath)) {
@@ -207,6 +212,16 @@ function validateContextHub() {
     }
     if (!/Status:/i.test(content)) {
       fail(`${relativePath} must include a Status line.`);
+    }
+  }
+}
+
+function validateCompanyContextRename() {
+  const files = publicScanRoots.flatMap(walkFiles);
+  for (const file of files) {
+    const content = readText(file);
+    if (content.includes(legacyCompanyContextArtifact)) {
+      fail(`${file} references legacy artifact name ${legacyCompanyContextArtifact}; use company-context.`);
     }
   }
 }
@@ -623,6 +638,7 @@ function validateTestHarness() {
 }
 
 validateContextHub();
+validateCompanyContextRename();
 validateAgentCatalog();
 scanPublicFiles();
 

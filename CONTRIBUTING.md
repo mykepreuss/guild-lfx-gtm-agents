@@ -18,7 +18,7 @@ Contributions should improve one of these areas:
 
 - `agents/catalog.json` is the suite contract.
 - `agents/<agent>/agent.ts` files are the Guild-native agent sources.
-- `context-hub/` contains starter templates for approved project context artifacts.
+- `context-hub/` contains starter templates for approved company context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild workspace context.
 - `guild-skills/` contains source markdown for future Guild Skills.
 

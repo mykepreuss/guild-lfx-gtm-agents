@@ -23,7 +23,7 @@ This repository is the source workspace for the Guild-native Guild Marketing OS 
 - The package records are initialized under the `michaelpreuss` owner so they can test against the `michaelpreuss/guild-marketing-os` workspace.
 - The Company Context Builder is the structured Zod-backed `agent()` root. Keep its input/output schemas explicit and keep its output reviewable.
 - The intake entrypoint and seven downstream prompt-only review agents must set `useWorkspaceAgents: false` to avoid implicit agent-to-agent calls before orchestration is explicitly designed.
-- `context-hub/` holds starter templates for approved user-owned project context artifacts.
+- `context-hub/` holds starter templates for approved user-owned company context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the concise Guild workspace context draft. Keep it short because Guild injects workspace context into every agent run.
 - `guild-skills/` holds source markdown for future Guild Skills. Skills should contain reusable methods, not customer-specific facts.
 - Old local labs, generated delivery packets, and local-only Agent Hub exemplars have been removed.

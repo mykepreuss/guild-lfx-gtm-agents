@@ -7,7 +7,7 @@ Last reviewed: 2026-06-23
 ## Safe Claims
 
 - The Phase 1 source setup does not publish, spend, sync, schedule, or modify live systems.
-- The public fixture uses a generic open-source cloud native project context.
+- The public fixture uses a generic open-source cloud native company context.
 - Guild workspace context, agent records, triggers, and published versions require explicit lifecycle approval.
 
 ## Claims Requiring Approval Or Evidence

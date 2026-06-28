@@ -14,11 +14,11 @@
     "status": "guild_native_source_ready",
     "packageDir": "agents/foundation-setup",
     "primaryUser": "Project Leader",
-    "description": "Chat-native first-run entrypoint that turns raw company or project context into approved Context Hub artifact drafts, a concise Workspace Context draft, entity facts, proof points, gaps, assumptions, approval gates, and next-agent routing.",
+    "description": "Chat-native first-run entrypoint that turns raw company context into approved Context Hub artifact drafts, a concise Workspace Context draft, entity facts, proof points, gaps, assumptions, approval gates, and next-agent routing.",
     "defaultWorkspaceAgent": true,
     "contextHub": {
       "requiredArtifacts": [
-        "project-context",
+        "company-context",
         "messaging-source",
         "brand-kit",
         "audience-segments",
@@ -51,10 +51,10 @@
       "status": "guild_native_source_ready",
       "packageDir": "agents/foundation-setup",
       "primaryUser": "Project Leader",
-      "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company or project context.",
+      "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company context.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "messaging-source",
           "brand-kit",
           "audience-segments",
@@ -77,7 +77,7 @@
       "description": "Summarizes external market, community, search, answer-engine, developer, and social signals so audience, messaging, AEO, and content work starts from evidence rather than internal opinion.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "channel-registry",
           "proof-and-constraints",
           "dashboard-signals"
@@ -100,7 +100,7 @@
       "description": "Defines target audience models, personas, pains, objections, motivations, audience answer priorities, triggers, and fit criteria from approved context and market signal.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "proof-and-constraints",
           "dashboard-signals"
         ],
@@ -123,7 +123,7 @@
       "description": "Turns approved ICP context into reviewable segment definitions, inclusion and exclusion logic, list-building instructions, and channel-specific targeting rules.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "audience-segments",
           "channel-registry",
           "proof-and-constraints"
@@ -146,7 +146,7 @@
       "description": "Produces reusable positioning, narrative, message pillars, proof-backed claims, answer-ready blocks, elevator pitch, boilerplate, tone guidance, claim constraints, and objection handling.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "audience-segments",
           "proof-and-constraints",
           "dashboard-signals"
@@ -170,7 +170,7 @@
       "description": "Converts approved messaging into brand architecture, voice and visual direction, web and AEO recommendations, pitch narrative, slide-by-slide story, and design production briefs.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "messaging-source",
           "brand-kit",
           "audience-segments",
@@ -194,7 +194,7 @@
       "description": "Combines social and community monitoring with approved-message content planning, owned content and digest opportunities, channel-specific post drafts, and claim/proof checks.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "messaging-source",
           "brand-kit",
           "audience-segments",
@@ -218,7 +218,7 @@
       "description": "Builds campaign and paid-media plans from approved context, segments, messaging, channel constraints, budget, KPI targets, proof policy, landing-page needs, and performance loops.",
       "contextHub": {
         "requiredArtifacts": [
-          "project-context",
+          "company-context",
           "messaging-source",
           "audience-segments",
           "channel-registry",

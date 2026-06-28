@@ -1,4 +1,4 @@
-# Project Context
+# Company Context
 
 Status: starter fixture
 Owner: Project Leader

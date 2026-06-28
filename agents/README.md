@@ -2,7 +2,7 @@
 
 Guild-native source packages live here. Each package is a standalone Guild TypeScript agent initialized under the `michaelpreuss` owner and testable against `michaelpreuss/guild-marketing-os`.
 
-The Company Context Builder is the chat-native default entrypoint. It starts the V1 Marketing OS where the business case starts: user-supplied company or project context becomes reviewable context artifact drafts, approval gates, AEO readiness, status, and downstream routing before specialist agents produce work.
+The Company Context Builder is the chat-native default entrypoint. It starts the V1 Marketing OS where the business case starts: user-supplied company context becomes reviewable context artifact drafts, approval gates, AEO readiness, status, and downstream routing before specialist agents produce work.
 
 The Intake package remains an optional support package. It is a deterministic coded router that responds quickly, can run explicit Firecrawl-backed public-source research for approval, and recommends a specialist without automatically calling other agents. It should not be the first-run path for normal project leader onboarding.
 
@@ -30,7 +30,7 @@ V1 contains eight deliverable source packages plus one optional support package:
 - Re-run `guild agent init` only when intentionally repairing or reinitializing one of these existing package records.
 - Do not run `guild agent save`, `guild agent publish`, workspace install, credentials, triggers, or visibility changes until the user explicitly approves those lifecycle steps.
 - Keep customer-specific facts out of agent package code.
-- Put reusable behavior in `agent.ts`, concise always-on project context in Guild workspace context, and approved project artifacts in the approved context artifacts.
+- Put reusable behavior in `agent.ts`, concise always-on company context in Guild workspace context, and approved company context artifacts in the approved context artifacts.
 
 ## Package Shape
 

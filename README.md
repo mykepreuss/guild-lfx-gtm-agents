@@ -11,7 +11,7 @@ This repository is safe to share: private source notes, meeting context, and cli
 - Active Guild test workspace: `michaelpreuss/guild-marketing-os`.
 - Agent package records are initialized under the `michaelpreuss` owner to align with the active workspace.
 - All eight deliverable package directories include Guild-managed `guild.json` records and source-ready `agent.ts` files; `guild-marketing-os-intake` remains an optional support package for routing and explicit public-source research.
-- `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company or project context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
+- `guild-marketing-os-company-context-builder` is the workspace-friendly default chat entrypoint. It starts where the V1 business case starts: raw company context becomes reviewable Context Hub artifact drafts, approval gates, AEO readiness, a status payload, and downstream handoffs.
 - The Company Context Builder is a structured Zod-backed `agent()` internally, but exposes canonical text input/output for Guild default chat compatibility. It sends a short visible review summary and leaves the full Markdown packet as the details view.
 - First-run source collection currently expects readable source text pasted into chat. If a user attaches a PDF or file without pasted text, the Company Context Builder blocks and asks for the relevant text instead of pretending it read the attachment.
 - The other seven V1 agents use Guild-validating one-shot review-packet mode; missing context is returned as focused questions and `TBD` markers rather than live follow-up turns.

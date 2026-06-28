@@ -2,7 +2,7 @@ import { agent, pick, textPromptNotifyEvent, userInterfaceTools, type Task } fro
 import { z } from "zod";
 
 const artifactValues = [
-  "project-context",
+  "company-context",
   "messaging-source",
   "brand-kit",
   "audience-segments",
@@ -28,6 +28,14 @@ const evidenceStatusSchema = z.enum(["approved", "user_supplied", "assumption", 
 const packetStatusSchema = z.enum(["ready_for_review", "needs_input", "blocked"]);
 const artifactStatusSchema = z.enum(["draft", "needs_input", "blocked"]);
 const readinessSchema = z.enum(["blocked", "draft", "review_ready"]);
+const conversationIntentSchema = z.enum([
+  "source_available",
+  "attachment_unreadable",
+  "save_state_question",
+  "missing_context",
+  "downstream_request_without_context",
+  "approval_or_edit",
+]);
 
 const defaultRequestedArtifacts = [...artifactValues];
 const defaultConstraints = [
@@ -37,8 +45,11 @@ const defaultConstraints = [
   "No CRM activation.",
   "No credential setup.",
   "No workspace install.",
+  "No workspace context publish.",
+  "No context artifact persistence.",
   "No trigger setup.",
   "No visibility changes.",
+  "No legal, compliance, pricing, security, performance, or production-readiness approval is implied.",
 ];
 
 const inputSchema = z
@@ -65,13 +76,21 @@ const structuredOutputSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
   status: packetStatusSchema,
+  conversationIntent: conversationIntentSchema,
+  persistenceState: z.object({
+    drafted_in_session: z.boolean(),
+    approved_in_session: z.boolean(),
+    saved_to_workspace_context: z.boolean(),
+    saved_to_context_artifacts: z.boolean(),
+    persistence_note: z.string(),
+  }),
   consumedContext: z.object({
     used: z.array(z.string()),
     missing: z.array(z.string()),
     sourceLabels: z.array(z.string()),
   }),
   contextArtifacts: z.object({
-    projectContext: z.object({
+    companyContext: z.object({
       status: artifactStatusSchema,
       projectName: z.string(),
       category: z.string(),
@@ -122,7 +141,11 @@ const structuredOutputSchema = z.object({
   }),
   workspaceContextDraft: z.string(),
   approvedFacts: z.array(claimSchema),
+  extractedClaims: z.array(claimSchema),
+  proofBackedClaims: z.array(claimSchema),
+  claimsNeedingApproval: z.array(claimSchema),
   assumptionsAndMissingEvidence: z.array(claimSchema),
+  openQuestions: z.array(z.string()),
   approvalGates: z.array(approvalGateSchema),
   aeoReadiness: z.object({
     status: readinessSchema,
@@ -162,6 +185,8 @@ const llmOutputSchema = structuredOutputSchema.omit({ type: true, text: true, ma
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
+type ConversationIntent = z.infer<typeof conversationIntentSchema>;
+type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
 const tools = {
   ...pick(userInterfaceTools, ["ui_notify"]),
 };
@@ -203,30 +228,38 @@ const sparseMarkers = [
 export default agent({
   identifier: "guild_marketing_os_company_context_builder",
   description:
-    "Builds a structured Guild Marketing OS context foundation by converting raw company or project context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
+    "Builds a structured Guild Marketing OS context foundation by converting raw company context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
   inputSchema,
   outputSchema,
   tools,
   async run(input: Input, task: AgentTask) {
     const rawContext = getRawContext(input);
+    const conversationIntent = classifyConversationIntent(rawContext);
 
-    if (shouldRequestReadableSourceText(rawContext)) {
-      const blockedOutput = buildReadableSourceNeededOutput(input);
-      const markdownPacket = renderMarkdownPacket(blockedOutput);
-      const parsedOutput = structuredOutputSchema.parse({
-        ...blockedOutput,
-        type: "text",
-        text: markdownPacket,
-        markdownPacket,
-      });
-      await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
-      return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
+    if (conversationIntent === "save_state_question") {
+      return finalizeOutput(task, buildSaveStateQuestionOutput(input));
     }
 
-    const fallback = buildFallbackOutput(input, []);
+    if (conversationIntent === "approval_or_edit") {
+      return finalizeOutput(task, buildApprovalOrEditOutput(input));
+    }
+
+    if (conversationIntent === "attachment_unreadable") {
+      return finalizeOutput(task, buildReadableSourceNeededOutput(input, conversationIntent));
+    }
+
+    if (conversationIntent === "downstream_request_without_context") {
+      return finalizeOutput(task, buildDownstreamWithoutContextOutput(input));
+    }
+
+    if (conversationIntent === "missing_context") {
+      return finalizeOutput(task, buildMissingContextOutput(input));
+    }
+
+    const fallback = buildFallbackOutput(input, [], conversationIntent);
 
     const { text } = await task.llm.generateText({
-      prompt: buildExtractionPrompt(input, rawContext),
+      prompt: buildExtractionPrompt(input, rawContext, conversationIntent),
     });
 
     const parsed = parseJsonObject(text);
@@ -249,20 +282,22 @@ export default agent({
       }
     }
 
-    const guarded = enforceDeterministicGuards(candidate, input, parseWarnings);
-    const markdownPacket = renderMarkdownPacket(guarded);
-    const withMarkdown = {
-      ...guarded,
-      type: "text" as const,
-      text: markdownPacket,
-      markdownPacket,
-    };
-
-    const parsedOutput = structuredOutputSchema.parse(withMarkdown);
-    await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
-    return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
+    const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
+    return finalizeOutput(task, guarded);
   },
 });
+
+async function finalizeOutput(task: AgentTask, output: Output): Promise<z.infer<typeof outputSchema>> {
+  const markdownPacket = renderMarkdownPacket(output);
+  const parsedOutput = structuredOutputSchema.parse({
+    ...output,
+    type: "text",
+    text: markdownPacket,
+    markdownPacket,
+  });
+  await notifyVisibleReviewSummary(task, renderVisibleReviewSummary(parsedOutput));
+  return outputSchema.parse({ type: "text", text: parsedOutput.markdownPacket });
+}
 
 async function notifyVisibleReviewSummary(task: AgentTask, text: string): Promise<void> {
   const notify = task.tools?.ui_notify;
@@ -276,28 +311,80 @@ async function notifyVisibleReviewSummary(task: AgentTask, text: string): Promis
 }
 
 function renderVisibleReviewSummary(output: Output): string {
-  const projectName = output.statusPayload.projectName === "TBD" ? "this project" : output.statusPayload.projectName;
+  const projectName = output.statusPayload.projectName === "TBD" ? "this company" : output.statusPayload.projectName;
   const missingInputs = output.consumedContext.missing.slice(0, 5);
   const nextAgent = output.statusPayload.nextAgents[0] ?? "Messaging";
 
-  if (output.status === "blocked" && needsReadableSourceText(output)) {
+  if (output.conversationIntent === "save_state_question") {
     return [
-      "**I do not have readable company context yet.**",
+      "**No. This is not saved in workspace context yet.**",
       "",
-      "I can format your source material into the Marketing OS context packet once the source text is in the chat message.",
+      "This is a session draft only. It has not been saved to Guild workspace context or Context Hub artifacts.",
       "",
-      "If you attached a PDF or file, this run did not receive its readable extracted text. Paste the relevant text or excerpts directly into chat.",
+      "Next replies:",
+      "- `Approve company context`",
+      "- `Edit company context: ...`",
+      "- `Show ready-to-save company context block`",
+    ].join("\n");
+  }
+
+  if (output.conversationIntent === "approval_or_edit") {
+    return [
+      `**Company context ${output.persistenceState.approved_in_session ? "is approved in this session" : "has a session-only edit draft"}.**`,
       "",
-      "A good first message can be rough, but it should include:",
-      "- `Company/project: ...`",
-      "- `Approved description: ...`",
-      "- `Primary audiences: ...`",
-      "- `Current goals: ...`",
-      "- `Proof-backed claims or source excerpts: ...`",
-      "- `Channels in scope: ...`",
-      "- `Anything not approved for reuse: ...`",
+      output.persistenceState.persistence_note,
+      "",
+      "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
+      "",
+      "Next replies:",
+      "- `Show ready-to-save company context block`",
+      "- `Run ICP`",
+      "- `Run Messaging`",
+    ].join("\n");
+  }
+
+  if (output.conversationIntent === "downstream_request_without_context") {
+    const requestedAgent = output.downstreamHandoff.find((handoff) => handoff.agent !== "Company Context Builder")?.agent ?? nextAgent;
+    return [
+      `**Setup comes first, then ${requestedAgent}.**`,
+      "",
+      `I preserved the downstream request for ${projectName}, but the Marketing OS needs approved company context before specialist work should run.`,
+      "",
+      missingInputs.length ? "Fastest next reply:" : "Next replies:",
+      ...(missingInputs.length
+        ? [`- \`${formatFocusedReply(projectName, missingInputs)}\``]
+        : ["- `Approve company context`", `- \`Run ${requestedAgent}\``]),
       "",
       "Nothing has been saved, published, scheduled, or sent to another system.",
+    ].join("\n");
+  }
+
+  if (output.conversationIntent === "missing_context") {
+    return [
+      `**I need a little more company context before drafting reusable artifacts for ${projectName}.**`,
+      "",
+      "Reply with rough notes; you do not need to fill out an internal schema.",
+      "",
+      ...focusedQuestions(output).map((question) => `- ${question}`),
+      "",
+      "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
+    ].join("\n");
+  }
+
+  if (output.status === "blocked" && needsReadableSourceText(output)) {
+    return [
+      "**I can see that you tried to provide company context, but I do not have readable file contents in this run.**",
+      "",
+      "Paste the relevant text, provide readable excerpts, or send a source URL through an agent that can fetch it, and I will extract the company context from it.",
+      "",
+      "I will not pretend the attachment was processed.",
+      "",
+      "Fast next replies:",
+      "- Paste the relevant company profile text.",
+      "- Send `Use my sources:` followed by rough notes.",
+      "- Send a URL plus the page text if this agent cannot fetch the page in the current run.",
+      "",
+      "Nothing has been saved.",
     ].join("\n");
   }
 
@@ -306,7 +393,7 @@ function renderVisibleReviewSummary(output: Output): string {
       `**Company context for ${projectName} needs a few inputs before it can drive the Marketing OS.**`,
       "",
       missingInputs.length ? "Missing now:" : "Review needed:",
-      ...(missingInputs.length ? missingInputs.map((item) => `- ${item}`) : ["- Confirm the project description, audiences, goals, proof, and channels."]),
+      ...(missingInputs.length ? missingInputs.map((item) => `- ${item}`) : ["- Confirm the company description, audiences, goals, proof, and channels."]),
       "",
       "Send the missing facts or paste source material in one message, and I will draft the context packet again.",
       "",
@@ -319,20 +406,22 @@ function renderVisibleReviewSummary(output: Output): string {
     : output.contextArtifacts.channelRegistry.channelsTbd;
 
   return [
-    `**Draft company context for ${projectName} is ready for review.**`,
+    `**I found enough to draft initial company context for ${projectName}.**`,
     "",
-    `- Audiences: ${formatList(output.contextArtifacts.projectContext.primaryAudiences)}`,
-    `- Goals: ${formatList(output.contextArtifacts.projectContext.goals)}`,
+    `I extracted the company entity, audience groups, goals, channel scope, proof constraints, and downstream handoffs that were visible in the supplied source.`,
+    "",
+    `- Audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}`,
+    `- Goals: ${formatList(output.contextArtifacts.companyContext.goals)}`,
     `- Channels: ${formatList(channelScope)}`,
-    `- Proof status: ${output.approvedFacts.length ? `${output.approvedFacts.length} user-supplied fact(s) captured` : "proof still needs approval"}`,
+    `- Proof status: ${output.proofBackedClaims.length ? `${output.proofBackedClaims.length} proof-backed claim(s) captured` : "proof still needs approval"}`,
     ...(missingInputs.length ? ["", "Review gaps:", ...missingInputs.map((item) => `- ${item}`)] : []),
+    "",
+    "Nothing has been saved to Guild workspace context or Context Hub artifacts.",
     "",
     "Reply with one:",
     "- `Approve company context` if the draft is safe to reuse.",
     "- `Edit company context: ...` to replace or remove facts.",
     `- \`Run ${nextAgent}\` after context is approved.`,
-    "",
-    "Nothing has been saved, published, scheduled, or sent to another system.",
   ].join("\n");
 }
 
@@ -368,7 +457,107 @@ function getOperatingConstraints(_input: Input): string[] {
   return defaultConstraints;
 }
 
-function buildExtractionPrompt(input: Input, rawContext: string): string {
+function classifyConversationIntent(rawContext: string): ConversationIntent {
+  if (isSaveStateQuestion(rawContext)) return "save_state_question";
+  if (isApprovalOrEdit(rawContext)) return "approval_or_edit";
+  if (isAttachmentUnreadableTurn(rawContext)) return "attachment_unreadable";
+  if (isSparseSetupRequest(rawContext) || hasUrlOnlySource(rawContext)) return "missing_context";
+  if (detectRequestedDownstreamAgent(rawContext) && !hasUsableSourceContent(rawContext)) {
+    return "downstream_request_without_context";
+  }
+  if (!hasUsableSourceContent(rawContext)) return "missing_context";
+  return "source_available";
+}
+
+function isSaveStateQuestion(rawContext: string): boolean {
+  return /\b(is|was|did|has|have|now)\b[\s\S]{0,80}\b(saved|persisted|approved|installed|published|in workspace context|workspace context|context hub|artifact|artifacts)\b/i.test(rawContext) ||
+    /\b(saved|persisted|approved|installed|published)\b[\s\S]{0,80}\?/i.test(rawContext);
+}
+
+function isApprovalOrEdit(rawContext: string): boolean {
+  return /\bapprove\s+(?:this|it|the draft|the\s+company context|company context)\b/i.test(rawContext) ||
+    /\b(?:approved|looks good|ship it|confirm)(?:\s+(?:this|it|the draft|the\s+company context|company context))?\b/i.test(rawContext) ||
+    /\bedit\s+company context\s*:/i.test(rawContext) ||
+    /\b(remove|delete)\s+.+\b(company context|claim|claims)\b/i.test(rawContext);
+}
+
+function isAttachmentUnreadableTurn(rawContext: string): boolean {
+  return !hasUsableSourceContent(rawContext) && (
+    isPlaceholderSourceIntro(rawContext) ||
+    /\b(attached|attachment|uploaded|file|pdf|docx?|slides?|deck|spreadsheet)\b/i.test(rawContext)
+  );
+}
+
+function hasUsableSourceContent(rawContext: string): boolean {
+  const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
+  const fieldCount = [
+    "Approved description",
+    "Company description",
+    "Project description",
+    "Primary audiences",
+    "Current goals",
+    "Proof-backed claims",
+    "Proof points",
+    "Evidence",
+    "Channels in scope",
+    "Anything not approved",
+  ].filter((label) => new RegExp(`^\\s*(?:[-*]\\s*)?${escapeRegExp(label)}\\s*:`, "im").test(rawContext)).length;
+
+  if (fieldCount >= 2) return true;
+  if (sourceDocumentHeadingPattern(rawContext) && wordCount >= 30) return true;
+  return wordCount >= 60 && /\b(company|product|platform|audience|customer|market|website|brand|proof|claim|goal|channel)\b/i.test(rawContext);
+}
+
+function isSparseSetupRequest(rawContext: string): boolean {
+  return /\b(help\s+set\s+this\s+up|set\s+this\s+up|set\s+up\s+the\s+marketing\s+os|set\s+up\s+marketing\s+os|build context for my company)\b/i.test(rawContext) &&
+    !hasFieldedSourcePacket(rawContext) &&
+    !sourceDocumentHeadingPattern(rawContext);
+}
+
+function hasFieldedSourcePacket(rawContext: string): boolean {
+  const fieldCount = [
+    "Approved description",
+    "Company description",
+    "Project description",
+    "Primary audiences",
+    "Current goals",
+    "Proof-backed claims",
+    "Proof points",
+    "Evidence",
+    "Channels in scope",
+    "Anything not approved",
+  ].filter((label) => new RegExp(`^\\s*(?:[-*]\\s*)?${escapeRegExp(label)}\\s*:`, "im").test(rawContext)).length;
+  return fieldCount >= 2;
+}
+
+function sourceDocumentHeadingPattern(rawContext: string): boolean {
+  return /(?:^|\n)\s*#{1,3}\s+[A-Z][A-Za-z0-9&.\- ]{1,80}\s+(?:company|project|product|brand)\s+(?:profile|overview|context|brief)\b/im.test(rawContext);
+}
+
+function hasUrlOnlySource(rawContext: string): boolean {
+  const normalizedContext = rawContext.replace(/\\\//g, "/");
+  const sourceUrlMatch = normalizedContext.match(/\b(?:from|use|using|at|source|url)\s*:?\s*(https?:\/\/[^\s)"']+)/i);
+  const sourceUrl = sourceUrlMatch?.[1] ?? "";
+  return Boolean(sourceUrl) &&
+    !/https?:\/\/(?:app\.)?guild\.ai\b/i.test(sourceUrl) &&
+    !/attachments\.app\.guild\.ai\b/i.test(sourceUrl) &&
+    !hasFieldedSourcePacket(rawContext) &&
+    !sourceDocumentHeadingPattern(rawContext);
+}
+
+function detectRequestedDownstreamAgent(rawContext: string): (typeof agentValues)[number] | undefined {
+  const normalized = rawContext.toLowerCase();
+  if (/\b(campaign|paid|ads?|budget|landing page|performance|retargeting)\b/i.test(normalized)) return "Campaigns And Paid Media";
+  if (/\b(social|content|post|reply|monitoring|digest|linkedin|twitter|x\b|reddit)\b/i.test(normalized)) return "Social Monitoring And Content";
+  if (/\b(brand|branding|pitch|deck|website|web direction|visual|aeo|ai-readiness)\b/i.test(normalized)) return "Branding And Pitch Deck";
+  if (/\b(positioning|messaging|message|claims|boilerplate|objection|answer-ready|copy)\b/i.test(normalized)) return "Messaging";
+  if (/\b(segment|segmentation|list|suppression|consent|targeting rules)\b/i.test(normalized)) return "Audience Segmentation";
+  if (/\b(icp|persona|target audience|who to target|buyer|user role)\b/i.test(normalized)) return "ICP";
+  if (/\b(market|competitor|competition|community|search|answer engine|signal)\b/i.test(normalized)) return "Market Signal";
+  return undefined;
+}
+
+function buildExtractionPrompt(input: Input, rawContext: string, conversationIntent: ConversationIntent): string {
   const sourceLabels = getSourceLabels(input);
 
   return `
@@ -379,9 +568,17 @@ Return only valid JSON. Do not use markdown fences.
 Your JSON must match this TypeScript-style shape:
 {
   "status": "ready_for_review" | "needs_input" | "blocked",
+  "conversationIntent": "${conversationIntent}",
+  "persistenceState": {
+    "drafted_in_session": boolean,
+    "approved_in_session": boolean,
+    "saved_to_workspace_context": false,
+    "saved_to_context_artifacts": false,
+    "persistence_note": string
+  },
   "consumedContext": { "used": string[], "missing": string[], "sourceLabels": string[] },
   "contextArtifacts": {
-    "projectContext": { "status": "draft" | "needs_input" | "blocked", "projectName": string, "category": string, "primaryAudiences": string[], "goals": string[], "missingContext": string[] },
+    "companyContext": { "status": "draft" | "needs_input" | "blocked", "projectName": string, "category": string, "primaryAudiences": string[], "goals": string[], "missingContext": string[] },
     "messagingSource": { "status": "draft" | "needs_input" | "blocked", "overview": string, "positioning": string, "proofNeeds": string[], "answerReadyLanguage": string[] },
     "brandKit": { "status": "draft" | "needs_input" | "blocked", "voice": string, "visualDirection": string, "constraints": string[] },
     "audienceSegments": [{ "status": "draft" | "needs_input" | "blocked", "name": string, "description": string, "evidenceStatus": "approved" | "user_supplied" | "assumption" | "missing" | "blocked" | "do_not_use", "missingEvidence": string[] }],
@@ -391,7 +588,11 @@ Your JSON must match this TypeScript-style shape:
   },
   "workspaceContextDraft": string,
   "approvedFacts": claim[],
+  "extractedClaims": claim[],
+  "proofBackedClaims": claim[],
+  "claimsNeedingApproval": claim[],
   "assumptionsAndMissingEvidence": claim[],
+  "openQuestions": string[],
   "approvalGates": [{ "ownerRole": string, "decision": string, "requiredBefore": string, "status": "needed" | "approved" | "blocked" }],
   "aeoReadiness": { "status": "blocked" | "draft" | "review_ready", "entityClarity": string, "answerReadyOpportunities": string[], "missingProof": string[], "recommendedWebInputs": string[] },
   "statusPayload": { "projectName": string, "readiness": "blocked" | "draft" | "review_ready", "nextAgents": string[], "blockers": string[], "requiredArtifacts": string[] },
@@ -406,17 +607,23 @@ Valid claim statuses are: approved, user_supplied, assumption, missing, blocked,
 Rules:
 - Do not invent customer-specific facts, metrics, audience counts, connected systems, legal constraints, or performance results.
 - Use only the Raw context below as company evidence. Do not use workspace metadata, connected integration names, user profile data, attachment filenames, or attachment metadata as company context.
+- Classify this turn as ${conversationIntent}; preserve that exact conversationIntent in JSON.
+- Always set saved_to_workspace_context and saved_to_context_artifacts to false. This agent drafts ready-to-save blocks only; it does not persist them.
+- Set drafted_in_session true when a draft artifact block is produced. Set approved_in_session true only when the user explicitly approves the draft in the current turn.
 - If the Raw context only says a file or context is attached/provided but does not include readable source text, return status "blocked" and ask the user to paste the source text.
 - If context is sparse, return status "blocked" or "needs_input" and mark unsupported artifacts as "blocked" or "needs_input".
 - Do not draft substantive public copy, headlines, campaign messages, benefit claims, channel plans, or audience rules from sparse context.
 - Do not claim publishing, scheduling, spend, CRM activation, credential setup, workspace install, trigger setup, visibility change, or external system updates happened.
+- Do not claim that Guild workspace context, workspace artifacts, Context Hub files, or runtime context were saved, updated, published, installed, or persisted.
 - Keep legal, trademark, privacy, security, compliance, pricing, guarantee, and performance claims behind approved evidence and human review.
 - Use review verbs such as draft, recommend, plan, prepare, or propose.
-- Separate approved facts, user-supplied facts, assumptions, missing evidence, blocked claims, and do-not-use claims.
+- Separate approved facts, user-supplied facts, extracted claims, proof-backed claims, claims needing approval, assumptions, missing evidence, blocked claims, and do-not-use claims.
+- Generate substantive draft content for every required artifact: company-context, messaging-source, brand-kit, audience-segments, channel-registry, proof-and-constraints, and dashboard-signals. Use TBD only for fields that are genuinely missing.
 - AEO outputs must distinguish answer-ready recommendations from deployed web/schema/metadata changes.
+- Recommend downstream agents with reasons after a usable draft. Do not route as if downstream execution happened.
 - The runtime renders markdownPacket deterministically, so markdownPacket may be an empty string if the structured fields are complete.
 
-Project name hint:
+Company name hint:
 ${extractProjectName(rawContext) ?? "TBD"}
 
 Requested artifacts:
@@ -455,10 +662,16 @@ function cleanParsedOutput(value: unknown): unknown {
 
   const output = JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
   const contextArtifacts = isRecord(output.contextArtifacts) ? output.contextArtifacts : undefined;
+  if (contextArtifacts && !isRecord(contextArtifacts.companyContext) && isRecord(contextArtifacts.projectContext)) {
+    contextArtifacts.companyContext = contextArtifacts.projectContext;
+  }
   const proofAndConstraints =
     contextArtifacts && isRecord(contextArtifacts.proofAndConstraints) ? contextArtifacts.proofAndConstraints : undefined;
 
   cleanClaimArray(output, "approvedFacts");
+  cleanClaimArray(output, "extractedClaims");
+  cleanClaimArray(output, "proofBackedClaims");
+  cleanClaimArray(output, "claimsNeedingApproval");
   cleanClaimArray(output, "assumptionsAndMissingEvidence");
   cleanClaimArray(proofAndConstraints, "approvedClaims");
   cleanClaimArray(proofAndConstraints, "blockedClaims");
@@ -510,7 +723,7 @@ function firstJsonObject(text: string): string | undefined {
   return text.slice(start, end + 1);
 }
 
-function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[]): Output {
+function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[], conversationIntent: ConversationIntent): Output {
   const rawContext = getRawContext(input);
   const sourceTextNeeded = shouldRequestReadableSourceText(rawContext);
   const explicitProjectName = extractProjectName(rawContext);
@@ -528,6 +741,10 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   let missing = new Set(output.consumedContext.missing);
   let blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
   let assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
+  let claimsNeedingApproval = [...output.claimsNeedingApproval];
+
+  output.conversationIntent = conversationIntent;
+  output.persistenceState = normalizePersistenceState(output.persistenceState, conversationIntent);
 
   if (parseWarnings.length > 0 && isSparse(rawContext)) {
     blockers.add("Structured extraction needs more source context.");
@@ -543,11 +760,12 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   }
 
   if (explicitProjectName) {
-    output.contextArtifacts.projectContext.projectName = explicitProjectName;
+    output.contextArtifacts.companyContext.projectName = explicitProjectName;
     output.statusPayload.projectName = explicitProjectName;
+    missing.delete("Company name");
     missing.delete("Project name");
-    addUserSuppliedClaim(output.approvedFacts, `Project name: ${explicitProjectName}`);
-    addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, `Project name: ${explicitProjectName}`);
+    addUserSuppliedClaim(output.approvedFacts, `Company name: ${explicitProjectName}`);
+    addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, `Company name: ${explicitProjectName}`);
   }
 
   if (explicitDescription) {
@@ -558,13 +776,13 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   }
 
   if (explicitAudiences.length > 0) {
-    output.contextArtifacts.projectContext.primaryAudiences = explicitAudiences;
+    output.contextArtifacts.companyContext.primaryAudiences = explicitAudiences;
     missing.delete("Primary audience");
     missing.delete("Primary audiences");
   }
 
   if (explicitGoals.length > 0) {
-    output.contextArtifacts.projectContext.goals = explicitGoals;
+    output.contextArtifacts.companyContext.goals = explicitGoals;
     missing.delete("Project goals");
     missing.delete("Current goals");
   }
@@ -579,22 +797,38 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   }
 
   for (const fact of extractProofFacts(rawContext)) {
+    if (isSensitiveClaim(fact)) {
+      blockedClaims.push({
+        claim: fact,
+        status: "blocked",
+        source: "sensitive_claim_guardrail",
+        notes: "Pricing, legal, compliance, security, guarantee, production-readiness, and performance claims require separate human approval and evidence.",
+      });
+      claimsNeedingApproval.push({
+        claim: fact,
+        status: "blocked",
+        source: "sensitive_claim_guardrail",
+        notes: "Do not reuse until approved evidence and an owner approval are supplied.",
+      });
+      continue;
+    }
     addUserSuppliedClaim(output.approvedFacts, fact);
     addUserSuppliedClaim(output.contextArtifacts.proofAndConstraints.approvedClaims, fact);
+    addUserSuppliedClaim(output.proofBackedClaims, fact);
   }
 
-  if (explicitProjectName && (output.workspaceContextDraft.includes("Project: TBD") || output.workspaceContextDraft.includes("Project: teams"))) {
+  if (explicitProjectName && (output.workspaceContextDraft.includes("Company: TBD") || output.workspaceContextDraft.includes("Project: TBD") || output.workspaceContextDraft.includes("Project: teams"))) {
     output.workspaceContextDraft = renderWorkspaceContextDraft(explicitProjectName, output.statusPayload.readiness);
   }
 
   if (isSparse(rawContext)) {
     blockers.add("Business context is too sparse for substantive public marketing strategy.");
-    if (!explicitProjectName) missing.add("Project name");
+    if (!explicitProjectName) missing.add("Company name");
     missing.add("Approved description");
     missing.add("Primary audience");
     missing.add("Proof-backed claims");
     output.status = "blocked";
-    output.contextArtifacts.projectContext.status = "blocked";
+    output.contextArtifacts.companyContext.status = "blocked";
     output.contextArtifacts.messagingSource.status = "blocked";
     output.contextArtifacts.channelRegistry.status = "blocked";
     output.contextArtifacts.proofAndConstraints.status = "blocked";
@@ -606,9 +840,11 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
 
   const factNormalization = normalizeApprovedClaims(output.approvedFacts, rawContext);
   const proofNormalization = normalizeApprovedClaims(output.contextArtifacts.proofAndConstraints.approvedClaims, rawContext);
+  const proofBackedNormalization = normalizeApprovedClaims(output.proofBackedClaims, rawContext);
   output.approvedFacts = factNormalization.approved;
   output.contextArtifacts.proofAndConstraints.approvedClaims = proofNormalization.approved;
-  assumptionsAndMissingEvidence.push(...factNormalization.downgraded, ...proofNormalization.downgraded);
+  output.proofBackedClaims = proofBackedNormalization.approved;
+  assumptionsAndMissingEvidence.push(...factNormalization.downgraded, ...proofNormalization.downgraded, ...proofBackedNormalization.downgraded);
 
   if (!hasExplicitApprovedChannelScope(rawContext)) {
     output.contextArtifacts.channelRegistry.approvedChannels = [];
@@ -620,13 +856,13 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     missing.add("Proof-backed claims");
     if (!needsReadableSourceText(output)) {
       output.contextArtifacts.messagingSource.status = "needs_input";
-      output.contextArtifacts.messagingSource.overview = "TBD. Requires an approved project description and proof-backed claims.";
+      output.contextArtifacts.messagingSource.overview = "TBD. Requires an approved company description and proof-backed claims.";
       output.contextArtifacts.messagingSource.positioning = "TBD. Requires approved category, audience, problem, promise, differentiation, and proof.";
       output.contextArtifacts.messagingSource.answerReadyLanguage = [];
       output.contextArtifacts.messagingSource.proofNeeds = [
         ...new Set([
           ...output.contextArtifacts.messagingSource.proofNeeds,
-          "Approved project description",
+          "Approved company description",
           "Approved proof points",
           "Do-not-use claims",
         ]),
@@ -662,6 +898,12 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
         source: "deterministic_guardrail",
         notes: "V1 can draft review packets only; live execution claims require approved external evidence.",
       });
+      claimsNeedingApproval.push({
+        claim: phrase,
+        status: "blocked",
+        source: "deterministic_guardrail",
+        notes: "Blocked until a human approves evidence and a separate live action is explicitly authorized.",
+      });
       output.status = "blocked";
       output.statusPayload.readiness = "blocked";
     }
@@ -669,9 +911,17 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
 
   output.approvalGates = mergeApprovalGates(output.approvalGates);
   output.assumptionsAndMissingEvidence = dedupeClaims(assumptionsAndMissingEvidence);
+  output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence]);
+  output.proofBackedClaims = dedupeClaims([...output.proofBackedClaims, ...output.contextArtifacts.proofAndConstraints.approvedClaims]);
+  output.claimsNeedingApproval = dedupeClaims([
+    ...claimsNeedingApproval,
+    ...output.contextArtifacts.proofAndConstraints.blockedClaims,
+    ...output.assumptionsAndMissingEvidence.filter((claim) => claim.status === "assumption" || claim.status === "missing"),
+  ]);
   output.consumedContext.missing = [...missing];
-  output.contextArtifacts.projectContext.missingContext = [...missing];
+  output.contextArtifacts.companyContext.missingContext = [...missing];
   output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
+  output.openQuestions = normalizeOpenQuestions(output.openQuestions, output.consumedContext.missing, output.conversationIntent);
   output.statusPayload.blockers = [...blockers];
   output.contextArtifacts.dashboardSignals.blockers = [...new Set([...output.contextArtifacts.dashboardSignals.blockers, ...blockers])];
   output.statusPayload.requiredArtifacts = normalizeArtifacts([...output.statusPayload.requiredArtifacts, ...getRequestedArtifacts(input)]);
@@ -684,13 +934,9 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     }));
 
   if (output.downstreamHandoff.length === 0) {
-    output.downstreamHandoff = [
-      {
-        agent: "Market Signal",
-        receives: ["project-context", "proof-and-constraints", "dashboard-signals"],
-        reason: "Review external source scope only after the project foundation is approved.",
-      },
-    ];
+    output.downstreamHandoff = defaultDownstreamHandoff();
+  } else if (output.status !== "blocked") {
+    output.downstreamHandoff = mergeHandoffs(output.downstreamHandoff, defaultDownstreamHandoff());
   }
 
   if (output.status !== "blocked" && hasOpenContextGaps(output)) {
@@ -767,10 +1013,12 @@ function normalizeArtifactName(value: string): (typeof artifactValues)[number] |
     .toLowerCase();
 
   const aliases: Record<string, (typeof artifactValues)[number]> = {
-    "project": "project-context",
-    "project-context": "project-context",
-    "projectcontext": "project-context",
-    "context": "project-context",
+    "project": "company-context",
+    "company": "company-context",
+    "company-context": "company-context",
+    "companycontext": "company-context",
+    "projectcontext": "company-context",
+    "context": "company-context",
     "messaging": "messaging-source",
     "messaging-source": "messaging-source",
     "messagingsource": "messaging-source",
@@ -923,7 +1171,7 @@ function defaultApprovalGates(): z.infer<typeof approvalGateSchema>[] {
   return [
     {
       ownerRole: "Project Leader",
-      decision: "Approve project identity, goals, and primary audiences.",
+      decision: "Approve company identity, goals, and primary audiences.",
       requiredBefore: "Downstream agents reuse context artifacts.",
       status: "needed",
     },
@@ -946,16 +1194,16 @@ function hasOpenContextGaps(output: Output): boolean {
   return (
     output.consumedContext.missing.length > 0 ||
     output.assumptionsAndMissingEvidence.some((claim) => claim.status === "assumption" || claim.status === "missing") ||
-    output.contextArtifacts.projectContext.missingContext.length > 0 ||
+    output.contextArtifacts.companyContext.missingContext.length > 0 ||
     output.contextArtifacts.channelRegistry.approvedChannels.length === 0
   );
 }
 
-function buildReadableSourceNeededOutput(input: Input): Output {
+function buildReadableSourceNeededOutput(input: Input, conversationIntent: ConversationIntent = "attachment_unreadable"): Output {
   return applyReadableSourceNeededState(
     buildFallbackOutput(input, [
       "No readable source text was provided to the agent. If a file was attached, paste the relevant text or excerpts into chat.",
-    ]),
+    ], conversationIntent),
   );
 }
 
@@ -973,14 +1221,16 @@ function applyReadableSourceNeededState(output: Output): Output {
   const blocker = "No readable source text was provided to the agent. If a file was attached, paste the relevant text or excerpts into chat.";
 
   output.status = "blocked";
+  output.conversationIntent = "attachment_unreadable";
+  output.persistenceState = normalizePersistenceState(undefined, "attachment_unreadable");
   output.consumedContext.used = ["User message did not include readable company source text"];
   output.consumedContext.missing = missing;
-  output.contextArtifacts.projectContext.status = "blocked";
-  output.contextArtifacts.projectContext.projectName = "TBD";
-  output.contextArtifacts.projectContext.category = "TBD";
-  output.contextArtifacts.projectContext.primaryAudiences = ["TBD"];
-  output.contextArtifacts.projectContext.goals = ["TBD"];
-  output.contextArtifacts.projectContext.missingContext = missing;
+  output.contextArtifacts.companyContext.status = "blocked";
+  output.contextArtifacts.companyContext.projectName = "TBD";
+  output.contextArtifacts.companyContext.category = "TBD";
+  output.contextArtifacts.companyContext.primaryAudiences = ["TBD"];
+  output.contextArtifacts.companyContext.goals = ["TBD"];
+  output.contextArtifacts.companyContext.missingContext = missing;
   output.contextArtifacts.messagingSource.status = "blocked";
   output.contextArtifacts.messagingSource.overview = "TBD. Paste readable company/source text before the Marketing OS drafts context artifacts.";
   output.contextArtifacts.messagingSource.positioning = "TBD. Requires approved source text, audiences, goals, proof, and constraints.";
@@ -1007,11 +1257,15 @@ function applyReadableSourceNeededState(output: Output): Output {
   output.contextArtifacts.dashboardSignals.blockers = [blocker];
   output.workspaceContextDraft = "Readable company context has not been provided yet. Paste source text before drafting reusable Marketing OS context.";
   output.approvedFacts = [];
+  output.extractedClaims = [];
+  output.proofBackedClaims = [];
   output.assumptionsAndMissingEvidence = missing.map((item) => ({
     claim: item,
     status: "missing",
     source: "context_gap",
   }));
+  output.claimsNeedingApproval = output.assumptionsAndMissingEvidence;
+  output.openQuestions = normalizeOpenQuestions([], missing, "attachment_unreadable");
   output.approvalGates = [
     {
       ownerRole: "Project Leader",
@@ -1044,11 +1298,166 @@ function applyReadableSourceNeededState(output: Output): Output {
   output.downstreamHandoff = [
     {
       agent: "Company Context Builder",
-      receives: ["project-context"],
+      receives: ["company-context"],
       reason: "Needs readable source text before creating reusable company context artifacts.",
     },
   ];
 
+  return output;
+}
+
+function buildSaveStateQuestionOutput(input: Input): Output {
+  const output = buildFallbackOutput(input, ["No persistence operation has been run in this agent."], "save_state_question");
+  output.status = "needs_input";
+  output.persistenceState = {
+    drafted_in_session: true,
+    approved_in_session: false,
+    saved_to_workspace_context: false,
+    saved_to_context_artifacts: false,
+    persistence_note: "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+  };
+  output.consumedContext.used = ["User asked whether company context is saved or approved."];
+  output.consumedContext.missing = ["Explicit approval", "Separate persistence step"];
+  output.contextArtifacts.companyContext.status = "needs_input";
+  output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
+  output.contextArtifacts.dashboardSignals.status = "needs_input";
+  output.contextArtifacts.dashboardSignals.readiness = "draft";
+  output.contextArtifacts.dashboardSignals.blockers = ["Session draft is not persisted."];
+  output.workspaceContextDraft = "No Guild workspace context update has been saved. The current Company Context block is a session draft only.";
+  output.openQuestions = [
+    "Should the current draft be approved in this session?",
+    "Do any claims need to be removed before a future persistence step?",
+    "Which approved source should be used if a separate save/publish workflow is later authorized?",
+  ];
+  output.statusPayload.readiness = "draft";
+  output.statusPayload.blockers = ["Not saved to workspace context.", "Not saved to Context Hub artifacts."];
+  output.downstreamHandoff = [
+    {
+      agent: "Company Context Builder",
+      receives: ["company-context"],
+      reason: "Answer save-state questions directly before drafting or routing additional work.",
+    },
+  ];
+  return output;
+}
+
+function buildApprovalOrEditOutput(input: Input): Output {
+  const rawContext = getRawContext(input);
+  const isEdit = /\bedit\s+company context\s*:/i.test(rawContext) || /\b(remove|delete)\b/i.test(rawContext);
+  const editInstruction = rawContext.match(/\bedit\s+company context\s*:\s*([^\n\r]+)/i)?.[1]?.trim() ?? rawContext.trim();
+  const output = buildFallbackOutput(input, [], "approval_or_edit");
+  const editClaim = isEdit ? `Requested edit: ${editInstruction}` : "User approved company context in this session.";
+
+  output.status = isEdit ? "needs_input" : "ready_for_review";
+  output.persistenceState = {
+    drafted_in_session: true,
+    approved_in_session: !isEdit,
+    saved_to_workspace_context: false,
+    saved_to_context_artifacts: false,
+    persistence_note: isEdit
+      ? "The edit is reflected as a session-only draft change. It has not been saved to Guild workspace context or Context Hub artifacts."
+      : "Approved in session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+  };
+  output.consumedContext.used = [editClaim];
+  output.consumedContext.missing = isEdit ? ["Review the edited session draft", "Separate persistence step"] : ["Separate persistence step"];
+  output.contextArtifacts.companyContext.status = isEdit ? "needs_input" : "draft";
+  output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
+  output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims([
+    ...output.contextArtifacts.proofAndConstraints.blockedClaims,
+    ...(isPricingOrSensitiveEdit(rawContext)
+      ? [{
+          claim: "Pricing, compliance, security, performance, or production-readiness claims removed or blocked by user edit.",
+          status: "do_not_use" as const,
+          source: "user_edit",
+          notes: "Do not reuse these claims unless the user supplies approved evidence in a later run.",
+        }]
+      : []),
+  ]);
+  output.extractedClaims = [userSuppliedClaim(editClaim)];
+  output.claimsNeedingApproval = output.contextArtifacts.proofAndConstraints.blockedClaims;
+  output.openQuestions = isEdit
+    ? ["Does this edit fully replace the prior draft?", "Should the edited draft be approved in this session?"]
+    : ["Which separate persistence workflow should save this if/when authorized?"];
+  output.statusPayload.readiness = isEdit ? "draft" : "review_ready";
+  output.statusPayload.blockers = ["Session approval/edit is not durable persistence."];
+  output.downstreamHandoff = defaultDownstreamHandoff();
+  return output;
+}
+
+function buildDownstreamWithoutContextOutput(input: Input): Output {
+  const rawContext = getRawContext(input);
+  const requestedAgent = detectRequestedDownstreamAgent(rawContext) ?? "Campaigns And Paid Media";
+  const projectName = extractProjectName(rawContext) ?? "TBD";
+  const output = buildFallbackOutput(input, ["Approved company context is required before downstream specialist work."], "downstream_request_without_context");
+  output.status = "blocked";
+  output.contextArtifacts.companyContext.projectName = projectName;
+  output.statusPayload.projectName = projectName;
+  output.persistenceState = normalizePersistenceState(undefined, "downstream_request_without_context");
+  output.consumedContext.used = [`Requested downstream goal: ${requestedAgent}`];
+  output.consumedContext.missing = focusedMissingInputsForProject(projectName);
+  output.contextArtifacts.companyContext.status = "blocked";
+  output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
+  output.contextArtifacts.messagingSource.status = "blocked";
+  output.contextArtifacts.audienceSegments = [
+    {
+      status: "blocked",
+      name: "Audience pending approved company context",
+      description: "Specialist audience work should wait until company context is approved.",
+      evidenceStatus: "missing",
+      missingEvidence: output.consumedContext.missing,
+    },
+  ];
+  output.openQuestions = normalizeOpenQuestions([], output.consumedContext.missing, "downstream_request_without_context");
+  output.statusPayload.readiness = "blocked";
+  output.statusPayload.nextAgents = ["Company Context Builder"];
+  output.statusPayload.blockers = ["Company context is not approved yet.", `${requestedAgent} should receive a handoff after context approval.`];
+  output.downstreamHandoff = [
+    {
+      agent: "Company Context Builder",
+      receives: ["company-context", "proof-and-constraints", "dashboard-signals"],
+      reason: "Create the approved company context foundation first.",
+    },
+    {
+      agent: requestedAgent,
+      receives: downstreamReceivesForAgent(requestedAgent),
+      reason: `Preserved requested downstream goal. Run only after company context, proof constraints, and relevant handoff artifacts are approved.`,
+    },
+  ];
+  return output;
+}
+
+function buildMissingContextOutput(input: Input): Output {
+  const rawContext = getRawContext(input);
+  const projectName = extractProjectName(rawContext) ?? "TBD";
+  const blocker = hasUrlOnlySource(rawContext)
+    ? "A URL was supplied, but readable page contents were not available to this run."
+    : "The message does not include enough company context to draft reusable Marketing OS artifacts.";
+  const output = buildFallbackOutput(input, [blocker], "missing_context");
+  output.status = "blocked";
+  output.persistenceState = normalizePersistenceState(undefined, "missing_context");
+  output.contextArtifacts.companyContext.projectName = projectName;
+  output.statusPayload.projectName = projectName;
+  output.consumedContext.used = hasUrlOnlySource(rawContext)
+    ? ["URL supplied without readable page contents"]
+    : ["Sparse setup request"];
+  output.consumedContext.missing = focusedMissingInputsForProject(projectName);
+  output.contextArtifacts.companyContext.status = "blocked";
+  output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
+  output.contextArtifacts.messagingSource.status = "blocked";
+  output.contextArtifacts.proofAndConstraints.status = "blocked";
+  output.contextArtifacts.dashboardSignals.status = "blocked";
+  output.contextArtifacts.dashboardSignals.readiness = "blocked";
+  output.contextArtifacts.dashboardSignals.blockers = [blocker];
+  output.openQuestions = normalizeOpenQuestions([], output.consumedContext.missing, "missing_context");
+  output.statusPayload.readiness = "blocked";
+  output.statusPayload.blockers = [blocker];
+  output.downstreamHandoff = [
+    {
+      agent: "Company Context Builder",
+      receives: ["company-context"],
+      reason: "Needs a few company facts or readable source text before drafting reusable artifacts.",
+    },
+  ];
   return output;
 }
 
@@ -1060,8 +1469,8 @@ function hasNoUsableOutputContext(output: Output): boolean {
   return (
     output.statusPayload.projectName === "TBD" &&
     output.approvedFacts.length === 0 &&
-    output.contextArtifacts.projectContext.primaryAudiences.every(isTbdish) &&
-    output.contextArtifacts.projectContext.goals.every(isTbdish)
+    output.contextArtifacts.companyContext.primaryAudiences.every(isTbdish) &&
+    output.contextArtifacts.companyContext.goals.every(isTbdish)
   );
 }
 
@@ -1069,7 +1478,137 @@ function isTbdish(value: string): boolean {
   return /^(?:tbd|unknown|none|n\/a|not supplied|not provided)?$/i.test(value.trim());
 }
 
-function buildFallbackOutput(input: Input, blockers: string[]): Output {
+function normalizePersistenceState(value: Output["persistenceState"] | undefined, conversationIntent: ConversationIntent): Output["persistenceState"] {
+  return {
+    drafted_in_session: value?.drafted_in_session ?? conversationIntent === "source_available",
+    approved_in_session: value?.approved_in_session ?? false,
+    saved_to_workspace_context: false,
+    saved_to_context_artifacts: false,
+    persistence_note:
+      value?.persistence_note ??
+      "Drafted in this session only. Not saved to Guild workspace context or Context Hub artifacts.",
+  };
+}
+
+function isPricingOrSensitiveEdit(rawContext: string): boolean {
+  return /\b(pricing|price|compliance|security|privacy|performance|production-ready|production readiness|guarantee|legal)\b/i.test(rawContext);
+}
+
+function isSensitiveClaim(claim: string): boolean {
+  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|production-ready|production readiness|uptime|availability)\b/i.test(claim);
+}
+
+function focusedMissingInputsForProject(projectName: string): string[] {
+  const missing = [
+    projectName === "TBD" ? "Company name" : "",
+    "Approved one-paragraph company description",
+    "Primary Marketing OS audience",
+    "Current marketing goal",
+    "Proof-backed claims or source excerpts",
+  ].filter(Boolean);
+  return missing.slice(0, 5);
+}
+
+function normalizeOpenQuestions(existing: string[], missing: string[], conversationIntent: ConversationIntent): string[] {
+  const questions = [...existing];
+  if (conversationIntent === "attachment_unreadable") {
+    questions.push("Can you paste the readable text from the attachment or provide excerpts?");
+  }
+  if (conversationIntent === "downstream_request_without_context") {
+    questions.push("What should the downstream request accomplish after company context is approved?");
+  }
+  if (missing.some((item) => /company name|project name/i.test(item))) questions.push("What company should this Marketing OS be set up for?");
+  if (missing.some((item) => /description/i.test(item))) questions.push("What is the approved one-paragraph company description?");
+  if (missing.some((item) => /audience/i.test(item))) questions.push("Who is the primary Marketing OS audience?");
+  if (missing.some((item) => /goal/i.test(item))) questions.push("What is the current marketing goal?");
+  if (missing.some((item) => /proof|evidence|claim/i.test(item))) questions.push("Which claims are proof-backed, and which should not be reused?");
+  return [...new Set(questions)].slice(0, 5);
+}
+
+function focusedQuestions(output: Output): string[] {
+  return output.openQuestions.length ? output.openQuestions.slice(0, 5) : normalizeOpenQuestions([], output.consumedContext.missing, output.conversationIntent);
+}
+
+function formatFocusedReply(projectName: string, missingInputs: string[]): string {
+  const name = projectName === "this project" || projectName === "this company" || projectName === "TBD" ? "Company name: ..." : `Company name: ${projectName}`;
+  const fields = [name];
+  if (missingInputs.some((item) => /description/i.test(item))) fields.push("Approved description: ...");
+  if (missingInputs.some((item) => /audience/i.test(item))) fields.push("Primary audiences: ...");
+  if (missingInputs.some((item) => /goal/i.test(item))) fields.push("Current goals: ...");
+  if (missingInputs.some((item) => /proof|claim|evidence/i.test(item))) fields.push("Proof-backed claims: ...");
+  return fields.join(" ");
+}
+
+function downstreamReceivesForAgent(agentName: (typeof agentValues)[number]): Array<(typeof artifactValues)[number]> {
+  switch (agentName) {
+    case "Market Signal":
+      return ["company-context", "proof-and-constraints", "dashboard-signals"];
+    case "ICP":
+      return ["company-context", "proof-and-constraints", "dashboard-signals"];
+    case "Audience Segmentation":
+      return ["company-context", "audience-segments", "channel-registry", "proof-and-constraints"];
+    case "Messaging":
+      return ["company-context", "messaging-source", "audience-segments", "proof-and-constraints", "dashboard-signals"];
+    case "Branding And Pitch Deck":
+      return ["company-context", "messaging-source", "brand-kit", "audience-segments", "proof-and-constraints"];
+    case "Social Monitoring And Content":
+      return ["company-context", "messaging-source", "brand-kit", "audience-segments", "channel-registry", "proof-and-constraints"];
+    case "Campaigns And Paid Media":
+      return ["company-context", "messaging-source", "audience-segments", "channel-registry", "proof-and-constraints", "dashboard-signals"];
+    case "Company Context Builder":
+      return ["company-context"];
+  }
+}
+
+function defaultDownstreamHandoff(): Output["downstreamHandoff"] {
+  return [
+    {
+      agent: "Market Signal",
+      receives: ["company-context", "proof-and-constraints", "dashboard-signals"],
+      reason: "Use when external validation, competitor evidence, search signals, or market language are missing.",
+    },
+    {
+      agent: "ICP",
+      receives: ["company-context", "proof-and-constraints", "dashboard-signals"],
+      reason: "Use when audience definitions are broad and need target buyer, user, fit, and objection hypotheses.",
+    },
+    {
+      agent: "Audience Segmentation",
+      receives: ["company-context", "audience-segments", "channel-registry", "proof-and-constraints"],
+      reason: "Use when activation, suppression, consent, or channel-specific audience logic is needed.",
+    },
+    {
+      agent: "Messaging",
+      receives: ["company-context", "messaging-source", "audience-segments", "proof-and-constraints", "dashboard-signals"],
+      reason: "Use when positioning and proof constraints are ready for reviewable message development.",
+    },
+    {
+      agent: "Branding And Pitch Deck",
+      receives: ["company-context", "messaging-source", "brand-kit", "audience-segments", "proof-and-constraints"],
+      reason: "Use when story, web, AEO, pitch, or brand direction materials are needed.",
+    },
+    {
+      agent: "Social Monitoring And Content",
+      receives: ["company-context", "messaging-source", "brand-kit", "audience-segments", "channel-registry", "proof-and-constraints"],
+      reason: "Use when content planning depends on approved messaging and channel constraints.",
+    },
+    {
+      agent: "Campaigns And Paid Media",
+      receives: ["company-context", "messaging-source", "audience-segments", "channel-registry", "proof-and-constraints", "dashboard-signals"],
+      reason: "Use when campaign planning depends on approved segments, messaging, channel constraints, and proof policy.",
+    },
+  ];
+}
+
+function mergeHandoffs(primary: Output["downstreamHandoff"], secondary: Output["downstreamHandoff"]): Output["downstreamHandoff"] {
+  const byAgent = new Map<(typeof agentValues)[number], Output["downstreamHandoff"][number]>();
+  for (const handoff of [...primary, ...secondary]) {
+    if (!byAgent.has(handoff.agent)) byAgent.set(handoff.agent, handoff);
+  }
+  return [...byAgent.values()];
+}
+
+function buildFallbackOutput(input: Input, blockers: string[], conversationIntent: ConversationIntent = "source_available"): Output {
   const rawContext = getRawContext(input);
   const projectName = extractProjectName(rawContext) ?? "TBD";
   const approvedDescription = extractLineAfterLabels(rawContext, [
@@ -1084,12 +1623,26 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
   const approvedChannels = hasExplicitApprovedChannelScope(rawContext)
     ? extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"])
     : [];
+  const proofFacts = extractProofFacts(rawContext);
+  const reusableProofFacts = proofFacts.filter((fact) => !isSensitiveClaim(fact));
+  const sensitiveProofFacts = proofFacts.filter(isSensitiveClaim);
   const userSuppliedFacts = dedupeClaims([
-    ...(projectName !== "TBD" ? [userSuppliedClaim(`Project name: ${projectName}`)] : []),
+    ...(projectName !== "TBD" ? [userSuppliedClaim(`Company name: ${projectName}`)] : []),
     ...(approvedDescription ? [userSuppliedClaim(approvedDescription)] : []),
-    ...extractProofFacts(rawContext).map(userSuppliedClaim),
+    ...reusableProofFacts.map(userSuppliedClaim),
   ]);
+  const sensitiveClaimsNeedingApproval = sensitiveProofFacts.map((claim) => ({
+    claim,
+    status: "blocked" as const,
+    source: "sensitive_claim_guardrail",
+    notes: "Requires separate approval and evidence before reuse.",
+  }));
   const missing = inferMissingInputs(rawContext, projectName);
+  const missingClaims = missing.map((item) => ({
+    claim: item,
+    status: "missing" as const,
+    source: "context_gap",
+  }));
   const sparse = isSparse(rawContext);
   const status = sparse ? "blocked" : "needs_input";
   const readiness = sparse ? "blocked" : "draft";
@@ -1100,13 +1653,15 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
     status,
     type: "text",
     text: "",
+    conversationIntent,
+    persistenceState: normalizePersistenceState(undefined, conversationIntent),
     consumedContext: {
       used: rawContext ? ["User-provided raw context"] : [],
       missing,
       sourceLabels: getSourceLabels(input),
     },
     contextArtifacts: {
-      projectContext: {
+      companyContext: {
         status,
         projectName,
         category: "TBD",
@@ -1116,7 +1671,7 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
       },
       messagingSource: {
         status,
-        overview: approvedDescription ?? "TBD. Requires approved project description and proof-backed claims.",
+        overview: approvedDescription ?? "TBD. Requires approved company description and proof-backed claims.",
         positioning: "TBD. Requires approved category, audience, problem, promise, and differentiation.",
         proofNeeds: ["Approved entity facts", "Approved proof points", "Do-not-use claims"],
         answerReadyLanguage: [],
@@ -1152,6 +1707,7 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
             source: "operating_constraints",
             notes: "V1 can draft review packets only.",
           },
+          ...sensitiveClaimsNeedingApproval,
         ],
         constraints: operatingConstraints,
       },
@@ -1164,15 +1720,15 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
     },
     workspaceContextDraft: renderWorkspaceContextDraft(projectName, readiness),
     approvedFacts: userSuppliedFacts,
-    assumptionsAndMissingEvidence: missing.map((item) => ({
-      claim: item,
-      status: "missing",
-      source: "context_gap",
-    })),
+    extractedClaims: userSuppliedFacts,
+    proofBackedClaims: dedupeClaims(reusableProofFacts.map(userSuppliedClaim)),
+    claimsNeedingApproval: [...missingClaims, ...sensitiveClaimsNeedingApproval],
+    assumptionsAndMissingEvidence: missingClaims,
+    openQuestions: normalizeOpenQuestions([], missing, conversationIntent),
     approvalGates: defaultApprovalGates(),
     aeoReadiness: {
       status: readiness,
-      entityClarity: projectName === "TBD" ? "Blocked until the project entity is named and described." : "Draft entity clarity from user-supplied project name only.",
+      entityClarity: projectName === "TBD" ? "Blocked until the company entity is named and described." : "Draft entity clarity from user-supplied company name only.",
       answerReadyOpportunities: ["What the project is", "Who it serves", "Why it matters", "What proof supports claims"],
       missingProof: ["Approved description", "Canonical URLs", "Proof-backed claims", "Source-backed FAQ inputs"],
       recommendedWebInputs: ["Entity summary", "FAQ candidates", "Schema.org inputs", "llms.txt inputs"],
@@ -1187,17 +1743,17 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
     downstreamHandoff: [
       {
         agent: "Market Signal",
-        receives: ["project-context", "channel-registry", "proof-and-constraints", "dashboard-signals"],
-        reason: "Review external source scope after project identity and proof constraints are approved.",
+        receives: ["company-context", "channel-registry", "proof-and-constraints", "dashboard-signals"],
+        reason: "Review external source scope after company identity and proof constraints are approved.",
       },
       {
         agent: "ICP",
-        receives: ["project-context", "proof-and-constraints", "dashboard-signals"],
+        receives: ["company-context", "proof-and-constraints", "dashboard-signals"],
         reason: "Define target audiences once project goals and constraints are approved.",
       },
       {
         agent: "Messaging",
-        receives: ["project-context", "audience-segments", "proof-and-constraints", "dashboard-signals"],
+        receives: ["company-context", "audience-segments", "proof-and-constraints", "dashboard-signals"],
         reason: "Draft positioning and answer-ready language only after approved context exists.",
       },
     ],
@@ -1210,9 +1766,9 @@ function buildFallbackOutput(input: Input, blockers: string[]): Output {
 
 function inferMissingInputs(rawContext: string, projectName: string): string[] {
   const missing = new Set<string>();
-  if (projectName === "TBD") missing.add("Project name");
+  if (projectName === "TBD") missing.add("Company name");
   if (!/audience/i.test(rawContext)) missing.add("Primary audiences");
-  if (!/goal/i.test(rawContext)) missing.add("Project goals");
+  if (!/goal/i.test(rawContext)) missing.add("Current goals");
   if (!/proof|evidence|claim/i.test(rawContext)) missing.add("Proof-backed claims");
   if (!/channel|website|social|email|paid|crm/i.test(rawContext)) missing.add("Channel scope");
   return [...missing];
@@ -1236,9 +1792,17 @@ function extractProjectName(rawContext: string): string | undefined {
   const cleanedLabeledName = labeledName ? cleanExtractedName(labeledName) : undefined;
   if (cleanedLabeledName) return cleanedLabeledName;
 
+  const headingName = extractNameFromSourceHeading(rawContext);
+  if (headingName) return headingName;
+
+  const namedEntityReference = extractNamedEntityReference(rawContext);
+  if (namedEntityReference) return namedEntityReference;
+
   const patterns = [
-    /\b(?:company|project|brand|organization|org|product)\s+(?:is|called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/,
-    /\b(?:for|focused on|about)\s+(?:my|our|the)\s+(?:company|project|brand|organization|org|product)\s*,?\s*([A-Z][A-Za-z0-9 .&'-]{1,80})/,
+    /\b(?:we['’]?re|we are)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
+    /\b(?:company|project|brand|organization|org|product)\s+(?:called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
+    /\b(?:company|project|brand|organization|org|product)\s+is\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
+    /\bfor\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
   ];
   const value = patterns
@@ -1247,10 +1811,31 @@ function extractProjectName(rawContext: string): string | undefined {
   return value;
 }
 
+function extractNamedEntityReference(rawContext: string): string | undefined {
+  const patterns = [
+    /\b(?:for|focused on|about|set up for|build context for)\s+(?:my|our|the)\s+(?:company|project|brand|organization|org|product)\s*,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[.!?\n\r]|$)/i,
+    /\b(?:company|project|brand|organization|org|product)\s*,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[.!?\n\r]|$)/i,
+  ];
+  return patterns
+    .map((pattern) => cleanExtractedName(rawContext.match(pattern)?.[1] ?? ""))
+    .find((candidate) => candidate !== undefined);
+}
+
+function extractNameFromSourceHeading(rawContext: string): string | undefined {
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const match = line.match(/^#{1,3}\s+(.+?)\s+(?:company|project|product|brand)\s+(?:profile|overview|context|brief)\b/i);
+    const value = match?.[1] ? cleanExtractedName(match[1]) : undefined;
+    if (value) return value;
+  }
+  return undefined;
+}
+
 function cleanExtractedName(value: string): string | undefined {
   const cleaned = value
     .trim()
     .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/^(?:so|to|because|that|for|and|or)\b.*$/i, "")
     .replace(/\s+(so|to|because|that|for)\b.*$/i, "")
     .replace(/[.。]+$/, "")
     .trim();
@@ -1260,18 +1845,30 @@ function cleanExtractedName(value: string): string | undefined {
 
 function isGenericExtractedName(value: string): boolean {
   const normalized = value.trim().toLowerCase();
-  return [
+  if ([
     "marketing os",
     "guild marketing os",
     "company context",
     "context",
     "project",
     "company",
+    "my company",
+    "our company",
+    "the company",
+    "my project",
+    "our project",
+    "the project",
+    "my brand",
+    "our brand",
+    "the brand",
     "teams",
     "leaders",
     "users",
     "customers",
-  ].includes(normalized);
+  ].includes(normalized)) return true;
+
+  return /^(?:a|an|the|used by|used for|built for|designed for|helps|serves|targets|focused on)\b/i.test(normalized) ||
+    /\b(?:used by|used for|focused on|that|who|which|helps|serves|targets|need to|needs to|should|can)\b/i.test(normalized);
 }
 
 function extractLineAfterLabels(rawContext: string, labels: readonly string[]): string | undefined {
@@ -1335,42 +1932,96 @@ function escapeRegExp(value: string): string {
 
 function renderWorkspaceContextDraft(projectName: string, readiness: string): string {
   return [
-    `Project: ${projectName}`,
+    `Company: ${projectName}`,
     `Readiness: ${readiness}`,
     "Operating rule: draft reviewable work, mark missing evidence, and keep live actions behind explicit approval.",
   ].join("\n");
 }
 
 function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
-  return `# Company Context Approval Packet
+  return `${renderPacketSummary(output)}
+
+---
+
+# Company Context Approval Packet
 
 ## Consumed Context
+- Conversation intent: ${output.conversationIntent}
 - Used: ${formatList(output.consumedContext.used)}
 - Missing: ${formatList(output.consumedContext.missing)}
 - Source labels: ${formatList(output.consumedContext.sourceLabels)}
 
 ## Produced Artifact
-### Project Context
-- Project: ${output.contextArtifacts.projectContext.projectName}
-- Status: ${output.contextArtifacts.projectContext.status}
-- Category: ${output.contextArtifacts.projectContext.category}
-- Audiences: ${formatList(output.contextArtifacts.projectContext.primaryAudiences)}
-- Goals: ${formatList(output.contextArtifacts.projectContext.goals)}
+### Save And Approval State
+- drafted_in_session: ${String(output.persistenceState.drafted_in_session)}
+- approved_in_session: ${String(output.persistenceState.approved_in_session)}
+- saved_to_workspace_context: ${String(output.persistenceState.saved_to_workspace_context)}
+- saved_to_context_artifacts: ${String(output.persistenceState.saved_to_context_artifacts)}
+- Note: ${output.persistenceState.persistence_note}
 
-### Approved Context Artifact Drafts
-- project-context: ${output.contextArtifacts.projectContext.status}
-- messaging-source: ${output.contextArtifacts.messagingSource.status}
-- brand-kit: ${output.contextArtifacts.brandKit.status}
-- audience-segments: ${output.contextArtifacts.audienceSegments.map((segment) => `${segment.name} (${segment.status})`).join(", ") || "TBD"}
-- channel-registry: ${output.contextArtifacts.channelRegistry.status}
-- proof-and-constraints: ${output.contextArtifacts.proofAndConstraints.status}
-- dashboard-signals: ${output.contextArtifacts.dashboardSignals.status}
+### Company Context Draft (company-context)
+- Company: ${output.contextArtifacts.companyContext.projectName}
+- Status: ${output.contextArtifacts.companyContext.status}
+- Category: ${output.contextArtifacts.companyContext.category}
+- Audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}
+- Goals: ${formatList(output.contextArtifacts.companyContext.goals)}
+- Missing context: ${formatList(output.contextArtifacts.companyContext.missingContext)}
+
+### Messaging Source Draft (messaging-source)
+- Status: ${output.contextArtifacts.messagingSource.status}
+- Overview: ${output.contextArtifacts.messagingSource.overview}
+- Positioning: ${output.contextArtifacts.messagingSource.positioning}
+- Answer-ready language: ${formatList(output.contextArtifacts.messagingSource.answerReadyLanguage)}
+- Proof needs: ${formatList(output.contextArtifacts.messagingSource.proofNeeds)}
+
+### Brand Kit Draft (brand-kit)
+- Status: ${output.contextArtifacts.brandKit.status}
+- Voice: ${output.contextArtifacts.brandKit.voice}
+- Visual direction: ${output.contextArtifacts.brandKit.visualDirection}
+- Constraints: ${formatList(output.contextArtifacts.brandKit.constraints)}
+
+### Audience Segments Draft (audience-segments)
+${formatAudienceSegments(output.contextArtifacts.audienceSegments)}
+
+### Channel Registry Draft (channel-registry)
+- Status: ${output.contextArtifacts.channelRegistry.status}
+- Approved channels: ${formatList(output.contextArtifacts.channelRegistry.approvedChannels)}
+- Channels TBD: ${formatList(output.contextArtifacts.channelRegistry.channelsTbd)}
+- Blocked actions: ${formatList(output.contextArtifacts.channelRegistry.blockedActions)}
+
+### Proof And Constraints Draft (proof-and-constraints)
+- Status: ${output.contextArtifacts.proofAndConstraints.status}
+- Approved claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.approvedClaims)}
+- Blocked or do-not-use claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.blockedClaims)}
+- Constraints: ${formatList(output.contextArtifacts.proofAndConstraints.constraints)}
+
+### Dashboard Signals Draft (dashboard-signals)
+- Status: ${output.contextArtifacts.dashboardSignals.status}
+- Readiness: ${output.contextArtifacts.dashboardSignals.readiness}
+- Blockers: ${formatList(output.contextArtifacts.dashboardSignals.blockers)}
+- Next review signals: ${formatList(output.contextArtifacts.dashboardSignals.nextReviewSignals)}
 
 ### Guild Workspace Context Draft
 ${output.workspaceContextDraft}
 
 ## Assumptions And Missing Evidence
+### Approved Or User-Supplied Facts
+${formatClaims(output.approvedFacts)}
+
+### Extracted Claims
+${formatClaims(output.extractedClaims)}
+
+### Proof-Backed Claims
+${formatClaims(output.proofBackedClaims)}
+
+### Claims Needing Approval
+${formatClaims(output.claimsNeedingApproval)}
+
+### Assumptions And Missing Evidence
 ${formatClaims(output.assumptionsAndMissingEvidence)}
+
+### Open Questions
+${formatBulletList(output.openQuestions)}
 
 ## Approval Gate
 ${output.approvalGates
@@ -1386,7 +2037,11 @@ ${output.approvalGates
 
 ## Status Payload
 \`\`\`json
-${JSON.stringify(output.statusPayload, null, 2)}
+${JSON.stringify({
+  ...output.statusPayload,
+  conversationIntent: output.conversationIntent,
+  persistenceState: output.persistenceState,
+}, null, 2)}
 \`\`\`
 
 ## Downstream Handoff
@@ -1397,6 +2052,46 @@ ${output.downstreamHandoff
 ## Do Not Do Yet
 ${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `- ${constraint}`).join("\n")}
 `;
+}
+
+function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
+  if (output.conversationIntent === "save_state_question") {
+    return "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.";
+  }
+  if (output.conversationIntent === "attachment_unreadable") {
+    return "I can see that you tried to provide company context, but I cannot read the attachment contents in this run. Paste the relevant text or provide readable excerpts, and I will extract the company context from it. Nothing has been saved.";
+  }
+  if (output.conversationIntent === "downstream_request_without_context") {
+    const requestedAgent = output.downstreamHandoff.find((handoff) => handoff.agent !== "Company Context Builder")?.agent ?? "the requested downstream agent";
+    return `I preserved the request for ${requestedAgent}, but setup comes first. The Marketing OS needs approved company context before downstream agents should produce specialist work. Nothing has been saved.`;
+  }
+  if (output.conversationIntent === "approval_or_edit") {
+    return `${output.persistenceState.persistence_note} Nothing has been saved to Guild workspace context or Context Hub artifacts. Next replies: \`Run ICP\`, \`Run Messaging\`, or \`Show ready-to-save company context block\`.`;
+  }
+  if (output.conversationIntent === "missing_context") {
+    return "I do not have enough company context yet. Reply with rough notes, pasted text, or a readable source packet; you do not need to fill out an internal schema. Nothing has been saved.";
+  }
+  const projectName = output.statusPayload.projectName === "TBD" ? "this company" : output.statusPayload.projectName;
+  return `I found enough to draft initial company context for ${projectName}. I extracted the company entity, audience groups, product surface, proof-sensitive claims, and downstream handoffs. Nothing has been saved to Guild workspace context or Context Hub artifacts.`;
+}
+
+function formatAudienceSegments(segments: readonly AudienceSegment[]): string {
+  if (!segments.length) return "- TBD.";
+  return segments
+    .map((segment) => [
+      `- ${segment.name}: ${segment.description}`,
+      `  Status: ${segment.status}. Evidence: ${segment.evidenceStatus}. Missing evidence: ${formatList(segment.missingEvidence)}.`,
+    ].join("\n"))
+    .join("\n");
+}
+
+function formatInlineClaims(claims: readonly Claim[]): string {
+  return claims.length ? claims.map((claim) => claim.claim).join("; ") : "TBD";
+}
+
+function formatBulletList(values: readonly string[]): string {
+  if (!values.length) return "- None.";
+  return values.map((value) => `- ${value}`).join("\n");
 }
 
 function formatList(values: readonly string[]): string {

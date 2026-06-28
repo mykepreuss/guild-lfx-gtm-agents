@@ -9,14 +9,14 @@ It is not the Guild runtime context layer and it is not a formal database-backed
 ## Guild Boundary
 
 - Agent Hub agents own reusable behavior.
-- Guild workspace context should hold a short always-on project summary.
-- `context-hub/` files hold approved project artifact templates and source bodies.
+- Guild workspace context should hold a short always-on company summary.
+- `context-hub/` files hold approved company context artifact templates and source bodies.
 - Skills can hold reusable methods or approved style guidance.
 - Live systems stay behind explicit integrations and approvals.
 
 ## Starter Artifacts
 
-- `project-context.md`: project summary, operating mode, entity facts, owner, and missing context.
+- `company-context.md`: company summary, operating mode, entity facts, owner, and missing context.
 - `messaging-source.md`: short overview, boilerplate, ICP, positioning, and answer-ready language.
 - `brand-kit.md`: visual direction, voice direction, and web presence guidance.
 - `audience-segments.md`: personas, segment rules, and suppressions.
@@ -28,7 +28,7 @@ It is not the Guild runtime context layer and it is not a formal database-backed
 
 When setting up a new project, update the smallest useful set of artifacts:
 
-1. `project-context.md`
+1. `company-context.md`
 2. `messaging-source.md`
 3. `proof-and-constraints.md`
 4. `audience-segments.md`
@@ -40,7 +40,7 @@ Add a new context artifact only when at least two agents need it or a project le
 
 Use these questions when the Company Context Builder starts a new project:
 
-1. Project name:
+1. Company name:
 2. One-sentence project description:
 3. Primary project leader:
 4. Primary audiences:

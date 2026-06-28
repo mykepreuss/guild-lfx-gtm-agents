@@ -20,7 +20,7 @@
       "initialVersion": "1.0.0",
       "currentVersion": "1.0.1",
       "overview": "GTM foundation setup method for Guild Marketing OS.",
-      "runtimeDescription": "Use when bootstrapping or refreshing a Guild Marketing OS project foundation, including approved context artifacts, workspace-context drafts, approval gates, source confidence, and downstream handoffs."
+      "runtimeDescription": "Use when bootstrapping or refreshing a Guild Marketing OS company foundation, including approved context artifacts, workspace-context drafts, approval gates, source confidence, and downstream handoffs."
     },
     {
       "name": "guild-marketing-os-customer-research-method",
@@ -47,7 +47,7 @@
       "initialVersion": "1.0.0",
       "currentVersion": "1.0.1",
       "overview": "AEO and web-readiness method for Guild Marketing OS.",
-      "runtimeDescription": "Use when evaluating or drafting website, AEO, AI-readiness, schema, llms.txt, priority query sets, content architecture, zero-click scorecards, or answer-ready recommendations from approved project context."
+      "runtimeDescription": "Use when evaluating or drafting website, AEO, AI-readiness, schema, llms.txt, priority query sets, content architecture, zero-click scorecards, or answer-ready recommendations from approved company context."
     },
     {
       "name": "guild-marketing-os-conversion-experimentation-method",
