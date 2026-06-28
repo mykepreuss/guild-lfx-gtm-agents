@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://guild.ai/schemas/guild-marketing-os/workspace-context-publish-response.schema.json",
+  "title": "Workspace Context Publish Response",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "status",
+    "draft_context_id",
+    "published_context_id"
+  ],
+  "properties": {
+    "status": {
+      "enum": ["PUBLISHED", "published"]
+    },
+    "workspace_id": {
+      "type": "string"
+    },
+    "workspace_full_name": {
+      "type": "string"
+    },
+    "previous_context_id": {
+      "type": ["string", "null"]
+    },
+    "draft_context_id": {
+      "type": "string"
+    },
+    "published_context_id": {
+      "type": "string"
+    },
+    "summary": {
+      "type": ["string", "null"]
+    },
+    "publish_path": {
+      "enum": ["host_bridge", "official_guild_tools"]
+    },
+    "rollback_reference": {
+      "type": "string"
+    }
+  }
+}

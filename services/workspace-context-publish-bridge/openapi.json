@@ -1,0 +1,64 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Guild Marketing OS Workspace Context Publish Bridge",
+    "version": "1.0.0",
+    "description": "Host-controlled bridge used by the Company Context Builder to publish an approved managed Guild workspace context block without exposing raw Guild service access to the agent runtime."
+  },
+  "paths": {
+    "/workspace-context/publish": {
+      "post": {
+        "operationId": "workspace_context_publish",
+        "summary": "Publish approved managed workspace context",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schemas/publish-request.schema.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Published context metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schemas/publish-response.schema.json"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Bridge credential missing or invalid"
+          },
+          "403": {
+            "description": "Approval or workspace permission rejected"
+          },
+          "409": {
+            "description": "Existing workspace context has ambiguous managed markers"
+          },
+          "502": {
+            "description": "Guild API did not return the expected response"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Bridge is reachable"
+          }
+        }
+      }
+    }
+  }
+}

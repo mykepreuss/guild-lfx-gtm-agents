@@ -6,6 +6,8 @@ The Company Context Builder is the chat-native default entrypoint. It starts the
 
 The Company Context Builder is the structured root package. It uses a Zod-backed `agent()` implementation to return typed context artifacts, approval gates, AEO readiness, a status payload, downstream handoffs, workspace-context persistence state, a short inline review summary, and a chat-renderable Markdown approval packet.
 
+After the exact two-step approval, the Company Context Builder publishes only through the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.0` bridge. It does not call raw internal Guild workspace-context endpoints from the deployed agent runtime.
+
 The other seven V1 packages run as prompt-only one-shot review-packet agents. They still ask focused questions and mark missing evidence, but they return that review state in the response instead of relying on live follow-up turns. The seven prompt-only agents set `useWorkspaceAgents: false`. V1 agent chaining is a human-guided workflow, not implicit workspace-agent orchestration.
 
 V1 contains eight deliverable source packages:

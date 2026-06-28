@@ -27,10 +27,14 @@ const {
   stripCitationMarkers,
   removeFencedBlocks,
   convertMarkdownTablesToBullets,
+  replaceManagedWorkspaceContextBlock,
 } = await import(path.join(foundationDir, "dist/agent.js"));
 
 let state;
 let createdContextBody = "";
+let bridgePublishInput;
+let bridgePublishCalls = 0;
+let bridgeScenario = "successful";
 let llmScenario = "successful";
 let compactionCalls = 0;
 let auditCalls = 0;
@@ -130,45 +134,35 @@ const task = {
     return state;
   },
   tools: {
-    async guild_get_current_session() {
+    async workspace_context_publish(input) {
+      bridgePublishCalls += 1;
+      bridgePublishInput = input;
+      if (bridgeScenario === "unavailable") {
+        throw new Error("workspace context publish bridge unavailable");
+      }
+      const currentManualContext = [
+        "# Existing Workspace Context",
+        "",
+        "Keep this intro.",
+        "",
+        "<!-- guild-marketing-os-context:start -->",
+        "old managed block",
+        "<!-- guild-marketing-os-context:end -->",
+        "",
+        "Keep this outro.",
+      ].join("\n");
+      createdContextBody = replaceManagedWorkspaceContextBlock(currentManualContext, input.managed_context);
       return {
-        id: "session_test",
-        workspace: {
-          id: "workspace_test",
-          name: "guild-marketing-os",
-          full_name: "michaelpreuss/guild-marketing-os",
-        },
+        status: "PUBLISHED",
+        workspace_id: "workspace_test",
+        workspace_full_name: "michaelpreuss/guild-marketing-os",
+        previous_context_id: "context_old",
+        draft_context_id: "context_draft",
+        published_context_id: "context_published",
+        summary: input.summary,
+        publish_path: "host_bridge",
+        rollback_reference: "Re-publish context_old to roll back.",
       };
-    },
-    async guild_get_workspace_context() {
-      return {
-        id: "workspace_test",
-        name: "guild-marketing-os",
-        full_name: "michaelpreuss/guild-marketing-os",
-        context: {
-          id: "context_old",
-          compiled: "Existing compiled context",
-          generated: "Generated context",
-          manual: [
-            "# Existing Workspace Context",
-            "",
-            "Keep this intro.",
-            "",
-            "<!-- guild-marketing-os-context:start -->",
-            "old managed block",
-            "<!-- guild-marketing-os-context:end -->",
-            "",
-            "Keep this outro.",
-          ].join("\n"),
-        },
-      };
-    },
-    async guild_create_workspace_context(input) {
-      createdContextBody = input.context;
-      return { id: "context_draft", status: "DRAFT", manual_context: input.context, summary: input.summary };
-    },
-    async guild_publish_workspace_context(input) {
-      return { id: input.context_id, status: "PUBLISHED", manual_context: createdContextBody, summary: "published" };
     },
   },
 };
@@ -201,6 +195,9 @@ function guildChatEnvelope(text) {
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
   createdContextBody = "";
+  bridgePublishInput = undefined;
+  bridgePublishCalls = 0;
+  bridgeScenario = "successful";
   llmScenario = "successful";
   compactionCalls = 0;
   auditCalls = 0;
@@ -221,9 +218,24 @@ async function runPublishFlow(label, wrapInput) {
   const publish = await foundationAgent.start({ type: "text", text: wrapInput("publish approved context to workspace context") }, task);
   assert.equal(publish.type, "output", label);
   assert.match(publish.output.text, /saved_to_workspace_context: true/, label);
-  assert.match(publish.output.text, /workspace_context_id: context_draft/, label);
+  assert.match(publish.output.text, /workspace_context_id: context_published/, label);
+  assert.match(publish.output.text, /workspace_context_draft_id: context_draft/, label);
+  assert.match(publish.output.text, /workspace_context_previous_id: context_old/, label);
+  assert.match(publish.output.text, /workspace_context_publish_path: host_bridge/, label);
   assert.equal(state.workspaceContextStatus, "published", label);
-  assert.equal(state.workspaceContextId, "context_draft", label);
+  assert.equal(state.workspaceContextId, "context_published", label);
+  assert.equal(state.workspaceContextDraftId, "context_draft", label);
+  assert.equal(state.workspaceContextPreviousId, "context_old", label);
+  assert.equal(state.workspaceContextPublishPath, "host_bridge", label);
+  assert.equal(bridgePublishCalls, 1, `${label}: should publish once through bridge`);
+  assert.equal(bridgePublishInput.session_id, "session_test", label);
+  assert.equal(bridgePublishInput.approval_phrase, "publish approved context to workspace context", label);
+  assert.equal(bridgePublishInput.start_marker, "<!-- guild-marketing-os-context:start -->", label);
+  assert.equal(bridgePublishInput.end_marker, "<!-- guild-marketing-os-context:end -->", label);
+  assert.match(bridgePublishInput.managed_context, /## Workspace Context Brief/, label);
+  assert.doesNotMatch(bridgePublishInput.managed_context, /This session was started/, label);
+  assert.ok(!bridgePublishInput.managed_context.includes(fixture), `${label}: bridge payload must not include raw fixture`);
+  assert.doesNotMatch(bridgePublishInput.managed_context, /cite/, label);
   assert.match(createdContextBody, /Keep this intro\./, label);
   assert.match(createdContextBody, /Keep this outro\./, label);
   assert.doesNotMatch(createdContextBody, /old managed block/, label);
@@ -284,6 +296,9 @@ state = {
   workspaceContextStatus: "approved_pending_publish",
 };
 createdContextBody = "";
+bridgePublishInput = undefined;
+bridgePublishCalls = 0;
+bridgeScenario = "successful";
 llmScenario = "unsupported_claim";
 compactionCalls = 0;
 auditCalls = 0;
@@ -292,5 +307,28 @@ assert.equal(blockedPublish.type, "output", "unsupported claim audit");
 assert.match(blockedPublish.output.text, /workspace_context_status: blocked/, "unsupported claim audit");
 assert.match(blockedPublish.output.text, /Workspace context compaction audit did not pass/, "unsupported claim audit");
 assert.equal(createdContextBody, "", "unsupported audit should block before workspace write");
+assert.equal(bridgePublishCalls, 0, "unsupported audit should block before bridge publish");
+
+state = undefined;
+createdContextBody = "";
+bridgePublishInput = undefined;
+bridgePublishCalls = 0;
+bridgeScenario = "unavailable";
+llmScenario = "successful";
+compactionCalls = 0;
+auditCalls = 0;
+const bridgeFirst = await foundationAgent.start({ type: "text", text: fixture }, task);
+assert.equal(bridgeFirst.type, "output", "bridge unavailable setup");
+const bridgeApproval = await foundationAgent.start({ type: "text", text: "Context approved save to workspace context" }, task);
+assert.equal(bridgeApproval.type, "output", "bridge unavailable approval");
+const bridgeBlocked = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
+assert.equal(bridgeBlocked.type, "output", "bridge unavailable publish");
+assert.match(bridgeBlocked.output.text, /workspace_context_status: blocked/, "bridge unavailable publish");
+assert.match(bridgeBlocked.output.text, /Workspace context publish did not complete/, "bridge unavailable publish");
+assert.match(bridgeBlocked.output.text, /host-controlled publish bridge/, "bridge unavailable publish");
+assert.equal(bridgePublishCalls, 1, "bridge unavailable publish should attempt the host bridge once");
+assert.equal(createdContextBody, "", "bridge unavailable publish should not create a context body");
+assert.equal(state.approvedSourceText, fixture, "bridge unavailable publish should retain exact approved source for retry");
+bridgeScenario = "successful";
 
 console.log("Foundation state/publish test OK.");

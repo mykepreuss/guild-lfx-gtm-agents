@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://guild.ai/schemas/guild-marketing-os/workspace-context-publish-request.schema.json",
+  "title": "Workspace Context Publish Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "session_id",
+    "managed_context",
+    "summary",
+    "start_marker",
+    "end_marker",
+    "company_name",
+    "approval_phrase"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "managed_context": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "start_marker": {
+      "const": "<!-- guild-marketing-os-context:start -->"
+    },
+    "end_marker": {
+      "const": "<!-- guild-marketing-os-context:end -->"
+    },
+    "company_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "approval_phrase": {
+      "const": "publish approved context to workspace context"
+    },
+    "approved_at": {
+      "type": "string"
+    }
+  }
+}

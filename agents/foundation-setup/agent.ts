@@ -83,8 +83,12 @@ const structuredOutputSchema = z.object({
     saved_to_workspace_context: z.boolean(),
     saved_to_context_artifacts: z.boolean(),
     workspace_context_id: z.string().optional(),
+    workspace_context_draft_id: z.string().optional(),
+    workspace_context_previous_id: z.string().nullable().optional(),
     workspace_context_status: z.enum(["not_requested", "approved_pending_publish", "published", "blocked"]).optional(),
     workspace_context_summary: z.string().optional(),
+    workspace_context_publish_path: z.enum(["host_bridge", "official_guild_tools"]).optional(),
+    workspace_context_rollback_note: z.string().optional(),
     persistence_note: z.string(),
   }),
   consumedContext: z.object({
@@ -212,37 +216,34 @@ const agentStateSchema = z.object({
   workspaceContextId: z.string().optional(),
   workspaceContextStatus: z.enum(["not_requested", "approved_pending_publish", "published", "blocked"]).optional(),
   workspaceContextSummary: z.string().optional(),
+  workspaceContextDraftId: z.string().optional(),
+  workspaceContextPreviousId: z.string().nullable().optional(),
+  workspaceContextPublishPath: z.enum(["host_bridge", "official_guild_tools"]).optional(),
   workspaceId: z.string().optional(),
 });
 type AgentState = z.infer<typeof agentStateSchema>;
 
-const sessionResponseSchema = z.object({
-  id: z.string(),
-  workspace: z.object({
-    id: z.string(),
-    name: z.string(),
-    full_name: z.string(),
-  }).passthrough(),
-}).passthrough();
+const workspaceContextPublishRequestSchema = z.object({
+  session_id: z.string(),
+  managed_context: z.string(),
+  summary: z.string(),
+  start_marker: z.string(),
+  end_marker: z.string(),
+  company_name: z.string(),
+  approval_phrase: z.literal("publish approved context to workspace context"),
+  approved_at: z.string().optional(),
+});
 
-const workspaceResponseSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  full_name: z.string(),
-  context: z.object({
-    id: z.string().nullable().optional(),
-    compiled: z.string().optional(),
-    generated: z.string().optional(),
-    manual: z.string().optional(),
-  }).passthrough(),
-}).passthrough();
-
-const workspaceContextVersionSchema = z.object({
-  id: z.string(),
-  status: z.string().optional(),
-  manual_context: z.string().optional(),
-  context: z.string().optional(),
+const workspaceContextPublishResponseSchema = z.object({
+  status: z.enum(["PUBLISHED", "published"]),
+  workspace_id: z.string().optional(),
+  workspace_full_name: z.string().optional(),
+  previous_context_id: z.string().nullable().optional(),
+  draft_context_id: z.string(),
+  published_context_id: z.string(),
   summary: z.string().nullable().optional(),
+  publish_path: z.enum(["host_bridge", "official_guild_tools"]).optional(),
+  rollback_reference: z.string().optional(),
 }).passthrough();
 
 const workspaceContextCompactionSchema = z.object({
@@ -259,85 +260,33 @@ const workspaceContextAuditSchema = z.object({
 });
 
 const tools = {
-  guild_get_current_session: guildServiceTool("guild", {
-    description: "Get the current Guild session and its workspace.",
-    inputSchema: z.object({ session_id: z.string() }),
-    outputSchema: sessionResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/api/sessions/{session_id}",
-      description: "Get session by ID",
-      parameters: [{ name: "session_id", type: "path", schema: z.string() }],
-      parameterSchema: z.object({ session_id: z.string() }),
-      responseSchema: sessionResponseSchema,
-      errors: [],
-    },
-  }),
-  guild_get_workspace_context: guildServiceTool("guild", {
-    description: "Get the current published Guild workspace context.",
-    inputSchema: z.object({ workspace_id: z.string() }),
-    outputSchema: workspaceResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/api/workspaces/{workspace_id}",
-      description: "Get workspace by ID",
-      parameters: [{ name: "workspace_id", type: "path", schema: z.string() }],
-      parameterSchema: z.object({ workspace_id: z.string() }),
-      responseSchema: workspaceResponseSchema,
-      errors: [],
-    },
-  }),
-  guild_create_workspace_context: guildServiceTool("guild", {
-    description: "Create a draft Guild workspace context version.",
-    inputSchema: z.object({
-      workspace_id: z.string(),
-      status: z.literal("DRAFT"),
-      context: z.string(),
-      summary: z.string().nullable(),
-    }),
-    outputSchema: workspaceContextVersionSchema,
+  workspace_context_publish: guildServiceTool("guild-marketing-os-workspace-context", {
+    description: [
+      "Publish an approved Guild Marketing OS managed workspace context block through a host-controlled bridge.",
+      "The bridge resolves the current session workspace, reads the published workspace context, preserves unmanaged manual context, replaces the managed block, creates a draft context version, publishes it, and returns rollback metadata.",
+      "The agent must not call raw internal Guild workspace context endpoints directly.",
+    ].join(" "),
+    inputSchema: workspaceContextPublishRequestSchema,
+    outputSchema: workspaceContextPublishResponseSchema,
+    owner: "michaelpreuss",
+    versionNumber: "1.0.0",
     endpoint: {
       method: "POST",
-      path: "/api/workspaces/{workspace_id}/contexts",
-      description: "Create workspace context draft",
+      path: "/workspace-context/publish",
+      description: "Publish approved managed workspace context",
       format: "application/json",
       parameters: [
-        { name: "workspace_id", type: "path", schema: z.string() },
-        { name: "status", type: "body", schema: z.literal("DRAFT") },
-        { name: "context", type: "body", schema: z.string() },
-        { name: "summary", type: "body", schema: z.string().nullable() },
+        { name: "session_id", type: "body", schema: workspaceContextPublishRequestSchema.shape.session_id },
+        { name: "managed_context", type: "body", schema: workspaceContextPublishRequestSchema.shape.managed_context },
+        { name: "summary", type: "body", schema: workspaceContextPublishRequestSchema.shape.summary },
+        { name: "start_marker", type: "body", schema: workspaceContextPublishRequestSchema.shape.start_marker },
+        { name: "end_marker", type: "body", schema: workspaceContextPublishRequestSchema.shape.end_marker },
+        { name: "company_name", type: "body", schema: workspaceContextPublishRequestSchema.shape.company_name },
+        { name: "approval_phrase", type: "body", schema: workspaceContextPublishRequestSchema.shape.approval_phrase },
+        { name: "approved_at", type: "body", schema: workspaceContextPublishRequestSchema.shape.approved_at },
       ],
-      parameterSchema: z.object({
-        workspace_id: z.string(),
-        status: z.literal("DRAFT"),
-        context: z.string(),
-        summary: z.string().nullable(),
-      }),
-      responseSchema: workspaceContextVersionSchema,
-      errors: [],
-    },
-  }),
-  guild_publish_workspace_context: guildServiceTool("guild", {
-    description: "Publish a draft Guild workspace context version.",
-    inputSchema: z.object({
-      context_id: z.string(),
-      status: z.literal("PUBLISHED"),
-    }),
-    outputSchema: workspaceContextVersionSchema,
-    endpoint: {
-      method: "PATCH",
-      path: "/api/contexts/{context_id}",
-      description: "Publish workspace context version",
-      format: "application/json",
-      parameters: [
-        { name: "context_id", type: "path", schema: z.string() },
-        { name: "status", type: "body", schema: z.literal("PUBLISHED") },
-      ],
-      parameterSchema: z.object({
-        context_id: z.string(),
-        status: z.literal("PUBLISHED"),
-      }),
-      responseSchema: workspaceContextVersionSchema,
+      parameterSchema: workspaceContextPublishRequestSchema,
+      responseSchema: workspaceContextPublishResponseSchema,
       errors: [],
     },
   }),
@@ -1507,10 +1456,16 @@ function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Out
     saved_to_workspace_context: savedToWorkspace,
     saved_to_context_artifacts: false,
     workspace_context_id: state.workspaceContextId,
+    workspace_context_draft_id: state.workspaceContextDraftId,
+    workspace_context_previous_id: state.workspaceContextPreviousId,
     workspace_context_status: state.workspaceContextStatus ?? "not_requested",
     workspace_context_summary: state.workspaceContextSummary,
+    workspace_context_publish_path: state.workspaceContextPublishPath,
+    workspace_context_rollback_note: state.workspaceContextPreviousId
+      ? `Re-publish previous workspace context ${state.workspaceContextPreviousId} to roll back.`
+      : undefined,
     persistence_note: savedToWorkspace
-      ? `Yes. The approved company context has been published to Guild workspace context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}. Context Hub artifact files were not changed.`
+      ? `Yes. The approved company context has been published to Guild workspace context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}. Context Hub artifact files were not changed.`
       : approvedOnly
         ? "The latest company context is approved in this session and waiting for the exact publish confirmation. It has not been saved to Guild workspace context or Context Hub artifacts."
         : draftedOnly
@@ -1761,24 +1716,25 @@ async function buildWorkspaceContextPublishOutput(
   const summary = publishSummaryForOutput(approvedOutput, compactionResult.context);
 
   try {
-    const session = sessionResponseSchema.parse(await task.tools.guild_get_current_session({ session_id: task.sessionId }));
-    const workspaceId = session.workspace.id;
-    const workspace = workspaceResponseSchema.parse(await task.tools.guild_get_workspace_context({ workspace_id: workspaceId }));
-    const currentManualContext = workspace.context.manual ?? "";
     const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, compactionResult.context);
-    const updatedManualContext = replaceManagedWorkspaceContextBlock(currentManualContext, managedBlock);
-    const draftContext = workspaceContextVersionSchema.parse(await task.tools.guild_create_workspace_context({
-      workspace_id: workspaceId,
-      status: "DRAFT",
-      context: updatedManualContext,
+    const publishResult = workspaceContextPublishResponseSchema.parse(await task.tools.workspace_context_publish({
+      session_id: task.sessionId,
+      managed_context: managedBlock,
       summary,
+      start_marker: managedContextStart,
+      end_marker: managedContextEnd,
+      company_name: approvedOutput.statusPayload.companyName,
+      approval_phrase: "publish approved context to workspace context",
+      approved_at: state.approvedAt,
     }));
-    const publishedContext = workspaceContextVersionSchema.parse(await task.tools.guild_publish_workspace_context({
-      context_id: draftContext.id,
-      status: "PUBLISHED",
-    }));
-    const contextId = publishedContext.id || draftContext.id;
-    const publishedOutput = markWorkspaceContextPublished(approvedOutput, contextId, summary);
+    const publishedOutput = markWorkspaceContextPublished(approvedOutput, {
+      contextId: publishResult.published_context_id,
+      draftContextId: publishResult.draft_context_id,
+      previousContextId: publishResult.previous_context_id ?? undefined,
+      summary: publishResult.summary ?? summary,
+      publishPath: publishResult.publish_path ?? "host_bridge",
+      rollbackReference: publishResult.rollback_reference,
+    });
 
     return {
       output: publishedOutput,
@@ -1786,10 +1742,13 @@ async function buildWorkspaceContextPublishOutput(
         ...state,
         lastOutput: publishedOutput,
         approvedOutput: publishedOutput,
-        workspaceId,
-        workspaceContextId: contextId,
+        workspaceId: publishResult.workspace_id ?? state.workspaceId,
+        workspaceContextId: publishResult.published_context_id,
+        workspaceContextDraftId: publishResult.draft_context_id,
+        workspaceContextPreviousId: publishResult.previous_context_id,
+        workspaceContextPublishPath: publishResult.publish_path ?? "host_bridge",
         workspaceContextStatus: "published",
-        workspaceContextSummary: summary,
+        workspaceContextSummary: publishResult.summary ?? summary,
       },
     };
   } catch (error) {
@@ -1807,7 +1766,24 @@ async function buildWorkspaceContextPublishOutput(
   }
 }
 
-function markWorkspaceContextPublished(approvedOutput: Output, contextId: string, summary: string): Output {
+function markWorkspaceContextPublished(
+  approvedOutput: Output,
+  publishResult: {
+    contextId: string;
+    draftContextId: string;
+    previousContextId?: string | null;
+    summary: string;
+    publishPath: "host_bridge" | "official_guild_tools";
+    rollbackReference?: string;
+  },
+): Output {
+  const publishPathLabel = publishResult.publishPath === "host_bridge" ? "host bridge" : "official Guild tools";
+  const previousContext = publishResult.previousContextId ?? "none reported";
+  const rollbackNote = publishResult.rollbackReference
+    ?? (publishResult.previousContextId
+      ? `Re-publish previous workspace context ${publishResult.previousContextId} to roll back.`
+      : "No previous workspace context id was reported by the publish bridge.");
+
   return structuredOutputSchema.parse({
     ...approvedOutput,
     conversationIntent: "approval_or_edit",
@@ -1818,20 +1794,32 @@ function markWorkspaceContextPublished(approvedOutput: Output, contextId: string
       approved_in_session: true,
       saved_to_workspace_context: true,
       saved_to_context_artifacts: false,
-      workspace_context_id: contextId,
+      workspace_context_id: publishResult.contextId,
+      workspace_context_draft_id: publishResult.draftContextId,
+      workspace_context_previous_id: publishResult.previousContextId ?? null,
       workspace_context_status: "published",
-      workspace_context_summary: summary,
-      persistence_note: `Published compacted workspace context brief to Guild workspace context as ${contextId}. The full approved source corpus remains in Company Context Builder session state only. Context Hub artifact files were not changed.`,
+      workspace_context_summary: publishResult.summary,
+      workspace_context_publish_path: publishResult.publishPath,
+      workspace_context_rollback_note: rollbackNote,
+      persistence_note: `Published compacted workspace context brief to Guild workspace context as ${publishResult.contextId} through the ${publishPathLabel}. Draft context: ${publishResult.draftContextId}. Previous published context: ${previousContext}. The full approved source corpus remains in Company Context Builder session state only. Context Hub artifact files were not changed.`,
     },
     consumedContext: {
       ...approvedOutput.consumedContext,
-      used: [...new Set([...approvedOutput.consumedContext.used, "Published compacted workspace context brief to Guild workspace context."])],
+      used: [...new Set([...approvedOutput.consumedContext.used, `Published compacted workspace context brief to Guild workspace context through the ${publishPathLabel}.`])],
       missing: [
         ...new Set(approvedOutput.consumedContext.missing.filter((item) => !/publish confirmation|workspace context/i.test(item))),
         "Context Hub artifact persistence",
       ],
     },
-    workspaceContextDraft: `Published compacted workspace context brief to Guild workspace context. Context id: ${contextId}. Summary: ${summary}`,
+    workspaceContextDraft: [
+      "Published compacted workspace context brief to Guild workspace context.",
+      `Publish path: ${publishResult.publishPath}.`,
+      `Published context id: ${publishResult.contextId}.`,
+      `Draft context id: ${publishResult.draftContextId}.`,
+      `Previous context id: ${previousContext}.`,
+      `Summary: ${publishResult.summary}`,
+      `Rollback: ${rollbackNote}`,
+    ].join(" "),
     statusPayload: {
       ...approvedOutput.statusPayload,
       blockers: [
@@ -1872,7 +1860,7 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
       saved_to_context_artifacts: false,
       workspace_context_status: "blocked",
       workspace_context_summary: publishSummaryForOutput(approvedOutput),
-      persistence_note: `Workspace context publish was attempted after exact confirmation, but Guild did not confirm the write. The approved context remains staged for retry. Error: ${safeMessage}`,
+      persistence_note: `Workspace context publish was attempted after exact confirmation through the host-controlled publish bridge, but Guild did not confirm the write. The approved context remains staged for retry. Error: ${safeMessage}`,
     },
     statusPayload: {
       ...approvedOutput.statusPayload,
@@ -1898,7 +1886,7 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
     openQuestions: [
       ...new Set([
         ...approvedOutput.openQuestions,
-        "Should I retry workspace context publishing after the runtime write issue is resolved?",
+        "Should I retry workspace context publishing after the host publish bridge is available?",
       ]),
     ],
   });
@@ -2325,7 +2313,7 @@ function splitMarkdownTableRow(line: string): string[] {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
 
-function replaceManagedWorkspaceContextBlock(currentContext: string, managedBlock: string): string {
+export function replaceManagedWorkspaceContextBlock(currentContext: string, managedBlock: string): string {
   const trimmedBlock = managedBlock.trim();
   const start = currentContext.indexOf(managedContextStart);
   const end = currentContext.indexOf(managedContextEnd);
@@ -2450,8 +2438,12 @@ function normalizePersistenceState(value: Output["persistenceState"] | undefined
     saved_to_workspace_context: value?.saved_to_workspace_context ?? false,
     saved_to_context_artifacts: false,
     workspace_context_id: value?.workspace_context_id,
+    workspace_context_draft_id: value?.workspace_context_draft_id,
+    workspace_context_previous_id: value?.workspace_context_previous_id,
     workspace_context_status: value?.workspace_context_status ?? "not_requested",
     workspace_context_summary: value?.workspace_context_summary,
+    workspace_context_publish_path: value?.workspace_context_publish_path,
+    workspace_context_rollback_note: value?.workspace_context_rollback_note,
     persistence_note:
       value?.persistence_note ??
       "Drafted in this session only. Not saved to Guild workspace context or Context Hub artifacts.",
@@ -3198,8 +3190,12 @@ function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
 - saved_to_workspace_context: ${String(output.persistenceState.saved_to_workspace_context)}
 - saved_to_context_artifacts: ${String(output.persistenceState.saved_to_context_artifacts)}
 - workspace_context_id: ${output.persistenceState.workspace_context_id ?? "TBD"}
+- workspace_context_draft_id: ${output.persistenceState.workspace_context_draft_id ?? "TBD"}
+- workspace_context_previous_id: ${output.persistenceState.workspace_context_previous_id ?? "TBD"}
 - workspace_context_status: ${output.persistenceState.workspace_context_status ?? "not_requested"}
 - workspace_context_summary: ${output.persistenceState.workspace_context_summary ?? "TBD"}
+- workspace_context_publish_path: ${output.persistenceState.workspace_context_publish_path ?? "TBD"}
+- workspace_context_rollback_note: ${output.persistenceState.workspace_context_rollback_note ?? "TBD"}
 - Note: ${output.persistenceState.persistence_note}
 
 ### Company Context Draft (company-context)

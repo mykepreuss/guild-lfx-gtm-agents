@@ -33,6 +33,7 @@ const publicScanRoots = [
   "context-hub",
   "guild-skills",
   "scripts",
+  "services",
   "workspace-context",
 ];
 
