@@ -53,6 +53,21 @@ Health check:
 curl http://localhost:8787/health
 ```
 
+## Vercel Deploy
+
+This package includes Vercel serverless entrypoints under `api/` and rewrites in `vercel.json`, so the public bridge path remains:
+
+- `GET /health`
+- `POST /workspace-context/publish`
+
+Set production environment variables before promoting a deployment:
+
+```sh
+GUILD_ALLOWED_WORKSPACE_FULL_NAMES=michaelpreuss/guild-marketing-os
+GUILD_API_TOKEN=<host-side Guild token>
+BRIDGE_API_TOKEN=<shared secret configured in the Guild integration credential>
+```
+
 ## Guild Integration Contract
 
 Create or update the hosted Guild integration as:
