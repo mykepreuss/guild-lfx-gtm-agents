@@ -998,6 +998,13 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     ];
   }
 
+  if (output.workspaceContextDraft.includes("Sensitive claims are withheld from this workspace-context draft")) {
+    output.workspaceContextDraft = [
+      renderWorkspaceContextDraft(output.statusPayload.projectName, output.statusPayload.readiness),
+      "Sensitive claims are withheld from this workspace-context draft until approved evidence and owner review are supplied.",
+    ].join("\n");
+  }
+
   return output;
 }
 
