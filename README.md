@@ -113,6 +113,56 @@ The Company Context Builder is the structured root of the suite. It uses Zod sch
 
 The Company Context Builder is the current chat-native first-run entrypoint. It should be the default workspace agent because the V1 product promise is compound context: user-supplied company context becomes approved artifacts before downstream agents draft specialist work. It returns a concise review summary at the top of the full Markdown packet, persists the prior draft in task state for follow-up approval turns, and publishes a compact workspace context brief only after the exact confirmation phrase through the host-controlled workspace-context publish bridge.
 
+## Using Marketing OS In Guild
+
+Use Marketing OS as a sequential review workflow. It drafts approved context, strategy, messaging, content, and campaign artifacts; it does not launch campaigns, publish content, activate lists, spend budget, or change external systems in V1.
+
+Recommended operating loop:
+
+1. Start with the Company Context Builder in the `michaelpreuss/guild-marketing-os` workspace.
+2. Paste readable company/source text, business goals, known audiences, proof-backed claims, channel scope, and constraints.
+3. Review the Company Context Approval Packet. Resolve important `TBD` items or approve the packet as a useful first version.
+4. Send exactly `publish approved context to workspace context` to publish the compact workspace context brief.
+5. Use the downstream agents in the order below. Each downstream agent should treat published Guild workspace context as its first source of truth.
+6. If the company facts, positioning, proof policy, audiences, or channel scope change materially, return to the Company Context Builder and refresh the workspace context before asking downstream agents for new work.
+
+For best results with any downstream agent, include the task, target audience or channel, desired decision, any approved artifact text, required constraints, and what should be treated as out of scope. Ask the agent to mark assumptions and `TBD` items rather than filling gaps with invented facts.
+
+Example downstream prompt shape:
+
+```text
+Use the published workspace context as the source of truth.
+Task: draft [artifact] for [audience/channel/decision].
+Use these approved inputs: [paste or reference relevant packet sections].
+Constraints: [claims to avoid, compliance limits, budget, geography, brand rules, timing].
+Output: keep the standard Marketing OS headings and mark unsupported items TBD.
+```
+
+Every specialist agent should return the shared Marketing OS frame:
+
+- `## Consumed Context`
+- `## Produced Artifact`
+- `## Assumptions And Missing Evidence`
+- `## Approval Gate`
+- `## AEO / AI-Readiness Contribution`
+- `## Status Payload`
+- `## Downstream Handoff`
+
+### Agent Usage Order And Expected Artifacts
+
+| Order | Agent | What the user should do for best results | Expected artifact |
+|---:|---|---|---|
+| 1 | **Knowledge Graph / Company Context Builder** (`guild-marketing-os-company-context-builder`) | Paste readable company/source text rather than relying on unread attachments. Include company identity, product surface, audiences, goals, channels, proof-backed claims, compliance or legal constraints, competitors, customer proof, pricing, and open questions. Review the draft, approve it, then send exactly `publish approved context to workspace context` when ready. | **Company Context Approval Packet** with drafted `company-context`, `messaging-source`, `brand-kit`, `audience-segments`, `channel-registry`, `proof-and-constraints`, and `dashboard-signals`; approved facts; missing evidence; approval gates; AEO readiness; status payload; downstream handoff; compact workspace context brief publication state. |
+| 2 | **Market Signal Agent** (`guild-marketing-os-market-signal`) | Provide the approved company context plus source scope: peers, competitors, search results, answer-engine prompts, analyst/media excerpts, social/community excerpts, developer forums, date range, and known coverage gaps. If no external source set is available, ask for a source-gap brief rather than a comprehensive market read. | **Market Signal Brief** with Source Set, Signal Themes, Audience Language, Peer And Positioning Signals, AEO And Search Signals, Content And Campaign Opportunities, and Watchouts. |
+| 3 | **ICP Agent** (`guild-marketing-os-icp`) | Provide workspace context, the Market Signal Brief, business goals, current or desired buyers/users, examples of good-fit and poor-fit customers, adoption triggers, decision criteria, and any evidence limits. | **ICP Approval Packet** with Target Model Summary, Primary ICPs, Secondary Or Future Audiences, Disqualifiers, Audience Questions And AEO Priorities, and Decision Criteria. |
+| 4 | **Audience Segmentation Agent** (`guild-marketing-os-audience-segmentation`) | Provide approved ICPs, disqualifiers, channels in scope, available list or CRM fields, consent and geography limits, suppression rules, source freshness, and whether the output is for content planning, paid media, sales, email, or another channel. | **Audience Segmentation Packet** with Segmentation Strategy, Segment Definitions, Suppression And Consent Rules, Channel Applicability, and Activation Readiness. |
+| 5 | **Messaging Agent** (`guild-marketing-os-messaging`) | Provide the ICP packet, segmentation packet, proof-and-constraints artifact, market language, competitors, public surfaces where copy may be used, and claims that must be approved or avoided. | **Messaging Approval Packet** with Positioning Summary, Message Pillars, Proof-Backed Claims, Answer-Ready Blocks, Boilerplate And Short Copy, and Objection Handling. |
+| 6 | **Branding And Pitch Deck Agent** (`guild-marketing-os-branding-pitch-deck`) | Provide approved messaging, audience, proof constraints, existing brand assets or constraints, desired deck audience, the decision the deck should drive, website or AEO needs, and slide count if the default five-slide brief is not enough. | **Brand And Pitch Packet** with Brand Architecture, Visual Direction, Pitch Narrative, Slide-By-Slide Brief, Web And AEO Recommendations, and Production Boundaries. |
+| 7 | **Social Monitoring And Content Agent** (`guild-marketing-os-social-monitoring-content`) | Provide approved messaging, brand voice, segments, channel registry, social/community excerpts or monitoring scope, cadence, content goals, proof constraints, and any platform-specific restrictions. | **Social Monitoring And Content Brief** with Signal Review, Opportunity Queue, Content Plan, platform-specific Drafts, and Proof And Brand Check. |
+| 8 | **Campaigns And Paid Media Agent** (`guild-marketing-os-campaigns-paid-media`) | Provide approved messaging, audience segments, channel registry, offer, destination or landing page, budget, target KPI, geography, consent limits, creative assets, proof policy, and performance data if asking for optimization. | **Campaigns And Paid Media Packet** with Campaign Brief, Audience-Message Matrix, Creative And Test Plan, Landing Page And AEO Recommendations, Performance Loop, and Launch Or Optimization Gate. |
+
+The order is the recommended full GTM build sequence, not a hard dependency chain for every task. If an approved artifact already exists, users can go directly to the relevant specialist agent, but they should still provide or rely on published workspace context and any required artifact excerpts.
+
 ## Runtime Skill Activation
 
 The seven prompt-only review agents declare `@guildai-services/guildai~skills@1.0.0` and expose the generated `SkillsTools` tool set. At runtime, Guild provides `skills_search` and `skills_activate` from the `guildai~skills` integration. Agents are instructed to search for a relevant reusable method first, activate only matching `qualifiedName` records from `guild-skills/catalog.json`, and treat activated skill bodies as method guidance rather than customer facts, evidence, approval, or permission for live action.
@@ -158,6 +208,201 @@ npm run publish:guild-agent -- --agent foundation-setup --message "Publish compa
 The Guild test commands require an authenticated Guild CLI session and run live ephemeral tests against the configured workspace. Use `GUILD_WORKSPACE=<owner/workspace>` to override the default workspace.
 
 `npm run publish:guild-agent` requires a clean GitHub worktree with no unpushed or behind commits. It copies tracked files from one package into a temporary Guild clone, builds there, saves/publishes the Guild version with `--no-bump`, verifies the published version matches the source `package.json`, and removes the temp clone. Use `--dry-run` to validate the bridge without publishing.
+
+## Setting Up `guild-marketing-os` In Guild
+
+Use this runbook to stand up the Guild Marketing OS workspace, publish the Company Context Builder, and enable chat-native workspace context publishing through the Vercel-hosted bridge.
+
+### Prerequisites
+
+- A Guild account with owner/admin access to the target workspace owner.
+- The Guild CLI installed and authenticated:
+
+```sh
+guild auth status
+guild doctor
+```
+
+- Node.js 20+ and npm.
+- GitHub access to this monorepo. GitHub is the source of truth; Guild is a deployment target.
+- A Vercel account or team that can create projects, configure production environment variables, and assign a production domain.
+- A host-side Guild API token for the bridge. This token must be allowed to read, draft, and publish workspace context for the target workspace.
+- A generated bridge shared secret for the Guild integration credential. Do not commit this value.
+
+Default production identifiers used by this repository:
+
+- Guild workspace: `michaelpreuss/guild-marketing-os`
+- Guild owner: `michaelpreuss`
+- Workspace context bridge integration: `michaelpreuss~guild-marketing-os-workspace-context@1.0.1`
+- Vercel bridge project: `guild-marketing-os-workspace-context`
+- Managed workspace context markers:
+  - `<!-- guild-marketing-os-context:start -->`
+  - `<!-- guild-marketing-os-context:end -->`
+
+### 1. Prepare The Source Repo
+
+```sh
+cd marketing-os
+npm install
+npm run verify
+npm run test:foundation-state
+```
+
+Before publishing to Guild, commit and push the GitHub branch. The guarded publish script refuses to publish from a dirty worktree, an unpushed branch, a branch behind upstream, or a non-GitHub origin.
+
+```sh
+git status --short
+git log --oneline @{u}..HEAD
+git log --oneline HEAD..@{u}
+```
+
+### 2. Create Or Select The Guild Workspace
+
+Create or open the Guild workspace named `guild-marketing-os` under the `michaelpreuss` owner. The workspace should have the Company Context Builder installed as the default chat entrypoint:
+
+- Agent package: `michaelpreuss~guild-marketing-os-company-context-builder`
+- Workspace: `michaelpreuss/guild-marketing-os`
+- Default user flow: paste company context, approve the packet, then send exactly `publish approved context to workspace context`.
+
+Use the CLI to confirm access and installed package visibility:
+
+```sh
+guild workspace agent list --workspace michaelpreuss/guild-marketing-os
+guild agent get michaelpreuss~guild-marketing-os-company-context-builder
+```
+
+If a package directory has never been initialized, let Guild create `guild.json` with `guild agent init`. Do not hand-write `guild.json`.
+
+### 3. Publish The Company Context Builder
+
+Publish from the monorepo only through the guarded helper:
+
+```sh
+npm run publish:guild-agent -- --agent foundation-setup --message "Publish company context builder updates"
+```
+
+This helper clones the Guild agent package into a temporary directory, copies tracked package files from `agents/foundation-setup/`, runs install/build inside the clone, runs `guild agent save --publish --wait` there, and verifies the published Guild version matches `agents/foundation-setup/package.json`.
+
+Do not run `guild agent save` or `guild agent publish` directly from this GitHub monorepo.
+
+### 4. Deploy The Workspace Context Bridge To Vercel
+
+The Company Context Builder does not call raw Guild service endpoints. It calls the hosted bridge through the Guild integration contract, and the bridge performs the supported workspace-context draft and publish lifecycle.
+
+From the bridge package:
+
+```sh
+cd services/workspace-context-publish-bridge
+npm install
+npm test
+vercel link
+```
+
+In Vercel, create or select the project `guild-marketing-os-workspace-context`, then set production environment variables:
+
+```sh
+vercel env add GUILD_API_TOKEN production
+vercel env add BRIDGE_API_TOKEN production
+vercel env add GUILD_ALLOWED_WORKSPACE_FULL_NAMES production
+```
+
+Use these values:
+
+- `GUILD_API_TOKEN`: host-side Guild API token with workspace-context read/write/publish permission.
+- `BRIDGE_API_TOKEN`: random shared secret that will also be configured on the Guild integration credential.
+- `GUILD_ALLOWED_WORKSPACE_FULL_NAMES`: `michaelpreuss/guild-marketing-os`
+
+Optional environment variables:
+
+- `GUILD_ALLOWED_WORKSPACE_IDS`: comma-separated workspace id allow-list for stricter scoping.
+- `GUILD_API_BASE_URL`: defaults to `https://app.guild.ai/api`.
+- `PORT`: defaults to `8787` for local runs.
+
+Deploy to production:
+
+```sh
+vercel --prod
+```
+
+Verify the production bridge:
+
+```sh
+curl https://<vercel-production-host>/health
+```
+
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+An unauthenticated `POST /workspace-context/publish` should return `401`; that confirms the bridge is not publicly writable.
+
+### 5. Configure The Guild Bridge Integration
+
+Create or update the hosted Guild integration with this contract:
+
+- Owner: `michaelpreuss`
+- Service name: `guild-marketing-os-workspace-context`
+- Version: `1.0.1`
+- Base URL: the Vercel production bridge URL.
+- Operation: `workspace_context_publish`
+- Method/path: `POST /workspace-context/publish`
+- Request schema: `services/workspace-context-publish-bridge/schemas/publish-request.schema.json`
+- Response schema: `services/workspace-context-publish-bridge/schemas/publish-response.schema.json`
+- Auth: API key or bearer token mapped to the same value as Vercel `BRIDGE_API_TOKEN`.
+
+The Company Context Builder source should continue to call:
+
+```ts
+guildServiceTool("guild-marketing-os-workspace-context", {
+  owner: "michaelpreuss",
+  versionNumber: "1.0.1",
+})
+```
+
+If the integration version changes, update the Company Context Builder source and publish the agent again.
+
+### 6. Run A Publish Smoke Test
+
+Run the local checks first:
+
+```sh
+npm run verify
+npm run test:foundation-state
+```
+
+Then exercise the live workspace in Guild:
+
+1. Open `https://app.guild.ai/users/michaelpreuss/workspaces/guild-marketing-os`.
+2. Start a Company Context Builder chat and paste the approved company context packet.
+3. Confirm the response includes `workspace_context_status: source_available` or an equivalent approval-ready state.
+4. Send the approval message requested by the agent to save the approved packet in session state.
+5. Send exactly:
+
+```text
+publish approved context to workspace context
+```
+
+6. Open the workspace context page and verify a new published version exists.
+7. Confirm the managed block contains `## Workspace Context Brief`, `## Source Corpus Summary`, and `## Compaction Audit`.
+8. Confirm the published managed block does not contain raw citation artifacts such as `cite`.
+9. Confirm manual unmanaged workspace context before and after the managed markers is preserved.
+
+Useful CLI smoke commands:
+
+```sh
+guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
+npm run test:guild-smoke
+```
+
+### Troubleshooting
+
+- `401` from the bridge means the Guild integration credential does not match Vercel `BRIDGE_API_TOKEN`.
+- A workspace allow-list failure means `GUILD_ALLOWED_WORKSPACE_FULL_NAMES` or `GUILD_ALLOWED_WORKSPACE_IDS` does not include the target workspace.
+- If no workspace context version is published, inspect the Company Context Builder event log. Unsupported new claims block publishing by design during the compaction audit.
+- If `npm run publish:guild-agent` fails before publishing, fix the GitHub repo state first: commit, push, pull/rebase if behind, and rerun from the monorepo root.
+- If the live agent cannot access a raw `guild` service, that is expected. The production path is the hosted bridge integration, not direct raw Guild service access from the agent runtime.
 
 ## Guild Setup
 
