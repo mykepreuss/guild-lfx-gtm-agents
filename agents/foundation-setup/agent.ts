@@ -486,12 +486,14 @@ function finalizeOutput(output: Output): z.infer<typeof outputSchema> {
 
 function getRawContext(input: Input): string {
   const rawText = stripGuildRuntimePreamble(input.text).trim();
-  return extractEmbeddedTextInput(rawText, { trim: true }) ?? rawText;
+  const embeddedText = extractEmbeddedTextInput(rawText, { trim: true }) ?? rawText;
+  return extractSourceDocumentFromContext(embeddedText, { trim: true }) ?? embeddedText;
 }
 
 function getSourceTextForPersistence(input: Input): string {
   const rawText = stripGuildRuntimePreamble(input.text);
-  return extractEmbeddedTextInput(rawText, { trim: false }) ?? rawText;
+  const embeddedText = extractEmbeddedTextInput(rawText, { trim: false }) ?? rawText;
+  return extractSourceDocumentFromContext(embeddedText, { trim: false }) ?? embeddedText;
 }
 
 function getSourceLabels(_input: Input): string[] {
@@ -545,6 +547,14 @@ function stripGuildCliChatCommandArtifact(value: string): string {
   return value;
 }
 
+function extractSourceDocumentFromContext(value: string, options: { trim: boolean }): string | undefined {
+  const match = sourceDocumentHeadingMatch(value);
+  if (!match || match.index === undefined) return undefined;
+  const headingStart = match.index + (match[0].startsWith("\n") ? 1 : 0);
+  const sourceDocument = value.slice(headingStart);
+  return options.trim ? sourceDocument.trim() : sourceDocument.replace(/^\s+/, "");
+}
+
 function getRequestedArtifacts(_input: Input): Array<(typeof artifactValues)[number]> {
   return normalizeArtifacts(defaultRequestedArtifacts);
 }
@@ -554,8 +564,8 @@ function getOperatingConstraints(_input: Input): string[] {
 }
 
 function classifyConversationIntent(rawContext: string): ConversationIntent {
-  if (isSaveStateQuestion(rawContext)) return "save_state_question";
   if (isApprovalOrEdit(rawContext)) return "approval_or_edit";
+  if (isSaveStateQuestion(rawContext)) return "save_state_question";
   if (isAttachmentUnreadableTurn(rawContext)) return "attachment_unreadable";
   if (isSparseSetupRequest(rawContext) || hasUrlOnlySource(rawContext)) return "missing_context";
   if (detectRequestedDownstreamAgent(rawContext) && !hasUsableSourceContent(rawContext)) {
@@ -588,7 +598,9 @@ function isContextPersistenceRequest(rawContext: string): boolean {
 }
 
 function isWorkspaceContextPublishConfirmation(rawContext: string): boolean {
-  return rawContext.trim().toLowerCase() === "publish approved context to workspace context";
+  const normalized = rawContext.trim().toLowerCase();
+  return normalized === "publish approved context to workspace context" ||
+    /(?:^|\n)publish approved context to workspace context\s*$/i.test(rawContext);
 }
 
 function isAttachmentUnreadableTurn(rawContext: string): boolean {
@@ -639,7 +651,11 @@ function hasFieldedSourcePacket(rawContext: string): boolean {
 }
 
 function sourceDocumentHeadingPattern(rawContext: string): boolean {
-  return /(?:^|\n)\s*#{1,3}\s+[A-Z][A-Za-z0-9&.\- ]{1,80}\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/im.test(rawContext);
+  return sourceDocumentHeadingMatch(rawContext) !== null;
+}
+
+function sourceDocumentHeadingMatch(rawContext: string): RegExpMatchArray | null {
+  return rawContext.match(/(?:^|\n)\s*#{1,3}\s+[A-Z][A-Za-z0-9&.\- ]{1,80}\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/im);
 }
 
 function hasUrlOnlySource(rawContext: string): boolean {

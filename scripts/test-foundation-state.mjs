@@ -209,6 +209,22 @@ function guildChatEnvelopeWithManagedContext(text) {
   return guildChatEnvelope(injectedManagedContext);
 }
 
+function guildChatEnvelopeWithNeutralWorkspaceContext(text) {
+  return guildChatEnvelope([
+    "Guild Marketing OS validation workspace. No company-specific workspace context is currently approved.",
+    "",
+    text,
+  ].join("\n"));
+}
+
+function routedCompanyContextBuilderSource(text) {
+  return [
+    "Use guild-marketing-os-company-context-builder / Company Context Builder for this request. Treat the following Webflow Company Profile block as the source packet for a Company Context Approval Packet. Do not publish yet.",
+    "",
+    text,
+  ].join("\n");
+}
+
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
   createdContextBody = "";
@@ -296,6 +312,47 @@ async function runPublishFlow(label, wrapInput) {
 await runPublishFlow("direct input", (text) => text);
 await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
 await runPublishFlow("Guild chat envelope with injected managed context", guildChatEnvelopeWithManagedContext);
+
+state = undefined;
+createdContextBody = "";
+bridgePublishInput = undefined;
+bridgePublishCalls = 0;
+bridgeScenario = "successful";
+llmScenario = "successful";
+compactionCalls = 0;
+auditCalls = 0;
+
+const browserRoutedFirst = await foundationAgent.start({
+  type: "text",
+  text: guildChatEnvelopeWithNeutralWorkspaceContext(routedCompanyContextBuilderSource(fixture)),
+}, task);
+assert.equal(browserRoutedFirst.type, "output", "browser routed fixture input");
+assert.match(browserRoutedFirst.output.text, /Conversation intent: source_available/, "browser routed fixture input");
+assert.match(browserRoutedFirst.output.text, /Company: Webflow/, "browser routed fixture input");
+assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "browser routed fixture should resolve company name");
+assert.equal(state.lastSourceText, fixture, "browser routed fixture should persist the exact fixture without routing or workspace context preface");
+
+const browserRoutedApproval = await foundationAgent.start({
+  type: "text",
+  text: guildChatEnvelopeWithNeutralWorkspaceContext("Context approved save to workspace context"),
+}, task);
+assert.equal(browserRoutedApproval.type, "output", "browser routed approval");
+assert.match(browserRoutedApproval.output.text, /approved_in_session: true/, "browser routed approval");
+assert.equal(state.approvedSourceText, fixture, "browser routed approval should preserve exact approved source text");
+
+const browserRoutedPublish = await foundationAgent.start({
+  type: "text",
+  text: guildChatEnvelopeWithNeutralWorkspaceContext("publish approved context to workspace context"),
+}, task);
+assert.equal(browserRoutedPublish.type, "output", "browser routed publish");
+assert.match(browserRoutedPublish.output.text, /saved_to_workspace_context: true/, "browser routed publish");
+assert.match(browserRoutedPublish.output.text, /workspace_context_publish_path: host_bridge/, "browser routed publish");
+assert.equal(state.workspaceContextStatus, "published", "browser routed publish should publish");
+assert.equal(bridgePublishCalls, 1, "browser routed publish should publish once through bridge");
+assert.equal(state.approvedSourceText, fixture, "browser routed publish should keep exact approved source text");
+assert.ok(!createdContextBody.includes(fixture), "browser routed published context must not include raw fixture");
+assert.doesNotMatch(createdContextBody, /cite/, "browser routed published context should strip citation artifacts");
+
 const approvedOutputForAuditTests = state.approvedOutput;
 
 state = undefined;
