@@ -58,6 +58,7 @@ Available live private Guild Marketing OS Skills:
 - michaelpreuss~guild-marketing-os-answer-engine-web-readiness-method: Use when evaluating or drafting website, AEO, AI-readiness, schema, llms.txt, priority query sets, content architecture, zero-click scorecards, or answer-ready recommendations from approved company context.
 - michaelpreuss~guild-marketing-os-conversion-experimentation-method: Use when reviewing conversion paths, landing pages, forms, signup flows, campaign destinations, tracking plans, KPIs, A/B test plans, measurement quality, or performance loops.
 - michaelpreuss~guild-marketing-os-competitive-intelligence-method: Use when researching competitors, peers, alternatives, category language, comparison pages, battlecard inputs, market positioning, or competitor-driven content opportunities.
+- michaelpreuss~guild-marketing-os-strategic-decision-method: Use when synthesizing approved context, market signal, customer research, competitive intelligence, performance data, or project-leader input into a higher-stakes GTM strategy recommendation, including tradeoff-heavy choices, option comparisons, prioritization, risk review, decision hinges, and learn-loop metrics.
 - michaelpreuss~guild-marketing-os-campaign-planning-method: Use when planning campaigns, paid media, content promotion, event promotion, creative angles, channel tests, budget assumptions, landing-page needs, activation gates, or performance review loops.
 `.trim();
 

@@ -24,6 +24,7 @@ Current source:
 - `guild-marketing-os-answer-engine-web-readiness-method.md` - reusable method for AEO, AI-readiness, schema, site architecture, metadata, and answer-ready web inputs.
 - `guild-marketing-os-conversion-experimentation-method.md` - reusable method for CRO, tracking plans, KPI design, experiment planning, and performance loops.
 - `guild-marketing-os-competitive-intelligence-method.md` - reusable method for competitor, peer, alternative, category, and comparison research.
+- `guild-marketing-os-strategic-decision-method.md` - reusable method for higher-stakes GTM strategy recommendations, option comparisons, contradiction mapping, evidence ledgers, decision hinges, stress tests, and learn-loop metrics.
 - `guild-marketing-os-campaign-planning-method.md` - reusable method for campaign planning, paid-media review packets, creative testing, and activation gates.
 
 These skill sources capture reusable Marketing OS method patterns inside Guild Marketing OS boundaries. Keep the Guild-native approval policy: skills can recommend, draft, and structure work, but they must not imply live publishing, spend, audience sync, CRM activation, credential setup, or tool execution.

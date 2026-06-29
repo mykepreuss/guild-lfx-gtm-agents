@@ -68,6 +68,15 @@
       "runtimeDescription": "Use when researching competitors, peers, alternatives, category language, comparison pages, battlecard inputs, market positioning, or competitor-driven content opportunities."
     },
     {
+      "name": "guild-marketing-os-strategic-decision-method",
+      "qualifiedName": "michaelpreuss~guild-marketing-os-strategic-decision-method",
+      "bodyFile": "guild-marketing-os-strategic-decision-method.md",
+      "initialVersion": "1.0.0",
+      "currentVersion": "1.0.0",
+      "overview": "Strategic decision method for higher-stakes Guild Marketing OS recommendations.",
+      "runtimeDescription": "Use when synthesizing approved context, market signal, customer research, competitive intelligence, performance data, or project-leader input into a higher-stakes GTM strategy recommendation, including tradeoff-heavy choices, option comparisons, prioritization, risk review, decision hinges, and learn-loop metrics."
+    },
+    {
       "name": "guild-marketing-os-campaign-planning-method",
       "qualifiedName": "michaelpreuss~guild-marketing-os-campaign-planning-method",
       "bodyFile": "guild-marketing-os-campaign-planning-method.md",
