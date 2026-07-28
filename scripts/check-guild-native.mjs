@@ -8,7 +8,12 @@ const contextOnly = process.argv.includes("--context");
 const errors = [];
 const packageOwner = "michaelpreuss";
 const scopedPackagePrefix = `@guildai/${packageOwner}~`;
-const ignoredWalkEntries = new Set(["node_modules", ".git", "dist"]);
+const ignoredWalkEntries = new Set([
+  "node_modules",
+  ".git",
+  ".terraform",
+  "dist",
+]);
 
 const requiredContextFiles = [
   "README.md",

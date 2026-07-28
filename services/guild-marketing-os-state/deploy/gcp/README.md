@@ -48,14 +48,17 @@ expected-current-revision behavior.
 ## Validate without deploying
 
 ```bash
-terraform init -backend=false
-terraform fmt -check
-terraform validate
+export MARKETING_OS_TF_DATA_DIR="$(mktemp -d)"
+TF_DATA_DIR="$MARKETING_OS_TF_DATA_DIR" terraform init -backend=false
+TF_DATA_DIR="$MARKETING_OS_TF_DATA_DIR" terraform fmt -check
+TF_DATA_DIR="$MARKETING_OS_TF_DATA_DIR" terraform validate
 ```
 
 Copy `terraform.tfvars.example` to a file outside version control only after
 the prerequisites are satisfied. The example deliberately fails the
-image-digest validation until a real digest is provided.
+project, image-digest, and delegated-identity validations until real values are
+provided. Keeping `TF_DATA_DIR` outside the repository also prevents downloaded
+provider binaries from entering public-source scans.
 
 ## Deploy
 

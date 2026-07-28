@@ -3,8 +3,11 @@ variable "project_id" {
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id))
-    error_message = "project_id must be a valid Google Cloud project ID."
+    condition = (
+      can(regex("^[a-z][a-z0-9-]{4,28}[a-z0-9]$", var.project_id)) &&
+      !can(regex("(?i)(example|placeholder|replace-with|your-isolated|change-me)", var.project_id))
+    )
+    error_message = "project_id must be a real Google Cloud project ID, not a placeholder."
   }
 }
 
@@ -158,8 +161,11 @@ variable "guild_delegated_issuer" {
   type        = string
 
   validation {
-    condition     = can(regex("^https://", var.guild_delegated_issuer))
-    error_message = "guild_delegated_issuer must be an HTTPS URL supplied by Guild."
+    condition = (
+      can(regex("^https://", var.guild_delegated_issuer)) &&
+      !can(regex("(?i)(example|placeholder|replace-with|change-me|localhost)", var.guild_delegated_issuer))
+    )
+    error_message = "guild_delegated_issuer must be a non-placeholder HTTPS URL supplied by Guild."
   }
 }
 
@@ -168,8 +174,11 @@ variable "guild_delegated_audience" {
   type        = string
 
   validation {
-    condition     = length(trimspace(var.guild_delegated_audience)) >= 8
-    error_message = "guild_delegated_audience must be a non-placeholder audience."
+    condition = (
+      length(trimspace(var.guild_delegated_audience)) >= 8 &&
+      !can(regex("(?i)(example|placeholder|replace-with|change-me)", var.guild_delegated_audience))
+    )
+    error_message = "guild_delegated_audience must be a non-placeholder audience supplied by Guild."
   }
 }
 
@@ -178,7 +187,10 @@ variable "guild_delegated_jwks_url" {
   type        = string
 
   validation {
-    condition     = can(regex("^https://", var.guild_delegated_jwks_url))
-    error_message = "guild_delegated_jwks_url must be an HTTPS URL supplied by Guild."
+    condition = (
+      can(regex("^https://", var.guild_delegated_jwks_url)) &&
+      !can(regex("(?i)(example|placeholder|replace-with|change-me|localhost)", var.guild_delegated_jwks_url))
+    )
+    error_message = "guild_delegated_jwks_url must be a non-placeholder HTTPS URL supplied by Guild."
   }
 }

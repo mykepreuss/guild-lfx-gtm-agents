@@ -47,6 +47,24 @@ assert.match(
   /variable "guild_delegated_issuer"[\s\S]*variable "guild_delegated_audience"[\s\S]*variable "guild_delegated_jwks_url"/,
   "All delegated Guild identity values must be explicit inputs.",
 );
+for (const rejectedPlaceholder of [
+  "example",
+  "placeholder",
+  "replace-with",
+  "change-me",
+  "localhost",
+]) {
+  assert.match(
+    variables,
+    new RegExp(escapeRegExp(rejectedPlaceholder)),
+    `Terraform must reject delegated-identity placeholder marker: ${rejectedPlaceholder}`,
+  );
+}
+assert.match(
+  variables,
+  /your-isolated/,
+  "Terraform must reject the example project ID.",
+);
 assert.match(
   main,
   /resource "google_service_account" "runtime"/,

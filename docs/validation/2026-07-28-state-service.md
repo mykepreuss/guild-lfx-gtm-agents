@@ -161,3 +161,10 @@ credentials, project, Cloud SQL URL, or KMS key configured. Therefore:
 - the private Launcher was not changed to call the local-only state service;
 - no customer or clean-organization data was written; and
 - public release remains blocked.
+
+A later browser check reached the authenticated Google Cloud console, but the
+account was still at its first-use Terms of Service screen and no project was
+selected. No terms were accepted, free trial started, billing configured,
+project created, or cloud resource changed. The checked-in Terraform now also
+rejects common placeholder markers in the project, delegated issuer, audience,
+and JWKS inputs rather than relying only on the runbook warning.
