@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const routes = [
   "onboarding",
+  "cockpit",
   "company_context",
   "market_signal",
   "icp",
@@ -177,11 +178,22 @@ function deterministicRouteDecision(
     /\b(?:onboard|onboarding|install|installation|suite status|setup status|set up status|verify suite)\b[\s\S]{0,80}\b(?:marketing os|suite|agents?|packages?|workspace)\b/i.test(
       text,
     ) ||
-    /\b(?:marketing os|suite)\b[\s\S]{0,50}\b(?:onboard|onboarding|install|installation|status)\b/i.test(
+    /\b(?:marketing os|suite)\b[\s\S]{0,50}\b(?:onboard|onboarding|install|installation)\b/i.test(
       text,
     )
   ) {
     return { route: "onboarding", reason: "suite_onboarding_or_status_intent" };
+  }
+
+  if (
+    /\b(?:marketing os|workstreams?|cockpit)\b[\s\S]{0,80}\b(?:status|progress|resume|next action|what(?:'s| is) next)\b/i.test(
+      text,
+    ) ||
+    /\b(?:status|progress|resume|what(?:'s| is) next)\b[\s\S]{0,80}\b(?:marketing os|workstreams?|cockpit)\b/i.test(
+      text,
+    )
+  ) {
+    return { route: "cockpit", reason: "cockpit_status_or_resume_intent" };
   }
 
   if (
@@ -479,6 +491,26 @@ export function renderBlocked(message: string): string {
     "Status: blocked safely",
     "No specialist work or external action occurred.",
   ].join("\n");
+}
+
+export function renderSpecialistBlocked(
+  message: string,
+  runId?: string,
+  retentionConfirmed = true,
+): string {
+  return [
+    "# Specialist result blocked",
+    "",
+    message,
+    "",
+    "Status: blocked safely",
+    runId ? `Workflow run: ${runId}` : "",
+    retentionConfirmed
+      ? "The specialist attempt was retained for review. No external action occurred."
+      : "Specialist work occurred, but durable retention could not be confirmed. No external action occurred.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function safeError(error: unknown): string {

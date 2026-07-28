@@ -26,6 +26,8 @@ const {
 const routingCases = [
   ["Continue Marketing OS onboarding", "onboarding"],
   ["Verify suite status for this workspace", "onboarding"],
+  ["Check Marketing OS workstream status and next action", "cockpit"],
+  ["Show cockpit progress", "cockpit"],
   ["Set up the Marketing OS company context", "company_context"],
   ["Summarize competitor and market signals", "market_signal"],
   ["Draft an ICP and ideal customer profile", "icp"],
