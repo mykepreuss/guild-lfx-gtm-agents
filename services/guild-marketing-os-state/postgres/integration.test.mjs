@@ -104,9 +104,10 @@ try {
       "rate limits must be tenant scoped",
     );
 
+    const exactRawSource = "  PostgreSQL confidential source\n";
     const sourceRequest = {
       idempotency_key: "source-a",
-      raw_source: "PostgreSQL confidential source",
+      raw_source: exactRawSource,
       uploader: "user-a",
       actor: "user-a",
       evidence: {
@@ -127,7 +128,7 @@ try {
     );
     assert.equal(
       (await adapter.getSource(tenantA, sourceFirst.source_id)).raw_source,
-      "PostgreSQL confidential source",
+      exactRawSource,
     );
     await assert.rejects(
       () => adapter.getSource(tenantB, sourceFirst.source_id),
@@ -153,7 +154,7 @@ try {
           1,
         )
       ).raw_source,
-      "PostgreSQL confidential source",
+      exactRawSource,
     );
 
     const artifact = await adapter.storeArtifact(tenantA, {
@@ -528,7 +529,7 @@ try {
     const exported = await adapter.exportWorkspace(tenantA);
     assert.equal(
       exported.sources[0].raw_source,
-      "PostgreSQL confidential source",
+      exactRawSource,
     );
     assert.equal(
       exported.sources[1].raw_source,

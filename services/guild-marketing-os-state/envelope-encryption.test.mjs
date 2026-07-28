@@ -13,14 +13,15 @@ const local = new LocalAesEnvelopeEncryption({
   wrappingKey: crypto.createHash("sha256").update("local-test-key").digest(),
 });
 const associatedData = "org-a:workspace-a:source-a:1";
-const encrypted = await local.encrypt("Confidential source", associatedData);
+const exactPlaintext = "  Confidential source\n";
+const encrypted = await local.encrypt(exactPlaintext, associatedData);
 assert.equal(
   JSON.stringify(encrypted).includes("Confidential source"),
   false,
 );
 assert.equal(
   await local.decrypt(encrypted, associatedData),
-  "Confidential source",
+  exactPlaintext,
 );
 await assert.rejects(() =>
   local.decrypt(encrypted, `${associatedData}:wrong`),

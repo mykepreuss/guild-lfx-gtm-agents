@@ -10,6 +10,7 @@ import {
   evidenceEntry,
   handoffCompletionState,
   newId,
+  requiredRawSource,
   requiredString,
   stableHash,
   tenantKey,
@@ -206,7 +207,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       }
       const now = this.#clock();
       const revision = 1;
-      const rawSource = requiredString(request.raw_source, "raw_source");
+      const rawSource = requiredRawSource(request.raw_source);
       const encrypted = encrypt(rawSource, this.#tenantEncryptionKey(binding), `${tenantKey(binding)}:${sourceId}:${revision}`);
       const record = {
         source_id: sourceId,
@@ -270,7 +271,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         }
         const revision = current.revision + 1;
         const timestamp = this.#clock();
-        const rawSource = requiredString(request.raw_source, "raw_source");
+        const rawSource = requiredRawSource(request.raw_source);
         const record = {
           source_id: sourceId,
           revision,

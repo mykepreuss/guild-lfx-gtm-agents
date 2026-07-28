@@ -117,6 +117,11 @@ const requiredStructuredFoundationSnippets = [
   "renderMarkdownPacket",
   "renderPacketSummary",
   "forbiddenLiveActionClaims",
+  "marketing_os_source_store",
+  "marketing_os_context_artifact_store",
+  "marketing_os_context_artifact_approve",
+  "marketing_os_context_publish",
+  "guild-marketing-os-state",
   "markdownPacket",
   "## Consumed Context",
   "## Produced Artifact",
@@ -404,6 +409,14 @@ function validateAgentPackage(agent) {
     }
     if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
+    }
+    if (
+      agent.id === "foundation-setup" &&
+      source.includes('"guild-marketing-os-workspace-context"')
+    ) {
+      fail(
+        `${packageDir}/agent.ts must not depend on the maintainer workspace-context bridge.`,
+      );
     }
     if (agent.id !== "launcher" && /skillsTools|SkillsTools|guildai~skills|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
       fail(`${packageDir}/agent.ts must be self-contained and avoid private runtime Skills.`);

@@ -304,9 +304,18 @@ export function createMetadataAccessTokenProvider({
 }
 
 function encryptWithKey(value, key, associatedData) {
+  if (
+    !Buffer.isBuffer(value) &&
+    (typeof value !== "string" || !value.trim())
+  ) {
+    throw new StateContractError(
+      "invalid_request",
+      "plaintext is required.",
+    );
+  }
   const plaintext = Buffer.isBuffer(value)
     ? value
-    : Buffer.from(requiredString(value, "plaintext"), "utf8");
+    : Buffer.from(value, "utf8");
   const initializationVector = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv(
     "aes-256-gcm",

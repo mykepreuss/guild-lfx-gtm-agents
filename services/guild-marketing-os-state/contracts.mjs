@@ -332,6 +332,13 @@ export function requiredString(value, field) {
   return value.trim();
 }
 
+export function requiredRawSource(value, field = "raw_source") {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new StateContractError("invalid_request", `${field} is required.`);
+  }
+  return value;
+}
+
 export function optionalString(value) {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string") throw new StateContractError("invalid_request", "Expected a string.");

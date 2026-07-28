@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { MemoryMarketingOsStateAdapter } from "../services/guild-marketing-os-state/memory-adapter.mjs";
 
 const rootDir = process.cwd();
 const fixturePath = path.join(rootDir, "scripts/fixtures/webflow-company-profile.md");
@@ -35,10 +36,16 @@ let createdContextBody = "";
 let bridgePublishInput;
 let bridgePublishCalls = 0;
 let bridgeScenario = "successful";
+let stateServiceScenario = "successful";
 let llmScenario = "successful";
 let compactionCalls = 0;
 let auditCalls = 0;
 let workspaceReadMode = "published";
+let stateAdapter = new MemoryMarketingOsStateAdapter();
+const stateTenant = {
+  organization_id: "organization_test",
+  workspace_id: "workspace_test",
+};
 
 const compactedBrief = `
 ### Company Identity
@@ -186,11 +193,71 @@ const task = {
         },
       };
     },
-    async workspace_context_publish(input) {
+    async marketing_os_source_store(input) {
+      if (stateServiceScenario === "source_unavailable") {
+        throw new Error("tenant-bound source storage unavailable");
+      }
+      return {
+        data: await stateAdapter.storeSource(stateTenant, {
+          ...input,
+          uploader: "user_test",
+        }),
+      };
+    },
+    async marketing_os_source_get({ sourceId, revision }) {
+      if (stateServiceScenario === "source_read_unavailable") {
+        throw new Error("encrypted source read unavailable");
+      }
+      return {
+        data: await stateAdapter.getSource(
+          stateTenant,
+          sourceId,
+          revision,
+        ),
+      };
+    },
+    async marketing_os_context_artifact_store(input) {
+      if (stateServiceScenario === "artifact_unavailable") {
+        throw new Error("tenant-bound artifact storage unavailable");
+      }
+      return {
+        data: await stateAdapter.storeArtifact(stateTenant, input),
+      };
+    },
+    async marketing_os_context_artifact_get({ artifactId, revision }) {
+      return {
+        data: await stateAdapter.getArtifact(
+          stateTenant,
+          artifactId,
+          revision,
+        ),
+      };
+    },
+    async marketing_os_context_artifact_approve({
+      artifactId,
+      ...input
+    }) {
+      if (stateServiceScenario === "approval_unavailable") {
+        throw new Error("tenant-bound artifact approval unavailable");
+      }
+      return {
+        data: await stateAdapter.approveArtifact(stateTenant, {
+          ...input,
+          artifact_id: artifactId,
+          actor: "user_test",
+        }),
+      };
+    },
+    async marketing_os_context_read() {
+      return {
+        data: (await stateAdapter.readContextSnapshot(stateTenant)) ?? null,
+      };
+    },
+    async marketing_os_context_publish(input) {
       bridgePublishCalls += 1;
       bridgePublishInput = input;
       if (bridgeScenario === "unavailable") {
-        throw new Error("workspace context publish bridge unavailable");
+        throw new Error("delegated state-service context publisher unavailable");
       }
       const currentManualContext = [
         "# Existing Workspace Context",
@@ -203,17 +270,26 @@ const task = {
         "",
         "Keep this outro.",
       ].join("\n");
-      createdContextBody = replaceManagedWorkspaceContextBlock(currentManualContext, input.managed_context);
       return {
-        status: "PUBLISHED",
-        workspace_id: "workspace_test",
-        workspace_full_name: "michaelpreuss/guild-marketing-os",
-        previous_context_id: "context_old",
-        draft_context_id: "context_draft",
-        published_context_id: "context_published",
-        summary: input.summary,
-        publish_path: "host_bridge",
-        rollback_reference: "Re-publish context_old to roll back.",
+        data: await stateAdapter.publishContextSnapshot(
+          stateTenant,
+          {
+            ...input,
+            actor: "user_test",
+          },
+          {
+            publisher: async ({ request }) => {
+              createdContextBody = replaceManagedWorkspaceContextBlock(
+                currentManualContext,
+                request.compiled_brief,
+              );
+              return {
+                guild_context_id: "context_published",
+                rollback_context_id: "context_old",
+              };
+            },
+          },
+        ),
       };
     },
   },
@@ -308,14 +384,16 @@ assert.match(injectedManagedRefresh.output.text, /approved_in_session: false/);
 assert.doesNotMatch(injectedManagedRefresh.output.text, /attachment_unreadable/);
 assert.doesNotMatch(injectedManagedRefresh.output.text, /cannot read the attachment/i);
 assert.equal(state.lastOutput.conversationIntent, "source_available");
-assert.match(state.lastSourceText, /Guild Marketing OS Managed Company Context/);
+assert.equal(state.lastSourceText, undefined);
 
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
+  stateAdapter = new MemoryMarketingOsStateAdapter();
   createdContextBody = "";
   bridgePublishInput = undefined;
   bridgePublishCalls = 0;
   bridgeScenario = "successful";
+  stateServiceScenario = "successful";
   llmScenario = "successful";
   compactionCalls = 0;
   auditCalls = 0;
@@ -325,50 +403,96 @@ async function runPublishFlow(label, wrapInput) {
   assert.match(first.output.text, /Company Context Approval Packet/, label);
   assert.match(first.output.text, /Company: Webflow/, label);
   assert.match(first.output.text, /saved_to_workspace_context: false/, label);
+  assert.match(first.output.text, /saved_to_context_artifacts: true/, label);
+  assert.match(first.output.text, /source_references: [^T]/, label);
+  assert.match(first.output.text, /context_artifact_references: [^T]/, label);
   assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", `${label}: company name should resolve from fixture heading`);
-  assert.equal(state.lastSourceText, fixture, `${label}: source text should preserve exact fixture`);
+  assert.equal(state.lastSourceText, undefined, `${label}: raw source must not remain in session state`);
+  const storedSource = await stateAdapter.getSource(
+    stateTenant,
+    state.durableSourceId,
+    state.durableSourceRevision,
+  );
+  assert.equal(storedSource.raw_source, fixture, `${label}: encrypted source should round-trip only through the tenant-bound adapter`);
+  const reviewArtifact = await stateAdapter.getArtifact(
+    stateTenant,
+    state.durableContextArtifactId,
+    state.durableContextArtifactRevision,
+  );
+  assert.equal(reviewArtifact.status, "ready_for_review", `${label}: initial artifact must be review ready`);
+  assert.equal(
+    reviewArtifact.consumed_source_revisions[0],
+    `${storedSource.source_id}:${storedSource.revision}`,
+    `${label}: artifact must retain exact source provenance`,
+  );
 
-  const approval = await foundationAgent.start({ type: "text", text: wrapInput("Context approved save to workspace context") }, task);
+  const exactArtifactApproval = "Context approved save to workspace context";
+  const approval = await foundationAgent.start({ type: "text", text: wrapInput(exactArtifactApproval) }, task);
   assert.equal(approval.type, "output", label);
   assert.match(approval.output.text, /approved_in_session: true/, label);
+  assert.match(approval.output.text, /durably approved/, label);
   assert.match(approval.output.text, /workspace_context_status: approved_pending_publish/, label);
   assert.match(approval.output.text, /publish approved context to workspace context/, label);
-  assert.equal(state.approvedSourceText, fixture, `${label}: approved source text should preserve exact fixture`);
+  assert.equal(state.approvedSourceText, undefined, `${label}: approved raw source must remain only in encrypted storage`);
+  const approvedArtifact = await stateAdapter.getArtifact(
+    stateTenant,
+    state.durableContextArtifactId,
+    state.durableContextArtifactRevision,
+  );
+  assert.equal(approvedArtifact.status, "approved", `${label}: durable artifact should be approved`);
+  assert.equal(
+    approvedArtifact.approvals[0].exact_approval_text,
+    exactArtifactApproval,
+    `${label}: exact artifact approval text must be retained`,
+  );
 
   const publish = await foundationAgent.start({ type: "text", text: wrapInput("publish approved context to workspace context") }, task);
   assert.equal(publish.type, "output", label);
   assert.match(publish.output.text, /saved_to_workspace_context: true/, label);
   assert.match(publish.output.text, /workspace_context_id: context_published/, label);
-  assert.match(publish.output.text, /workspace_context_draft_id: context_draft/, label);
+  assert.match(publish.output.text, /workspace_context_draft_id: context_published/, label);
   assert.match(publish.output.text, /workspace_context_previous_id: context_old/, label);
-  assert.match(publish.output.text, /workspace_context_publish_path: host_bridge/, label);
+  assert.match(publish.output.text, /workspace_context_publish_path: official_guild_tools/, label);
   assert.equal(state.workspaceContextStatus, "published", label);
   assert.equal(state.workspaceContextId, "context_published", label);
-  assert.equal(state.workspaceContextDraftId, "context_draft", label);
+  assert.equal(state.workspaceContextDraftId, "context_published", label);
   assert.equal(state.workspaceContextPreviousId, "context_old", label);
-  assert.equal(state.workspaceContextPublishPath, "host_bridge", label);
-  assert.equal(bridgePublishCalls, 1, `${label}: should publish once through bridge`);
-  assert.equal(bridgePublishInput.session_id, "session_test", label);
-  assert.equal(bridgePublishInput.approval_phrase, "publish approved context to workspace context", label);
-  assert.equal(bridgePublishInput.start_marker, "<!-- guild-marketing-os-context:start -->", label);
-  assert.equal(bridgePublishInput.end_marker, "<!-- guild-marketing-os-context:end -->", label);
-  assert.match(bridgePublishInput.managed_context, /## Workspace Context Brief/, label);
-  assert.doesNotMatch(bridgePublishInput.managed_context, /This session was started/, label);
-  assert.ok(!bridgePublishInput.managed_context.includes(fixture), `${label}: bridge payload must not include raw fixture`);
-  assert.doesNotMatch(bridgePublishInput.managed_context, /cite/, label);
+  assert.equal(state.workspaceContextPublishPath, "official_guild_tools", label);
+  assert.equal(state.durablePublishedContextRevision, 1, label);
+  assert.equal(bridgePublishCalls, 1, `${label}: should publish once through state service`);
+  assert.equal(bridgePublishInput.artifact_id, state.durableContextArtifactId, label);
+  assert.equal(bridgePublishInput.artifact_revision, 1, label);
+  assert.equal(bridgePublishInput.expected_current_revision, null, label);
+  assert.equal(bridgePublishInput.approval_text, "publish approved context to workspace context", label);
+  assert.match(bridgePublishInput.compiled_brief, /## Workspace Context Brief/, label);
+  assert.doesNotMatch(bridgePublishInput.compiled_brief, /This session was started/, label);
+  assert.ok(!bridgePublishInput.compiled_brief.includes(fixture), `${label}: publish payload must not include raw fixture`);
+  assert.doesNotMatch(bridgePublishInput.compiled_brief, /cite/, label);
   assert.match(createdContextBody, /Keep this intro\./, label);
   assert.match(createdContextBody, /Keep this outro\./, label);
   assert.doesNotMatch(createdContextBody, /old managed block/, label);
   assert.doesNotMatch(createdContextBody, /This session was started/, label);
   assert.match(createdContextBody, /<!-- guild-marketing-os-context:start -->/, label);
   assert.match(createdContextBody, /<!-- guild-marketing-os-context:end -->/, label);
-  assert.equal(state.approvedSourceText, fixture, `${label}: approved source text should remain exact in state after publish`);
+  assert.equal(state.approvedSourceText, undefined, `${label}: published raw source must not be copied into session state`);
   assert.ok(!createdContextBody.includes(fixture), `${label}: published managed block must not include the raw full approved source fixture`);
   assert.doesNotMatch(createdContextBody, /cite/, label);
   assert.match(createdContextBody, /## Workspace Context Brief/, label);
   assert.match(createdContextBody, /## Source Corpus Summary/, label);
   assert.match(createdContextBody, /## Compaction Audit/, label);
   assert.doesNotMatch(createdContextBody, /## Approved Source Corpus/, label);
+  const contextSnapshot = await stateAdapter.readContextSnapshot(stateTenant);
+  assert.equal(contextSnapshot.published_context_revision, 1, label);
+  assert.equal(
+    contextSnapshot.approval.exact_approval_text,
+    "publish approved context to workspace context",
+    `${label}: context publication must retain the exact second approval phrase`,
+  );
+  assert.deepEqual(
+    contextSnapshot.source_references,
+    [`${storedSource.source_id}:${storedSource.revision}`],
+    `${label}: published context must retain source provenance`,
+  );
   for (const materialFact of [
     "Webflow, Inc.",
     "2013",
@@ -399,6 +523,72 @@ await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
 await runPublishFlow("Guild chat envelope with injected managed context", guildChatEnvelopeWithManagedContext);
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
+stateServiceScenario = "source_unavailable";
+const sourcePersistenceBlocked = await foundationAgent.start(
+  { type: "text", text: fixture },
+  task,
+);
+assert.equal(sourcePersistenceBlocked.type, "output", "source persistence unavailable");
+assert.match(
+  sourcePersistenceBlocked.output.text,
+  /saved_to_context_artifacts: false/,
+  "source persistence unavailable",
+);
+assert.match(
+  sourcePersistenceBlocked.output.text,
+  /Durable source and artifact storage failed/,
+  "source persistence unavailable",
+);
+assert.equal(
+  state.durableContextArtifactId,
+  undefined,
+  "source persistence failure must not create an approvable artifact reference",
+);
+
+state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
+stateServiceScenario = "successful";
+await foundationAgent.start({ type: "text", text: fixture }, task);
+stateServiceScenario = "approval_unavailable";
+const durableApprovalBlocked = await foundationAgent.start(
+  {
+    type: "text",
+    text: "Context approved save to workspace context",
+  },
+  task,
+);
+assert.equal(durableApprovalBlocked.type, "output", "artifact approval unavailable");
+assert.match(
+  durableApprovalBlocked.output.text,
+  /approved_in_session: false/,
+  "artifact approval unavailable",
+);
+assert.match(
+  durableApprovalBlocked.output.text,
+  /Durable artifact approval failed/,
+  "artifact approval unavailable",
+);
+assert.equal(
+  state.approvedOutput,
+  undefined,
+  "failed durable approval must not leave a publishable approved output",
+);
+assert.equal(
+  (
+    await stateAdapter.getArtifact(
+      stateTenant,
+      state.durableContextArtifactId,
+      state.durableContextArtifactRevision,
+    )
+  ).status,
+  "ready_for_review",
+  "failed approval must leave the durable artifact review ready",
+);
+stateServiceScenario = "successful";
+
+state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
 createdContextBody = "";
 bridgePublishInput = undefined;
 bridgePublishCalls = 0;
@@ -415,7 +605,7 @@ assert.equal(browserRoutedFirst.type, "output", "browser routed fixture input");
 assert.match(browserRoutedFirst.output.text, /Conversation intent: source_available/, "browser routed fixture input");
 assert.match(browserRoutedFirst.output.text, /Company: Webflow/, "browser routed fixture input");
 assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "browser routed fixture should resolve company name");
-assert.equal(state.lastSourceText, fixture, "browser routed fixture should persist the exact fixture without routing or workspace context preface");
+assert.equal(state.lastSourceText, undefined, "browser routed raw source should remain only in encrypted storage");
 
 const browserRoutedApproval = await foundationAgent.start({
   type: "text",
@@ -423,7 +613,7 @@ const browserRoutedApproval = await foundationAgent.start({
 }, task);
 assert.equal(browserRoutedApproval.type, "output", "browser routed approval");
 assert.match(browserRoutedApproval.output.text, /approved_in_session: true/, "browser routed approval");
-assert.equal(state.approvedSourceText, fixture, "browser routed approval should preserve exact approved source text");
+assert.equal(state.approvedSourceText, undefined, "browser routed approval should not copy raw source into session state");
 
 const browserRoutedPublish = await foundationAgent.start({
   type: "text",
@@ -431,14 +621,15 @@ const browserRoutedPublish = await foundationAgent.start({
 }, task);
 assert.equal(browserRoutedPublish.type, "output", "browser routed publish");
 assert.match(browserRoutedPublish.output.text, /saved_to_workspace_context: true/, "browser routed publish");
-assert.match(browserRoutedPublish.output.text, /workspace_context_publish_path: host_bridge/, "browser routed publish");
+assert.match(browserRoutedPublish.output.text, /workspace_context_publish_path: official_guild_tools/, "browser routed publish");
 assert.equal(state.workspaceContextStatus, "published", "browser routed publish should publish");
 assert.equal(bridgePublishCalls, 1, "browser routed publish should publish once through bridge");
-assert.equal(state.approvedSourceText, fixture, "browser routed publish should keep exact approved source text");
+assert.equal(state.approvedSourceText, undefined, "browser routed publish should retrieve raw source only for compaction");
 assert.ok(!createdContextBody.includes(fixture), "browser routed published context must not include raw fixture");
 assert.doesNotMatch(createdContextBody, /cite/, "browser routed published context should strip citation artifacts");
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
 createdContextBody = "";
 bridgePublishInput = undefined;
 bridgePublishCalls = 0;
@@ -460,15 +651,16 @@ assert.equal(auditCalls, 3, "audit repair should audit initial, regenerated, and
 assert.match(createdContextBody, /Audit-Preserved Facts And Nuance/, "audit repair should append an addendum");
 assert.match(createdContextBody, /398 11th Street, Floor 2, San Francisco, CA 94103/, "audit repair should include the lost material fact");
 
-const approvedOutputForAuditTests = state.approvedOutput;
+const approvedStateForAuditTests = structuredClone(state);
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
 const cliArtifactFirst = await foundationAgent.start({ type: "text", text: guildChatEnvelopeWithManagedContext(`chat ${fixture}`) }, task);
 assert.equal(cliArtifactFirst.type, "output", "Guild chat initial command artifact");
 assert.match(cliArtifactFirst.output.text, /Conversation intent: source_available/, "Guild chat initial command artifact");
 assert.match(cliArtifactFirst.output.text, /Company: Webflow/, "Guild chat initial command artifact");
 assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "CLI artifact should not hide fixture heading company name");
-assert.equal(state.lastSourceText, fixture, "CLI artifact should be stripped from persisted source text");
+assert.equal(state.lastSourceText, undefined, "CLI raw source should remain only in encrypted storage");
 
 assert.equal(stripCitationMarkers("A citeturn1 B"), "A  B", "citation markers should be stripped");
 assert.equal(removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"), "Keep\n\nDone", "fenced diagram blocks should be removed");
@@ -483,11 +675,7 @@ assert.doesNotMatch(cleanedFixture, /```mermaid/, "cleaned source should not inc
 assert.doesNotMatch(cleanedFixture, /```text/, "cleaned source should not include pseudo-query blocks");
 assert.match(cleanedFixture, /- Attribute: Legal entity; Current finding: Webflow, Inc\./, "cleaned source should collapse tables into bullets");
 
-state = {
-  approvedOutput: approvedOutputForAuditTests,
-  approvedSourceText: fixture,
-  workspaceContextStatus: "approved_pending_publish",
-};
+state = approvedStateForAuditTests;
 createdContextBody = "";
 bridgePublishInput = undefined;
 bridgePublishCalls = 0;
@@ -503,6 +691,45 @@ assert.equal(createdContextBody, "", "unsupported audit should block before work
 assert.equal(bridgePublishCalls, 0, "unsupported audit should block before bridge publish");
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
+stateServiceScenario = "successful";
+bridgeScenario = "successful";
+llmScenario = "successful";
+compactionCalls = 0;
+auditCalls = 0;
+bridgePublishCalls = 0;
+await foundationAgent.start({ type: "text", text: fixture }, task);
+await foundationAgent.start(
+  {
+    type: "text",
+    text: "Context approved save to workspace context",
+  },
+  task,
+);
+stateServiceScenario = "source_read_unavailable";
+const sourceReadBlocked = await foundationAgent.start(
+  {
+    type: "text",
+    text: "publish approved context to workspace context",
+  },
+  task,
+);
+assert.match(
+  sourceReadBlocked.output.text,
+  /workspace_context_status: blocked/,
+  "encrypted source read unavailable",
+);
+assert.match(
+  sourceReadBlocked.output.text,
+  /encrypted approved source could not be retrieved/i,
+  "encrypted source read unavailable",
+);
+assert.equal(compactionCalls, 0, "source read failure must block before compaction");
+assert.equal(bridgePublishCalls, 0, "source read failure must block before publication");
+
+state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
+stateServiceScenario = "successful";
 createdContextBody = "";
 bridgePublishInput = undefined;
 bridgePublishCalls = 0;
@@ -518,13 +745,14 @@ const bridgeBlocked = await foundationAgent.start({ type: "text", text: "publish
 assert.equal(bridgeBlocked.type, "output", "bridge unavailable publish");
 assert.match(bridgeBlocked.output.text, /workspace_context_status: blocked/, "bridge unavailable publish");
 assert.match(bridgeBlocked.output.text, /Workspace context publish did not complete/, "bridge unavailable publish");
-assert.match(bridgeBlocked.output.text, /host-controlled publish bridge/, "bridge unavailable publish");
-assert.equal(bridgePublishCalls, 1, "bridge unavailable publish should attempt the host bridge once");
+assert.match(bridgeBlocked.output.text, /tenant-bound Marketing OS state service/, "state publisher unavailable publish");
+assert.equal(bridgePublishCalls, 1, "state publisher unavailable publish should attempt delegated publication once");
 assert.equal(createdContextBody, "", "bridge unavailable publish should not create a context body");
-assert.equal(state.approvedSourceText, fixture, "bridge unavailable publish should retain exact approved source for retry");
+assert.equal(state.approvedSourceText, undefined, "failed publication should retain only the encrypted durable source for retry");
 bridgeScenario = "successful";
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
 workspaceReadMode = "published";
 const downstreamWithContext = await foundationAgent.start(
   {
@@ -541,6 +769,7 @@ assert.match(downstreamWithContext.output.text, /"conversationIntent": "downstre
 assert.doesNotMatch(downstreamWithContext.output.text, /# Company Context Approval Packet/, "downstream request must not create a new context packet");
 
 state = undefined;
+stateAdapter = new MemoryMarketingOsStateAdapter();
 workspaceReadMode = "missing";
 const downstreamWithoutContext = await foundationAgent.start(
   {

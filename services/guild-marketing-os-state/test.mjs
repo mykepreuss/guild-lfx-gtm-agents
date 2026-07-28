@@ -18,10 +18,11 @@ const adapter = new MemoryMarketingOsStateAdapter({
 
 const tenantA = { organization_id: "org_a", workspace_id: "workspace_a" };
 const tenantB = { organization_id: "org_b", workspace_id: "workspace_b" };
+const exactRawSource = "  Confidential interview transcript\n";
 
 const sourceRequest = {
   idempotency_key: "source-1",
-  raw_source: "Confidential interview transcript",
+  raw_source: exactRawSource,
   uploader: "user_a",
   provenance: { filename: "interview.txt" },
   evidence: {
@@ -39,7 +40,7 @@ await assert.rejects(
   () => adapter.storeSource(tenantA, { ...sourceRequest, raw_source: "Different source" }),
   (error) => isStateError(error, "idempotency_conflict", 409),
 );
-assert.equal((await adapter.getSource(tenantA, source.source_id)).raw_source, "Confidential interview transcript");
+assert.equal((await adapter.getSource(tenantA, source.source_id)).raw_source, exactRawSource);
 await assert.rejects(
   () => adapter.getSource(tenantB, source.source_id),
   (error) => isStateError(error, "source_not_found", 404),
@@ -59,7 +60,7 @@ assert.equal(
 );
 assert.equal(
   (await adapter.getSource(tenantA, source.source_id, 1)).raw_source,
-  "Confidential interview transcript",
+  exactRawSource,
 );
 await assert.rejects(
   () => adapter.reviseSource(tenantA, {
@@ -442,7 +443,7 @@ for (let index = 0; index < audit.length; index += 1) {
 }
 
 const exported = await adapter.exportWorkspace(tenantA);
-assert.equal(exported.sources[0].raw_source, "Confidential interview transcript");
+assert.equal(exported.sources[0].raw_source, exactRawSource);
 assert.equal(exported.sources[1].raw_source, "Confidential interview transcript, corrected");
 assert.equal(exported.context_snapshot.published_context_revision, 1);
 assert.ok(exported.artifacts.some((item) => item.revision === 1 && item.status === "superseded"));

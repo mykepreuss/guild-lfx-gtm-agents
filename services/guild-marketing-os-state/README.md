@@ -9,6 +9,10 @@ artifact and context approvals, workstream status, handoffs, Launcher workflow
 runs and invocation attempts, optimistic concurrency, idempotency, audit,
 export, and confirmed deletion.
 
+Raw source encryption preserves the exact supplied text instead of trimming
+leading or trailing whitespace. Source revision review, hashes, and exports
+therefore remain faithful to the customer's readable source.
+
 `memory-adapter.mjs` is the executable contract reference and test double. It derives a tenant-specific AES-256-GCM key from a service master key and binds every operation to both organization and workspace. It is not the public production datastore.
 
 `postgres/schema.sql` is the Cloud SQL target schema. It defines tenant-bound

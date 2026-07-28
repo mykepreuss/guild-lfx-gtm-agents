@@ -61,7 +61,7 @@
       "phaseOrder": 1,
       "guildName": "guild-marketing-os-company-context-builder",
       "displayName": "Knowledge Graph / Company Context Builder",
-      "status": "guild_native_source_ready",
+      "status": "durable_context_source_ready_private_alpha",
       "packageDir": "agents/foundation-setup",
       "primaryUser": "Project Leader",
       "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company context.",

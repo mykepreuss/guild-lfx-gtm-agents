@@ -7,7 +7,9 @@ Package owner: `michaelpreuss`
 
 Turns raw company context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a compact Guild workspace context brief, approval checkpoints, and next-agent routing.
 
-This is the default first-run workspace agent for Marketing OS. It should make a project leader feel like the system is processing their company context, not routing them through a separate setup menu.
+Launcher routes first-run company-context setup here. The Builder should make a
+project leader feel like the system is processing their company context, not
+routing them through a separate setup menu.
 
 ## Contract
 
@@ -22,7 +24,9 @@ Returned output:
 
 - canonical `type: "text"` and `text`
 - full Markdown review packet containing approved context artifact drafts, approved facts and missing evidence, approval gates, AEO readiness, status payload, and downstream handoff
-- persistence state showing whether the packet is drafted, approved, staged, blocked, or published to Guild workspace context
+- persistence state and exact source/artifact references showing whether the
+  packet is stored, approved, staged, blocked, or published to Guild workspace
+  context
 - short inline review summary at the top of the Markdown packet
 
 ## Guild Usage
@@ -33,18 +37,27 @@ Users should start here, paste readable company/source text, review the Company 
 
 Review-first. This agent does not schedule, install, spend, sync, trigger, change visibility, or modify external live systems.
 
-The only runtime mutation it may perform is the explicit workspace-context persistence flow:
+Its only runtime mutations are tenant-bound context persistence and the explicit
+workspace-context publication flow:
 
-1. Draft company context from readable source text.
-2. User approves the draft in a follow-up turn.
+1. Store the exact readable source as an encrypted raw-source revision and the
+   complete Company Context Approval Packet as a review-ready artifact.
+   Raw source text is not retained in Builder session state; it is read back
+   from the encrypted revision only for approved context compaction.
+2. User approves the exact artifact revision in a follow-up turn. The service
+   records the user's exact approval text.
 3. User sends exactly `publish approved context to workspace context`.
 4. The agent compacts the approved source corpus, audits the compacted brief,
-   and sends only the managed block to the workspace-configured
-   `guild-marketing-os-workspace-context` integration. Public release requires
-   that integration to verify delegated organization/workspace authorization;
-   the old maintainer-token bridge is private compatibility infrastructure
-   only.
-5. The bridge resolves the session workspace, preserves unmanaged context, replaces the managed workspace-context block, creates a draft, publishes the Guild context revision, and returns published/draft/previous ids for status and rollback metadata.
+   and sends only the managed block plus approved artifact/source provenance to
+   the `guild-marketing-os-state` integration.
+5. The state service verifies delegated organization/workspace identity,
+   optimistic context revision, approved artifact revision, and the exact
+   publication phrase before its workspace-scoped publisher replaces only the
+   managed block and records rollback metadata.
+
+Version 1.2.0 is source-ready but not installed in the private workspace. The
+browser-proven 1.1.2 Builder remains installed until Guild supplies a trusted
+outbound tenant identity and the managed state service is deployed.
 
 ## Test
 

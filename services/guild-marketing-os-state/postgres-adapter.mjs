@@ -11,6 +11,7 @@ import {
   evidenceEntry,
   handoffCompletionState,
   requiredString,
+  requiredRawSource,
   stableHash,
   workflowAttemptInput,
   workflowRunInput,
@@ -375,7 +376,7 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
             );
           }
           const revision = 1;
-          const rawSource = requiredString(request.raw_source, "raw_source");
+          const rawSource = requiredRawSource(request.raw_source);
           const encrypted = await this.#encryption.encrypt(
             rawSource,
             sourceAssociatedData(binding, sourceId, revision),
@@ -474,10 +475,7 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
             );
           }
           const revision = Number(current.revision) + 1;
-          const rawSource = requiredString(
-            request.raw_source,
-            "raw_source",
-          );
+          const rawSource = requiredRawSource(request.raw_source);
           const encrypted = await this.#encryption.encrypt(
             rawSource,
             sourceAssociatedData(binding, sourceId, revision),
