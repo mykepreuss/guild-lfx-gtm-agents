@@ -91,13 +91,20 @@ function syncPackageFiles(packageDir, tempDir) {
     throw new Error(`No tracked package files found for ${packageDir}.`);
   }
 
+  const copiedFiles = [];
   for (const file of trackedFiles) {
     const relative = path.relative(packageDir, file);
     const source = path.join(rootDir, file);
     const destination = path.join(tempDir, relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(source, destination);
+    copiedFiles.push(relative);
   }
+
+  // `guild agent save --all` intentionally ignores untracked files. Stage the
+  // exact monorepo-owned package files so newly added modules are included in
+  // the Guild version without staging generated guild.json or local metadata.
+  run("git", ["add", "--", ...copiedFiles], { cwd: tempDir });
 }
 
 function clearTempPackage(tempDir) {
