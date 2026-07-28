@@ -523,19 +523,62 @@ function finalizeOutput(output: Output): z.infer<typeof outputSchema> {
 }
 
 function getRawContext(input: Input): string {
-  const rawText = stripGuildRuntimePreamble(input.text).trim();
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  const managedContext = extractInjectedManagedWorkspaceContext(unwrappedText);
+  const rawText = stripGuildRuntimePreamble(unwrappedText).trim();
   const embeddedText = extractEmbeddedTextInput(rawText, { trim: true }) ?? rawText;
-  return extractSourceDocumentFromContext(embeddedText, { trim: true }) ?? embeddedText;
+  const userSource = extractSourceDocumentFromContext(embeddedText, { trim: true }) ?? embeddedText;
+  return managedContext && shouldUseInjectedManagedContext(userSource)
+    ? managedContext
+    : userSource;
 }
 
 function getSourceTextForPersistence(input: Input): string {
-  const rawText = stripGuildRuntimePreamble(input.text);
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  const managedContext = extractInjectedManagedWorkspaceContext(unwrappedText);
+  const rawText = stripGuildRuntimePreamble(unwrappedText);
   const embeddedText = extractEmbeddedTextInput(rawText, { trim: false }) ?? rawText;
-  return extractSourceDocumentFromContext(embeddedText, { trim: false }) ?? embeddedText;
+  const userSource = extractSourceDocumentFromContext(embeddedText, { trim: false }) ?? embeddedText;
+  return managedContext && shouldUseInjectedManagedContext(userSource)
+    ? managedContext
+    : userSource;
 }
 
 function getSourceLabels(_input: Input): string[] {
   return [];
+}
+
+function unwrapCanonicalTextInput(value: string): string {
+  for (const candidate of [value, fencedJson(value), firstJsonObject(value)]) {
+    if (!candidate) continue;
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (isRecord(parsed) && parsed.type === "text" && typeof parsed.text === "string") {
+        return parsed.text;
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return value;
+}
+
+function extractInjectedManagedWorkspaceContext(value: string): string | undefined {
+  const startIndex = value.indexOf(managedContextStart);
+  const endIndex = value.indexOf(managedContextEnd, startIndex + managedContextStart.length);
+  if (startIndex === -1 || endIndex <= startIndex) return undefined;
+  return value
+    .slice(startIndex, endIndex + managedContextEnd.length)
+    .replace(/\\n/g, "\n")
+    .trim();
+}
+
+function shouldUseInjectedManagedContext(userSource: string): boolean {
+  return /\b(?:refresh|review|check|assess|summarize|read)\b[\s\S]{0,120}\b(?:company|workspace|marketing os)\s+context\b/i.test(
+    userSource,
+  ) ||
+    /\b(?:approved|published|current)\s+workspace\s+context\b/i.test(userSource) ||
+    /\bcontext\s+readiness\b/i.test(userSource);
 }
 
 function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { trim: true }): string | undefined {

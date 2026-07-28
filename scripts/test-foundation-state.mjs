@@ -277,6 +277,38 @@ function routedCompanyContextBuilderSource(text) {
   ].join("\n");
 }
 
+state = undefined;
+const injectedManagedRefresh = await foundationAgent.start(
+  {
+    type: "text",
+    text: [
+      "<!-- guild-marketing-os-context:start -->",
+      "# Guild Marketing OS Managed Company Context",
+      "Status: published",
+      "Company: Webflow",
+      "Approved description: Webflow is a website experience platform for modern marketing, design, and development teams.",
+      "Primary audiences: Marketers, designers, developers, agencies, and enterprise digital teams.",
+      "Current goals: Increase marketing velocity, protect brand quality, improve conversion, and preserve developer extensibility.",
+      "Proof-backed claims: Fivetran improved marketing speed-to-market; Retool increased demo bookings through web testing.",
+      "Channels in scope: Website, search, answer engines, social, content, and paid media planning.",
+      "Anything not approved for reuse: Unsupported financial, performance, security, compliance, legal, or guarantee claims.",
+      "## Workspace Context Brief",
+      "Use this published context as the current approved company source. Keep all downstream work draft-only and preserve proof constraints.",
+      "<!-- guild-marketing-os-context:end -->",
+      "",
+      "Refresh the company context readiness check from the approved workspace context. Keep it context-only and draft-only. Do not publish.",
+    ].join("\n"),
+  },
+  task,
+);
+assert.equal(injectedManagedRefresh.type, "output");
+assert.match(injectedManagedRefresh.output.text, /Company Context Approval Packet/);
+assert.match(injectedManagedRefresh.output.text, /Company: Webflow/);
+assert.doesNotMatch(injectedManagedRefresh.output.text, /attachment_unreadable/);
+assert.doesNotMatch(injectedManagedRefresh.output.text, /cannot read the attachment/i);
+assert.equal(state.lastOutput.conversationIntent, "source_available");
+assert.match(state.lastSourceText, /Guild Marketing OS Managed Company Context/);
+
 async function runPublishFlow(label, wrapInput) {
   state = undefined;
   createdContextBody = "";
