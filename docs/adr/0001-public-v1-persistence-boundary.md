@@ -67,8 +67,11 @@ The logged-in organization integration creator confirms the shipped surface.
 For REST and MCP integrations it offers API key, OAuth 2.0, OAuth 2.0 M2M, or
 no outbound authentication. Its HMAC-SHA256 and Ed25519 signing controls apply
 to inbound webhooks sent to Guild. No option signs Guild-to-service requests
-with tenant, actor, session, and task claims. A disposable form draft was
-discarded without creating an integration.
+with tenant, actor, session, and task claims. The OAuth configuration is
+limited to a fixed Guild callback, static authorization/token URLs, client
+credentials, scopes, PKCE, and static authorization parameters; no
+organization/workspace/session/task placeholder is exposed. A disposable form
+draft was discarded without creating an integration.
 
 This means native Guild state is useful for deterministic context reads and
 installation verification, but it cannot currently be the V1 system of record.

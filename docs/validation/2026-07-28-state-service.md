@@ -141,11 +141,16 @@ integration. The live three-step REST/MCP integration creator exposes:
 - optional inbound webhook verification by HMAC-SHA256 or Ed25519.
 
 It does not expose a Guild-signed outbound caller identity, issuer, audience,
-JWKS, or organization/workspace/session/task claim contract. The disposable
-integration draft was discarded, the organization still showed “No
-integrations yet,” and the browser was restored to the personal Marketing OS
-workspace. This confirms the authorization gate in the shipped UI as well as
-the published documentation.
+JWKS, or organization/workspace/session/task claim contract. The OAuth form
+contains a fixed Guild callback plus static service authorization/token URLs,
+client credentials, scopes, PKCE, and static authorization parameters; it
+offers no tenant/session substitution or Guild-membership claim. Requiring
+each customer to obtain a service API key or OAuth account would also violate
+the no-infrastructure-credential onboarding gate. The disposable integration
+drafts were discarded, the organization still showed “No integrations yet,”
+and the browser was restored to the personal Marketing OS workspace. This
+confirms the authorization gate in the shipped UI as well as the published
+documentation.
 
 The current environment has no Google Cloud CLI, application-default
 credentials, project, Cloud SQL URL, or KMS key configured. Therefore:
