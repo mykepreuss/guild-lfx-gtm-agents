@@ -15,16 +15,19 @@ may be made public while any blocking row below remains open.
 | Guide fallback | Ambiguous request returned Marketing OS Guide with no specialist task in `019faa25-d311-351a-0000-92e3d5c2ba7a` | Pass in private alpha |
 | Browser normal-Chat UX | Launcher 0.2.5 is the private workspace default; onboarding, Builder, seven specialists, safety recovery, and ambiguity pass | Pass in private alpha |
 | Browser specialist selection | Automatic Launcher delegation removes the prior `@mention` dependency | Pass in private alpha |
-| Cross-session cockpit persistence | Provider-neutral contract/reference adapter and PostgreSQL schema implemented | **Blocked on deployed service** |
-| Delegated workspace context publication | SDK 0.4.2 has reads but no agent-facing publish; old bridge uses maintainer identity | **Blocked on Guild authorization** |
+| Cross-session cockpit persistence | Production PostgreSQL adapter, Cloud Run container, migration path, envelope encryption, and disposable database rehearsal pass | **Blocked on authenticated managed deployment** |
+| Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
 | Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
-| Tenant isolation | Forced PostgreSQL RLS/schema and reference tests implemented | **Blocked on deployed cross-tenant test** |
-| Backup/restore, export, deletion | Contract and local export/deletion tests pass | **Blocked on Cloud SQL rehearsal** |
+| Tenant isolation | Forced PostgreSQL RLS and production-adapter cross-tenant rehearsal pass locally | **Blocked on deployed Guild-identity spoof test** |
+| Backup/restore, export, deletion | Encrypted export, confirmed purge, retained minimal deletion receipt, and audit-retention tests pass locally | **Blocked on Cloud SQL backup/restore rehearsal** |
 | Context-size benchmark | `npm run benchmark:context -- --manifest <file>` enforces three variants, all seven routes, golden-fact retention, artifact completeness, unsupported-claim parity, and conflict-recall parity | **Blocked on complete live evaluation set** |
 | Clean separate-organization rehearsal | `developers-at-guild/developer-sandbox` is visible but Guild reports `is_viewer_member: false`; no mutation was attempted | **Blocked on owner authorization** |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
 | External execution | No publishing, scheduling, spend, CRM mutation, credential setup, or legal approval performed | Pass |
+
+Local production-service evidence is recorded in
+[`docs/validation/2026-07-28-state-service.md`](validation/2026-07-28-state-service.md).
 
 ## Required rollout order
 
@@ -33,10 +36,14 @@ may be made public while any blocking row below remains open.
    helper after repository commit/push approval.
 3. The maintainer private-alpha installation and browser verification are
    complete; retain the evidence and all failed attempts.
-4. Deploy the Cloud Run/Cloud SQL state service and pass tenant, concurrency,
-   idempotency, audit, backup/restore, export, and deletion tests.
-5. Obtain and verify delegated workspace-scoped Guild authorization for context
-   publication.
+4. Obtain and live-prove a Guild-signed service identity carrying organization,
+   workspace, actor, session, and task claims, or a native Guild contract with
+   equivalent isolation. The currently published SDK and custom-integration
+   contract do not provide this.
+5. Deploy the Cloud Run/Cloud SQL state service and pass tenant spoofing,
+   concurrency, idempotency, audit, backup/restore, export, and deletion tests.
+   No GCP project, Cloud SQL database, KMS key, or deploy identity is configured
+   in the current workspace.
 6. Run a clean organization rehearsal in
    `developers-at-guild/developer-sandbox` only with the workspace owner’s
    authorization, or use a newly created team-controlled organization.

@@ -14,6 +14,8 @@ export function createMarketingOsStateHandler({
   adapter,
   verifyIdentity,
   contextPublisher,
+  checkReady,
+  rateLimit = { maxRequests: 120, windowSeconds: 60 },
   maxBodyBytes = 2 * 1024 * 1024,
 } = {}) {
   if (!adapter || typeof adapter !== "object") {
@@ -22,6 +24,7 @@ export function createMarketingOsStateHandler({
   if (typeof verifyIdentity !== "function") {
     throw new TypeError("A delegated identity verifier is required.");
   }
+  const normalizedRateLimit = normalizeRateLimit(rateLimit);
 
   return async function handleMarketingOsStateRequest(request) {
     try {
@@ -32,6 +35,20 @@ export function createMarketingOsStateHandler({
           context_publication: contextPublisher ? "configured" : "blocked",
         });
       }
+      if (request.method === "GET" && url.pathname === "/readyz") {
+        if (typeof checkReady === "function") {
+          try {
+            await checkReady();
+          } catch {
+            throw new StateContractError(
+              "service_unavailable",
+              "The state service is not ready.",
+              503,
+            );
+          }
+        }
+        return jsonResponse(200, { status: "ready" });
+      }
 
       const identity = await verifyIdentity(request);
       const route = matchRoute(request.method, url.pathname);
@@ -41,6 +58,14 @@ export function createMarketingOsStateHandler({
           "State service route was not found.",
           404,
         );
+      }
+      if (normalizedRateLimit) {
+        await adapter.consumeRateLimit(identity.tenant, {
+          subject: identity.actor,
+          max_requests: normalizedRateLimit.maxRequests,
+          window_seconds: normalizedRateLimit.windowSeconds,
+          permit_deleted_tenant: route.name === "workspace_delete",
+        });
       }
 
       const body =
@@ -65,15 +90,17 @@ export function createMarketingOsStateHandler({
               503,
             );
           }
-          const publication = await contextPublisher({
-            identity,
-            request: requestValue,
-          });
-          const snapshot = await adapter.publishContextSnapshot(tenant, {
-            ...requestValue,
-            guild_context_id: publication?.guild_context_id,
-            rollback_context_id: publication?.rollback_context_id,
-          });
+          const snapshot = await adapter.publishContextSnapshot(
+            tenant,
+            requestValue,
+            {
+              publisher: async () =>
+                contextPublisher({
+                  identity,
+                  request: requestValue,
+                }),
+            },
+          );
           return jsonResponse(201, { data: snapshot });
         }
         case "source_store":
@@ -85,7 +112,19 @@ export function createMarketingOsStateHandler({
           });
         case "source_get":
           return jsonResponse(200, {
-            data: await adapter.getSource(tenant, route.params.sourceId),
+            data: await adapter.getSource(
+              tenant,
+              route.params.sourceId,
+              optionalRevision(url.searchParams.get("revision")),
+            ),
+          });
+        case "source_revise":
+          return jsonResponse(201, {
+            data: await adapter.reviseSource(tenant, {
+              ...requestValue,
+              source_id: route.params.sourceId,
+              uploader: identity.actor,
+            }),
           });
         case "source_delete":
           return jsonResponse(200, {
@@ -175,6 +214,26 @@ export function createMarketingOsStateHandler({
   };
 }
 
+function normalizeRateLimit(value) {
+  if (value === false) return undefined;
+  if (!value || typeof value !== "object") {
+    throw new TypeError("rateLimit must be false or an object.");
+  }
+  const maxRequests = Number(value.maxRequests);
+  const windowSeconds = Number(value.windowSeconds);
+  if (
+    !Number.isInteger(maxRequests) ||
+    maxRequests < 1 ||
+    maxRequests > 100_000 ||
+    !Number.isInteger(windowSeconds) ||
+    windowSeconds < 1 ||
+    windowSeconds > 86_400
+  ) {
+    throw new TypeError("rateLimit values are invalid.");
+  }
+  return Object.freeze({ maxRequests, windowSeconds });
+}
+
 function matchRoute(method, pathname) {
   const exact = {
     "GET /v1/context": ["context_read", false],
@@ -190,6 +249,7 @@ function matchRoute(method, pathname) {
 
   const patterns = [
     ["GET", /^\/v1\/sources\/([^/]+)$/, "source_get", false, "sourceId"],
+    ["POST", /^\/v1\/sources\/([^/]+)\/revisions$/, "source_revise", true, "sourceId"],
     ["DELETE", /^\/v1\/sources\/([^/]+)$/, "source_delete", true, "sourceId"],
     ["GET", /^\/v1\/artifacts\/([^/]+)$/, "artifact_get", false, "artifactId"],
     ["POST", /^\/v1\/artifacts\/([^/]+)\/revisions$/, "artifact_revise", true, "artifactId"],

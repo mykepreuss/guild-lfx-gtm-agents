@@ -42,6 +42,20 @@ const blockedPublisherHandler = createMarketingOsStateHandler({
 const health = await call(blockedPublisherHandler, "GET", "/healthz");
 assert.equal(health.response.status, 200);
 assert.equal(health.body.context_publication, "blocked");
+const ready = await call(blockedPublisherHandler, "GET", "/readyz");
+assert.equal(ready.response.status, 200);
+assert.equal(ready.body.status, "ready");
+
+const unavailableHandler = createMarketingOsStateHandler({
+  adapter,
+  verifyIdentity,
+  checkReady: async () => {
+    throw new Error("database unavailable");
+  },
+});
+const unavailable = await call(unavailableHandler, "GET", "/readyz");
+assert.equal(unavailable.response.status, 503);
+assert.equal(unavailable.body.error.code, "service_unavailable");
 
 const unauthorized = await call(
   blockedPublisherHandler,
@@ -108,6 +122,32 @@ const ownRead = await call(
 );
 assert.equal(ownRead.response.status, 200);
 assert.equal(ownRead.body.data.raw_source, "Private source A");
+const revisedSource = await call(
+  blockedPublisherHandler,
+  "POST",
+  `/v1/sources/${encodeURIComponent(sourceId)}/revisions`,
+  {
+    idempotency_key: "source-a-revision-2",
+    expected_revision: 1,
+    raw_source: "Private source A, corrected",
+    evidence: {
+      mode: "source_supplied",
+      source_coverage: ["source-a-v2.txt"],
+    },
+  },
+  "token_a",
+);
+assert.equal(revisedSource.response.status, 201);
+assert.equal(revisedSource.body.data.revision, 2);
+assert.equal(revisedSource.body.data.uploader, "user_a");
+const sourceRevision1 = await call(
+  blockedPublisherHandler,
+  "GET",
+  `/v1/sources/${encodeURIComponent(sourceId)}?revision=1`,
+  undefined,
+  "token_a",
+);
+assert.equal(sourceRevision1.body.data.raw_source, "Private source A");
 
 const artifact = await call(
   blockedPublisherHandler,
@@ -173,6 +213,28 @@ assert.equal(await adapter.readContextSnapshot({
 }), undefined);
 
 let publicationCalls = 0;
+const failingPublisherHandler = createMarketingOsStateHandler({
+  adapter,
+  verifyIdentity,
+  contextPublisher: async () => {
+    publicationCalls += 1;
+    throw new Error("publisher unavailable");
+  },
+});
+const failedPublication = await call(
+  failingPublisherHandler,
+  "POST",
+  "/v1/context/publish",
+  { ...contextRequest(artifactId), idempotency_key: "context-publisher-failed" },
+  "token_a_publish",
+);
+assert.equal(failedPublication.response.status, 500);
+assert.equal(publicationCalls, 1);
+assert.equal(await adapter.readContextSnapshot({
+  organization_id: "org_a",
+  workspace_id: "workspace_a",
+}), undefined);
+
 const enabledHandler = createMarketingOsStateHandler({
   adapter,
   verifyIdentity,
@@ -195,7 +257,22 @@ const published = await call(
 );
 assert.equal(published.response.status, 201);
 assert.equal(published.body.data.published_context_revision, 1);
-assert.equal(publicationCalls, 1);
+assert.equal(publicationCalls, 2);
+
+const stalePublication = await call(
+  enabledHandler,
+  "POST",
+  "/v1/context/publish",
+  { ...contextRequest(artifactId), idempotency_key: "context-stale" },
+  "token_a_publish",
+);
+assert.equal(stalePublication.response.status, 409);
+assert.equal(stalePublication.body.error.code, "context_revision_conflict");
+assert.equal(
+  publicationCalls,
+  2,
+  "stale context must be rejected before the external publisher runs",
+);
 
 const exported = await call(
   enabledHandler,
@@ -225,7 +302,58 @@ const emptyExport = await call(
   undefined,
   "token_a",
 );
-assert.deepEqual(emptyExport.body.data.sources, []);
+assert.equal(emptyExport.response.status, 410);
+assert.equal(emptyExport.body.error.code, "workspace_deleted");
+const repeatedDelete = await call(
+  enabledHandler,
+  "DELETE",
+  "/v1/workspace",
+  { confirmation_text: WORKSPACE_DELETE_PHRASE },
+  "token_a",
+);
+assert.equal(repeatedDelete.response.status, 200);
+assert.equal(
+  repeatedDelete.body.data.deletion_receipt_id,
+  deleted.body.data.deletion_receipt_id,
+);
+
+const limitedAdapter = new MemoryMarketingOsStateAdapter({
+  encryptionKey: crypto.createHash("sha256").update("rate-test").digest(),
+  clock: () => "2026-07-28T12:00:30.000Z",
+});
+const limitedHandler = createMarketingOsStateHandler({
+  adapter: limitedAdapter,
+  verifyIdentity,
+  rateLimit: { maxRequests: 2, windowSeconds: 60 },
+});
+assert.equal(
+  (await call(limitedHandler, "GET", "/v1/context", undefined, "token_a"))
+    .response.status,
+  200,
+);
+assert.equal(
+  (await call(limitedHandler, "GET", "/v1/context", undefined, "token_a"))
+    .response.status,
+  200,
+);
+const rateLimited = await call(
+  limitedHandler,
+  "GET",
+  "/v1/context",
+  undefined,
+  "token_a",
+);
+assert.equal(rateLimited.response.status, 429);
+assert.equal(rateLimited.body.error.code, "rate_limit_exceeded");
+assert.throws(
+  () =>
+    createMarketingOsStateHandler({
+      adapter: limitedAdapter,
+      verifyIdentity,
+      rateLimit: { maxRequests: 0, windowSeconds: 60 },
+    }),
+  /rateLimit values are invalid/,
+);
 
 console.log("Marketing OS authenticated HTTP service test OK.");
 

@@ -14,12 +14,13 @@
     "test:agent-builds": "node scripts/test-agent-builds.mjs",
     "test:launcher-routing": "node scripts/test-launcher-routing.mjs",
     "test:state-adapter": "npm test --prefix services/guild-marketing-os-state",
+    "test:state-postgres": "npm run test:postgres:integration --prefix services/guild-marketing-os-state",
     "test:foundation-state": "node scripts/test-foundation-state.mjs",
     "test:guild-adversarial": "node scripts/run-guild-e2e.mjs --adversarial",
     "test:guild-smoke": "node scripts/run-guild-e2e.mjs --smoke",
     "test:guild-smoke:full": "node scripts/run-guild-e2e.mjs --smoke --full",
     "test:guild-smoke:no-cache": "node scripts/run-guild-e2e.mjs --smoke --no-cache",
     "test:guild-smoke:full:no-cache": "node scripts/run-guild-e2e.mjs --smoke --full --no-cache",
-    "verify": "npm run test:workspace-context-bridge && npm run test:contracts && npm run test:launcher-routing && npm run test:state-adapter && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
+    "verify": "npm run test:workspace-context-bridge && npm run test:contracts && npm run test:launcher-routing && npm run test:state-adapter && npm run test:state-postgres && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
   }
 }

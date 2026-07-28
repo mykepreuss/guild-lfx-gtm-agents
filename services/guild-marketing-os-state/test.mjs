@@ -45,6 +45,31 @@ await assert.rejects(
   (error) => isStateError(error, "source_not_found", 404),
   "tenant B must not read tenant A source",
 );
+const sourceRevision2 = await adapter.reviseSource(tenantA, {
+  ...sourceRequest,
+  idempotency_key: "source-revision-2",
+  source_id: source.source_id,
+  expected_revision: 1,
+  raw_source: "Confidential interview transcript, corrected",
+});
+assert.equal(sourceRevision2.revision, 2);
+assert.equal(
+  (await adapter.getSource(tenantA, source.source_id)).raw_source,
+  "Confidential interview transcript, corrected",
+);
+assert.equal(
+  (await adapter.getSource(tenantA, source.source_id, 1)).raw_source,
+  "Confidential interview transcript",
+);
+await assert.rejects(
+  () => adapter.reviseSource(tenantA, {
+    ...sourceRequest,
+    idempotency_key: "source-revision-stale",
+    source_id: source.source_id,
+    expected_revision: 1,
+  }),
+  (error) => isStateError(error, "revision_conflict", 409),
+);
 
 const artifactRequest = {
   idempotency_key: "artifact-1",
@@ -62,6 +87,15 @@ const artifactRequest = {
 const artifactDraft = await adapter.storeArtifact(tenantA, artifactRequest);
 assert.equal(artifactDraft.revision, 1);
 assert.equal(artifactDraft.status, "draft");
+await assert.rejects(
+  () => adapter.storeArtifact(tenantA, {
+    ...artifactRequest,
+    idempotency_key: "artifact-direct-approved",
+    status: "approved",
+  }),
+  (error) => isStateError(error, "invalid_artifact_status", 400),
+  "artifact approval must create a separate approval record",
+);
 
 const reviewReady = await adapter.setArtifactStatus(tenantA, {
   idempotency_key: "artifact-review-1",
@@ -71,6 +105,17 @@ const reviewReady = await adapter.setArtifactStatus(tenantA, {
   status: "ready_for_review",
 });
 assert.equal(reviewReady.status, "ready_for_review");
+await assert.rejects(
+  () => adapter.setArtifactStatus(tenantA, {
+    idempotency_key: "artifact-status-direct-approved",
+    artifact_id: artifactDraft.artifact_id,
+    revision: 1,
+    expected_revision: 1,
+    status: "approved",
+  }),
+  (error) => isStateError(error, "invalid_artifact_transition", 409),
+  "status changes cannot bypass approval",
+);
 
 const approved = await adapter.approveArtifact(tenantA, {
   idempotency_key: "artifact-approve-1",
@@ -144,6 +189,16 @@ const handoff = await adapter.createHandoff(tenantA, {
   rationale: "Approved messaging is ready for campaign planning.",
 });
 assert.equal(handoff.completion_state, "pending");
+await assert.rejects(
+  () => adapter.createHandoff(tenantA, {
+    idempotency_key: "handoff-invalid-state",
+    source_agent: "Messaging",
+    target_agent: "Campaigns And Paid Media",
+    rationale: "Invalid state should be rejected.",
+    completion_state: "executed",
+  }),
+  (error) => isStateError(error, "invalid_handoff_completion_state", 400),
+);
 const completedHandoff = await adapter.updateHandoff(tenantA, {
   idempotency_key: "handoff-complete-1",
   handoff_id: handoff.handoff_id,
@@ -185,6 +240,7 @@ for (let index = 0; index < audit.length; index += 1) {
 
 const exported = await adapter.exportWorkspace(tenantA);
 assert.equal(exported.sources[0].raw_source, "Confidential interview transcript");
+assert.equal(exported.sources[1].raw_source, "Confidential interview transcript, corrected");
 assert.equal(exported.context_snapshot.published_context_revision, 1);
 assert.ok(exported.artifacts.some((item) => item.revision === 1 && item.status === "superseded"));
 assert.ok(exported.artifacts.some((item) => item.revision === 2));
@@ -204,6 +260,10 @@ const deletedSource = await adapter.deleteSource(tenantA, {
 });
 assert.equal(deletedSource.deletion_state, "deleted");
 assert.equal((await adapter.getSource(tenantA, source.source_id)).raw_source, undefined);
+assert.equal(
+  (await adapter.getSource(tenantA, source.source_id, 1)).raw_source,
+  undefined,
+);
 
 await assert.rejects(
   () => adapter.deleteWorkspace(tenantA, { confirmation_text: "delete workspace" }),
@@ -211,8 +271,20 @@ await assert.rejects(
 );
 const deletionReceipt = await adapter.deleteWorkspace(tenantA, { confirmation_text: WORKSPACE_DELETE_PHRASE });
 assert.ok(deletionReceipt.record_counts.artifact_revisions >= 2);
-assert.deepEqual(await adapter.getAuditTrail(tenantA), []);
-assert.deepEqual((await adapter.exportWorkspace(tenantA)).sources, []);
+assert.deepEqual(
+  await adapter.deleteWorkspace(tenantA, {
+    confirmation_text: WORKSPACE_DELETE_PHRASE,
+  }),
+  deletionReceipt,
+);
+await assert.rejects(
+  () => adapter.getAuditTrail(tenantA),
+  (error) => isStateError(error, "workspace_deleted", 410),
+);
+await assert.rejects(
+  () => adapter.exportWorkspace(tenantA),
+  (error) => isStateError(error, "workspace_deleted", 410),
+);
 
 console.log("Marketing OS state adapter contract test OK.");
 

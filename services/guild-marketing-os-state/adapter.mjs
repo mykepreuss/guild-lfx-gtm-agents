@@ -1,9 +1,13 @@
 export class MarketingOsStateAdapter {
+  async consumeRateLimit(_tenant, _request) {
+    throw new Error("consumeRateLimit is not implemented.");
+  }
+
   async readContextSnapshot(_tenant) {
     throw new Error("readContextSnapshot is not implemented.");
   }
 
-  async publishContextSnapshot(_tenant, _request) {
+  async publishContextSnapshot(_tenant, _request, _options) {
     throw new Error("publishContextSnapshot is not implemented.");
   }
 
@@ -11,8 +15,12 @@ export class MarketingOsStateAdapter {
     throw new Error("storeSource is not implemented.");
   }
 
-  async getSource(_tenant, _sourceId) {
+  async getSource(_tenant, _sourceId, _revision) {
     throw new Error("getSource is not implemented.");
+  }
+
+  async reviseSource(_tenant, _request) {
+    throw new Error("reviseSource is not implemented.");
   }
 
   async deleteSource(_tenant, _request) {

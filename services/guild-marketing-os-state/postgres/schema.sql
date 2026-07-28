@@ -65,6 +65,10 @@ CREATE TABLE IF NOT EXISTS marketing_os_approvals (
   artifact_id uuid NOT NULL,
   artifact_revision integer NOT NULL,
   exact_approval_text text NOT NULL,
+  CHECK (
+    approval_type <> 'context_publish'
+    OR exact_approval_text = 'publish approved context to workspace context'
+  ),
   PRIMARY KEY (organization_id, workspace_id, approval_id),
   FOREIGN KEY (organization_id, workspace_id, artifact_id, artifact_revision)
     REFERENCES marketing_os_artifacts (organization_id, workspace_id, artifact_id, revision)
@@ -126,7 +130,8 @@ CREATE TABLE IF NOT EXISTS marketing_os_handoffs (
   artifact_references jsonb NOT NULL DEFAULT '[]'::jsonb,
   context_revision text,
   rationale text NOT NULL,
-  completion_state text NOT NULL,
+  completion_state text NOT NULL
+    CHECK (completion_state IN ('pending', 'completed', 'blocked', 'failed')),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, workspace_id, handoff_id)
@@ -143,6 +148,22 @@ CREATE TABLE IF NOT EXISTS marketing_os_idempotency (
   PRIMARY KEY (organization_id, workspace_id, operation, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS marketing_os_rate_limits (
+  organization_id text NOT NULL,
+  workspace_id text NOT NULL,
+  subject text NOT NULL,
+  bucket_start timestamptz NOT NULL,
+  window_seconds integer NOT NULL CHECK (
+    window_seconds > 0 AND window_seconds <= 86400
+  ),
+  requests integer NOT NULL CHECK (requests > 0),
+  PRIMARY KEY (
+    organization_id, workspace_id, subject, bucket_start, window_seconds
+  ),
+  FOREIGN KEY (organization_id, workspace_id)
+    REFERENCES marketing_os_tenants (organization_id, workspace_id)
+);
+
 CREATE TABLE IF NOT EXISTS marketing_os_audit (
   organization_id text NOT NULL,
   workspace_id text NOT NULL,
@@ -155,6 +176,16 @@ CREATE TABLE IF NOT EXISTS marketing_os_audit (
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (organization_id, workspace_id, sequence),
   UNIQUE (organization_id, workspace_id, entry_hash)
+);
+
+CREATE TABLE IF NOT EXISTS marketing_os_deletion_receipts (
+  organization_id text NOT NULL,
+  workspace_id text NOT NULL,
+  deletion_receipt_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  tenant_hash text NOT NULL,
+  record_counts jsonb NOT NULL,
+  deleted_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (organization_id, workspace_id, deletion_receipt_id)
 );
 
 CREATE OR REPLACE FUNCTION marketing_os_current_organization()
@@ -180,7 +211,9 @@ BEGIN
     'marketing_os_workstreams',
     'marketing_os_handoffs',
     'marketing_os_idempotency',
-    'marketing_os_audit'
+    'marketing_os_rate_limits',
+    'marketing_os_audit',
+    'marketing_os_deletion_receipts'
   ]
   LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
@@ -212,12 +245,38 @@ CREATE TRIGGER marketing_os_audit_immutable
 BEFORE UPDATE OR DELETE ON marketing_os_audit
 FOR EACH ROW EXECUTE FUNCTION marketing_os_reject_audit_mutation();
 
+CREATE OR REPLACE FUNCTION marketing_os_require_artifact_approval()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status = 'approved' AND NOT EXISTS (
+    SELECT 1
+      FROM marketing_os_approvals
+     WHERE organization_id = NEW.organization_id
+       AND workspace_id = NEW.workspace_id
+       AND artifact_id = NEW.artifact_id
+       AND artifact_revision = NEW.revision
+       AND approval_type = 'artifact'
+  ) THEN
+    RAISE EXCEPTION 'approved artifact requires an approval record';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS marketing_os_artifact_approval_required
+  ON marketing_os_artifacts;
+CREATE TRIGGER marketing_os_artifact_approval_required
+BEFORE INSERT OR UPDATE OF status ON marketing_os_artifacts
+FOR EACH ROW EXECUTE FUNCTION marketing_os_require_artifact_approval();
+
 CREATE INDEX IF NOT EXISTS marketing_os_sources_tenant_updated
   ON marketing_os_sources (organization_id, workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS marketing_os_artifacts_tenant_type_updated
   ON marketing_os_artifacts (organization_id, workspace_id, artifact_type, updated_at DESC);
 CREATE INDEX IF NOT EXISTS marketing_os_handoffs_tenant_target
   ON marketing_os_handoffs (organization_id, workspace_id, target_agent, updated_at DESC);
+CREATE INDEX IF NOT EXISTS marketing_os_rate_limits_expiry
+  ON marketing_os_rate_limits (bucket_start, window_seconds);
 CREATE INDEX IF NOT EXISTS marketing_os_audit_tenant_created
   ON marketing_os_audit (organization_id, workspace_id, created_at);
 

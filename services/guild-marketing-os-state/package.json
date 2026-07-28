@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test.mjs && node http-service.test.mjs && node postgres/schema.test.mjs"
+    "start": "node server.mjs",
+    "migrate": "node postgres/migrate.mjs",
+    "test": "node test.mjs && node envelope-encryption.test.mjs && node http-service.test.mjs && node server.test.mjs && node postgres/schema.test.mjs && node postgres/migrate.test.mjs",
+    "test:postgres:integration": "node postgres/run-integration.mjs"
   },
   "dependencies": {
-    "jose": "6.2.4"
+    "jose": "6.2.4",
+    "pg": "8.22.0"
   },
   "engines": {
     "node": ">=22"

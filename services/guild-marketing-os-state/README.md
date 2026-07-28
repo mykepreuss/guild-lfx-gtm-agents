@@ -22,6 +22,66 @@ after an exact-match check, and a mismatch is rejected. Context publication
 requires a separate delegated publication scope and remains unavailable unless
 a workspace-scoped publisher is explicitly injected.
 
+`postgres-adapter.mjs` implements the production adapter against PostgreSQL.
+Every operation uses one checked-out client and one transaction, sets verified
+tenant values through transaction-local PostgreSQL settings before accessing
+RLS-protected tables, serializes mutable aggregates, preserves optimistic
+revision checks, and appends hash-linked audit entries. The explicit
+`npm run test:postgres:integration` command starts a disposable local
+PostgreSQL server (or a disposable Docker container), exercises the production
+adapter, and removes the temporary database afterward.
+
+Sources are immutable revisions: correcting a source creates a new encrypted
+revision and preserves the prior revision for audit until deletion. Confirmed
+source deletion removes ciphertext, authentication material, and wrapped data
+keys from every revision of that source.
+
+Confirmed workspace deletion purges source ciphertext, artifacts, approvals,
+workstreams, handoffs, idempotency records, and that tenant's rate-limit
+buckets. It retains only the tombstoned tenant row, hash-linked audit metadata
+(including the deletion event), and a minimal deletion receipt. Those retained
+records contain opaque identifiers, actors, timestamps, event types, hashes,
+and counts—not raw source or artifact bodies.
+
+`server.mjs` and `Dockerfile` provide the Cloud Run ingress container. Startup
+requires `DATABASE_URL`, `KMS_KEY_NAME`, `GUILD_DELEGATED_ISSUER`,
+`GUILD_DELEGATED_AUDIENCE`, and `GUILD_DELEGATED_JWKS_URL`. Cloud KMS calls use
+the assigned Cloud Run service identity through the metadata server; no service
+account key or maintainer Guild token is accepted. `/healthz` is a liveness
+check and `/readyz` verifies database connectivity. Authenticated calls use a
+tenant-scoped PostgreSQL rate limiter, defaulting to 120 requests per 60
+seconds; deployments may set `RATE_LIMIT_MAX_REQUESTS` and
+`RATE_LIMIT_WINDOW_SECONDS`.
+
+Apply the schema with a separate migration identity before starting the
+service:
+
+```bash
+DATABASE_ADMIN_URL='postgresql://...' \
+DATABASE_APP_ROLE='marketing_os_app' \
+DATABASE_ADMIN_SSL=require \
+npm run migrate
+```
+
+`DATABASE_ADMIN_URL` and `DATABASE_APP_ROLE` are accepted only by the migration
+command. The named application role must already exist and must not be a
+superuser or have `BYPASSRLS`; the migration grants only the required schema,
+table, and tenant-function access. The running container uses `DATABASE_URL`,
+so the higher-privilege migration credential does not need to be present in the
+Cloud Run service.
+
+Context publication intentionally remains blocked in this container until
+Guild supplies the delegated workspace-scoped publisher contract. The state
+service can be deployed and tested without that mutation path, but public
+release cannot proceed while it is disabled.
+
+When that publisher is supplied, the adapter validates the exact approval,
+approved artifact, expected current revision, and idempotency record while
+holding the context transaction lock before invoking it. The publisher must
+honor the same idempotency key: if the external Guild mutation succeeds but the
+database commit is interrupted, a retry must return the original Guild context
+result rather than publishing a second version.
+
 The production implementation must preserve these semantics on managed PostgreSQL:
 
 - derive tenant identity from delegated Guild authorization, never from an untrusted request body;

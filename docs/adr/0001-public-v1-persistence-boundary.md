@@ -30,24 +30,42 @@ idempotency key, actor, and delegated workspace authorization must also match.
 | --- | --- | --- | --- |
 | Resolve session to workspace | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
 | Read compiled workspace context | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
-| Revisioned artifact/source database | No agent-facing contract found | No | Yes |
-| Workspace-scoped context draft/publish | No agent-facing SDK operation found | Technically possible, but uses one maintainer token | Blocked until delegated Guild authorization exists |
+| Revisioned artifact/source database | No agent-facing contract found | No | Implemented and locally exercised |
+| Workspace-scoped context draft/publish | The current docs describe operations that the published 0.4.2 package does not contain | Technically possible, but uses one maintainer token | Blocked until a shipped, live-proven Guild authorization contract exists |
 | Tenant isolation | No durable store to assess | Fail: fixed workspace/host identity assumptions | PostgreSQL RLS plus verified server-side tenant binding |
-| Idempotency and optimistic concurrency | No durable store to assess | Partial context-only behavior | Contract and schema enforce both |
-| Immutable audit, export, explicit deletion | No durable store to assess | No | Contract and schema provide all three |
+| Idempotency and optimistic concurrency | No durable store to assess | Partial context-only behavior | Production adapter and database rehearsal pass |
+| Immutable audit, export, explicit deletion | No durable store to assess | No | Production adapter and database rehearsal pass |
 | Managed PostgreSQL backups and recovery | Not applicable | Not provided by the bridge | Cloud SQL managed backup/PITR configuration |
 | Customer credential exposure | Not applicable | Blaxel credential is hidden, but maintainer Guild token is shared | No infrastructure credentials are customer-visible |
 
 ## Native ceiling spike
 
-The packages compile and validate against `@guildai/agents-sdk` 0.4.2. The SDK
-exposes session, workspace, installed-agent, and default-agent reads. It does
-not expose an agent-facing database contract or workspace-context draft/publish
-operations meeting the required revision, isolation, audit, export, and
-deletion contract.
+The packages compile and validate against the current published
+`@guildai/agents-sdk` 0.4.2. Its generated `GuildService` exposes workspace,
+installed-agent, default-agent, session, and compiled-context reads. It does not
+expose an agent-facing database contract.
+
+Guild's current online Task documentation lists `get_workspace_contexts`,
+`create_workspace_context`, `experimental_fetch`, and
+`experimental_fetch_async`. The npm registry still reports 0.4.2 as latest,
+and the installed 0.4.2 generated service interface contains none of those four
+operations. The package documentation explicitly says the package is ground
+truth. Public V1 therefore cannot depend on the online-only surface until a
+published SDK exposes it and a private live spike proves the authorization and
+revision behavior.
+
+Guild custom integrations currently document API key, OAuth, and OAuth M2M
+credential injection at the organization level. The published contract does
+not document a Guild-signed outbound identity carrying organization,
+workspace, actor, session, and task claims, nor a Guild JWKS/issuer contract
+for a customer service to verify. Passing workspace identifiers in an agent
+request body is insufficient because a malicious or compromised agent could
+spoof them.
 
 This means native Guild state is useful for deterministic context reads and
-installation verification, but it cannot be the V1 system of record.
+installation verification, but it cannot currently be the V1 system of record.
+It may become the context-publication path after the documented operations ship
+and pass the live authorization spike.
 
 ## Why not the current Blaxel bridge
 
@@ -84,6 +102,40 @@ replacement is built. It must not be used by a public package.
 - Logs contain opaque IDs and error codes, never raw source, artifact bodies,
   access tokens, or direct personal contact/payment identifiers.
 
+## Implementation and local production proof
+
+The Cloud Run service source is complete enough for an authenticated deployment:
+
+- `PostgresMarketingOsStateAdapter` uses one checked-out client per transaction,
+  transaction-local tenant settings, forced RLS, aggregate locks, idempotency
+  locks, optimistic revision checks, and hash-linked audit entries.
+- Raw sources use AES-256-GCM data keys wrapped through Cloud KMS. The Cloud Run
+  implementation obtains KMS access from its service identity metadata token;
+  it accepts no service-account key.
+- Source corrections create new immutable encrypted revisions. A confirmed
+  source deletion clears ciphertext and wrapped-key material from every
+  revision, not only the latest.
+- Artifact approval cannot be bypassed by storing an approved revision or using
+  a generic status change. PostgreSQL also rejects an approved row without its
+  matching approval record.
+- Authenticated requests consume a tenant-and-actor-scoped PostgreSQL rate
+  bucket, so limits remain effective across Cloud Run instances.
+- The container listens on `0.0.0.0:$PORT`, exposes liveness/readiness checks,
+  uses a non-root runtime user, and handles shutdown.
+- `npm run migrate` applies and verifies the schema with a separate
+  `DATABASE_ADMIN_URL`; the running service does not accept that credential.
+  The migration refuses a superuser or `BYPASSRLS` runtime role and grants only
+  the explicit application tables and tenant helper functions.
+- `npm run test:postgres:integration` starts a disposable PostgreSQL instance
+  and passes concurrent idempotency, revision conflicts, forced RLS isolation,
+  envelope-encrypted export, audit immutability, approval integrity, confirmed
+  deletion, and deletion-receipt checks.
+- Production dependencies currently report zero known npm vulnerabilities.
+
+No managed GCP environment is configured in this workspace, so backup/restore,
+private networking, KMS IAM, Cloud Run identity, load, and failover evidence
+remain deployment gates rather than local claims.
+
 ## Rollback
 
 The adapter boundary permits switching providers without changing agent
@@ -102,14 +154,21 @@ the prior published context identifier as its rollback reference.
 
 ## Release consequence
 
-The codebase may proceed through private alpha with the in-memory conformance
-adapter and private Launcher tests. Public visibility, self-install onboarding,
-and public context publication remain blocked until delegated Guild
-authorization and a production Cloud SQL deployment pass the release matrix.
+The private alpha and browser acceptance may continue. Public visibility,
+self-install onboarding, durable multi-session cockpit use, and public context
+publication remain blocked until Guild supplies a verifiable workspace-scoped
+service identity (or ships an equivalent native contract), and a production
+Cloud SQL deployment passes the release matrix.
 
 ## Evidence
 
 - Guild SDK package tested locally at version 0.4.2.
+- Guild SDK Task documentation:
+  <https://docs.guild.ai/sdk/task-object>
+- Guild custom integration documentation:
+  <https://docs.guild.ai/services/create-an-integration>
+- Guild workspace-context documentation:
+  <https://docs.guild.ai/platform/context>
 - Guild live sessions and complete task/event evidence are stored under the
   ignored `_private/evidence` directory.
 - Blaxel API authentication documentation:

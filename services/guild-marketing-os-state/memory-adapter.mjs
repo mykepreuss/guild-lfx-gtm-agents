@@ -8,6 +8,7 @@ import {
   artifactRevisionInput,
   assertTenant,
   evidenceEntry,
+  handoffCompletionState,
   newId,
   requiredString,
   stableHash,
@@ -17,7 +18,7 @@ import {
 
 const artifactTransitions = Object.freeze({
   draft: new Set(["ready_for_review", "blocked"]),
-  ready_for_review: new Set(["draft", "approved", "blocked"]),
+  ready_for_review: new Set(["draft", "blocked"]),
   approved: new Set(["superseded"]),
   blocked: new Set(["draft", "ready_for_review"]),
   superseded: new Set(),
@@ -26,7 +27,7 @@ const artifactTransitions = Object.freeze({
 export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
   #masterKey;
   #tenants = new Map();
-  #deletionReceipts = [];
+  #deletionReceipts = new Map();
   #clock;
 
   constructor({ encryptionKey, clock = () => new Date().toISOString() } = {}) {
@@ -35,15 +36,84 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
     this.#clock = clock;
   }
 
+  async consumeRateLimit(tenant, request) {
+    const binding = assertTenant(tenant);
+    const deleted = this.#deletionReceipts.has(tenantKey(binding));
+    if (deleted && request.permit_deleted_tenant !== true) {
+      throw new StateContractError(
+        "workspace_deleted",
+        "Marketing OS workspace data has been deleted.",
+        410,
+      );
+    }
+    const subject = requiredString(request.subject, "subject");
+    const maxRequests = boundedPositiveInteger(
+      request.max_requests,
+      "max_requests",
+      100_000,
+    );
+    const windowSeconds = boundedPositiveInteger(
+      request.window_seconds,
+      "window_seconds",
+      86_400,
+    );
+    const now = Date.parse(this.#clock());
+    if (!Number.isFinite(now)) {
+      throw new StateContractError(
+        "invalid_clock",
+        "The rate-limit clock is invalid.",
+        500,
+      );
+    }
+    const windowMilliseconds = windowSeconds * 1000;
+    const bucketStart =
+      Math.floor(now / windowMilliseconds) * windowMilliseconds;
+    if (deleted) {
+      return {
+        limit: maxRequests,
+        remaining: maxRequests,
+        reset_at: new Date(
+          bucketStart + windowMilliseconds,
+        ).toISOString(),
+      };
+    }
+    const state = this.#state(binding);
+    for (const [existingKey, bucket] of state.rateLimits) {
+      if (bucket.expiresAt + 86_400_000 < now) {
+        state.rateLimits.delete(existingKey);
+      }
+    }
+    const key = `${subject}:${bucketStart}:${windowSeconds}`;
+    const requests = (state.rateLimits.get(key)?.requests ?? 0) + 1;
+    if (requests > maxRequests) {
+      throw new StateContractError(
+        "rate_limit_exceeded",
+        "Too many Marketing OS state requests. Retry after the current window.",
+        429,
+      );
+    }
+    state.rateLimits.set(key, {
+      requests,
+      expiresAt: bucketStart + windowMilliseconds,
+    });
+    return {
+      limit: maxRequests,
+      remaining: maxRequests - requests,
+      reset_at: new Date(
+        bucketStart + windowMilliseconds,
+      ).toISOString(),
+    };
+  }
+
   async readContextSnapshot(tenant) {
     const state = this.#state(tenant, false);
     return clone(state?.contextSnapshot);
   }
 
-  async publishContextSnapshot(tenant, request) {
+  async publishContextSnapshot(tenant, request, { publisher } = {}) {
     const binding = assertTenant(tenant);
     const state = this.#state(binding);
-    return this.#idempotent(state, "publish_context", request.idempotency_key, request, () => {
+    return this.#idempotent(state, "publish_context", request.idempotency_key, request, async () => {
       if (request.approval_text !== CONTEXT_APPROVAL_PHRASE) {
         throw new StateContractError("context_approval_required", `Context publication requires exact approval text: ${CONTEXT_APPROVAL_PHRASE}`, 403);
       }
@@ -61,6 +131,18 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       if (artifact.status !== "approved") {
         throw new StateContractError("approved_artifact_required", "Context publication requires an approved artifact revision.", 409);
       }
+      const publication = typeof publisher === "function"
+        ? await publisher({ tenant: binding, request: clone(request) })
+        : {
+            guild_context_id: request.guild_context_id,
+            rollback_context_id: request.rollback_context_id,
+          };
+      if (typeof publisher === "function") {
+        requiredString(
+          publication?.guild_context_id,
+          "publisher.guild_context_id",
+        );
+      }
       const nextRevision = (state.contextSnapshot?.published_context_revision ?? 0) + 1;
       const now = this.#clock();
       const approval = {
@@ -75,8 +157,8 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       const snapshot = {
         workspace: binding,
         published_context_revision: nextRevision,
-        guild_context_id: request.guild_context_id ?? null,
-        rollback_context_id: request.rollback_context_id ?? null,
+        guild_context_id: publication?.guild_context_id ?? null,
+        rollback_context_id: publication?.rollback_context_id ?? null,
         compiled_brief: requiredString(request.compiled_brief, "compiled_brief"),
         readiness: request.readiness ?? "ready",
         source_references: [...new Set(request.source_references ?? [])],
@@ -121,22 +203,87 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         deleted_at: null,
         deletion_state: "retained",
       };
-      state.sources.set(sourceId, record);
+      state.sources.set(sourceId, [record]);
       this.#audit(state, binding, "source.stored", { source_id: sourceId, revision });
       return publicSource(record);
     });
   }
 
-  async getSource(tenant, sourceId) {
+  async getSource(tenant, sourceId, revision) {
     const binding = assertTenant(tenant);
     const state = this.#state(binding, false);
-    const record = state?.sources.get(sourceId);
+    const revisions = state?.sources.get(sourceId);
+    const record = revision === undefined
+      ? revisions?.at(-1)
+      : revisions?.find((item) => item.revision === revision);
     if (!record) throw new StateContractError("source_not_found", "Source was not found.", 404);
     const rawSource =
       record.deletion_state === "retained"
         ? decrypt(record.encrypted_raw_source, this.#tenantEncryptionKey(binding), `${tenantKey(binding)}:${record.source_id}:${record.revision}`)
         : undefined;
     return { ...publicSource(record), raw_source: rawSource };
+  }
+
+  async reviseSource(tenant, request) {
+    const binding = assertTenant(tenant);
+    const state = this.#state(binding);
+    return this.#idempotent(
+      state,
+      "source_revise",
+      request.idempotency_key,
+      request,
+      () => {
+        const sourceId = requiredString(request.source_id, "source_id");
+        const revisions = state.sources.get(sourceId);
+        if (!revisions) {
+          throw new StateContractError(
+            "source_not_found",
+            "Source was not found.",
+            404,
+          );
+        }
+        const current = revisions.at(-1);
+        this.#expectRevision(current.revision, request.expected_revision);
+        if (current.deletion_state === "deleted") {
+          throw new StateContractError(
+            "source_deleted",
+            "A deleted source cannot be revised.",
+            410,
+          );
+        }
+        const revision = current.revision + 1;
+        const timestamp = this.#clock();
+        const rawSource = requiredString(request.raw_source, "raw_source");
+        const record = {
+          source_id: sourceId,
+          revision,
+          evidence: evidenceEntry(
+            request.evidence ?? current.evidence,
+          ),
+          provenance:
+            request.provenance && typeof request.provenance === "object"
+              ? clone(request.provenance)
+              : clone(current.provenance),
+          uploader: requiredString(request.uploader, "uploader"),
+          encrypted_raw_source: encrypt(
+            rawSource,
+            this.#tenantEncryptionKey(binding),
+            `${tenantKey(binding)}:${sourceId}:${revision}`,
+          ),
+          created_at: timestamp,
+          updated_at: timestamp,
+          deleted_at: null,
+          deletion_state: "retained",
+        };
+        revisions.push(record);
+        this.#audit(state, binding, "source.revised", {
+          source_id: sourceId,
+          revision,
+          previous_revision: current.revision,
+        });
+        return publicSource(record);
+      },
+    );
   }
 
   async deleteSource(tenant, request) {
@@ -147,20 +294,26 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       if (request.confirmation_text !== `delete source ${sourceId}`) {
         throw new StateContractError("source_delete_confirmation_required", `Type exactly: delete source ${sourceId}`, 403);
       }
-      const record = state.sources.get(sourceId);
-      if (!record) throw new StateContractError("source_not_found", "Source was not found.", 404);
-      if (record.deletion_state === "deleted") return publicSource(record);
+      const revisions = state.sources.get(sourceId);
+      if (!revisions) throw new StateContractError("source_not_found", "Source was not found.", 404);
+      const current = revisions.at(-1);
+      if (revisions.every((record) => record.deletion_state === "deleted")) {
+        return publicSource(current);
+      }
       const now = this.#clock();
-      const deleted = {
+      const deleted = revisions.map((record) => ({
         ...record,
         encrypted_raw_source: null,
         updated_at: now,
         deleted_at: now,
         deletion_state: "deleted",
-      };
+      }));
       state.sources.set(sourceId, deleted);
-      this.#audit(state, binding, "source.deleted", { source_id: sourceId, revision: record.revision });
-      return publicSource(deleted);
+      this.#audit(state, binding, "source.deleted", {
+        source_id: sourceId,
+        revisions_deleted: deleted.length,
+      });
+      return publicSource(deleted.at(-1));
     });
   }
 
@@ -330,7 +483,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         artifact_references: Array.isArray(request.artifact_references) ? clone(request.artifact_references) : [],
         context_revision: request.context_revision ?? null,
         rationale: requiredString(request.rationale, "rationale"),
-        completion_state: request.completion_state ?? "pending",
+        completion_state: handoffCompletionState(request.completion_state),
         created_at: this.#clock(),
         updated_at: this.#clock(),
       };
@@ -350,7 +503,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       this.#expectRevision(current.revision, request.expected_revision);
       const record = {
         ...current,
-        completion_state: requiredString(request.completion_state, "completion_state"),
+        completion_state: handoffCompletionState(request.completion_state),
         revision: current.revision + 1,
         updated_at: this.#clock(),
       };
@@ -376,8 +529,12 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       return { schema_version: "1.0", tenant: binding, context_snapshot: null, sources: [], artifacts: [], workstreams: [], handoffs: [], approvals: [], audit: [] };
     }
     const sources = [];
-    for (const source of state.sources.values()) {
-      sources.push(await this.getSource(binding, source.source_id));
+    for (const revisions of state.sources.values()) {
+      for (const source of revisions) {
+        sources.push(
+          await this.getSource(binding, source.source_id, source.revision),
+        );
+      }
     }
     return {
       schema_version: "1.0",
@@ -399,6 +556,8 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       throw new StateContractError("workspace_delete_confirmation_required", `Type exactly: ${WORKSPACE_DELETE_PHRASE}`, 403);
     }
     const key = tenantKey(binding);
+    const existingReceipt = this.#deletionReceipts.get(key);
+    if (existingReceipt) return clone(existingReceipt);
     const state = this.#tenants.get(key);
     const receipt = {
       deletion_receipt_id: newId("deletion"),
@@ -406,7 +565,10 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       deleted_at: this.#clock(),
       record_counts: state
         ? {
-            sources: state.sources.size,
+            source_revisions: [...state.sources.values()].reduce(
+              (count, revisions) => count + revisions.length,
+              0,
+            ),
             artifact_revisions: [...state.artifacts.values()].reduce((count, revisions) => count + revisions.length, 0),
             workstreams: state.workstreams.size,
             handoffs: state.handoffs.size,
@@ -416,13 +578,20 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         : {},
     };
     this.#tenants.delete(key);
-    this.#deletionReceipts.push(receipt);
+    this.#deletionReceipts.set(key, receipt);
     return clone(receipt);
   }
 
   #state(tenant, create = true) {
     const binding = assertTenant(tenant);
     const key = tenantKey(binding);
+    if (this.#deletionReceipts.has(key)) {
+      throw new StateContractError(
+        "workspace_deleted",
+        "Marketing OS workspace data has been deleted.",
+        410,
+      );
+    }
     if (!this.#tenants.has(key) && create) {
       this.#tenants.set(key, {
         contextSnapshot: undefined,
@@ -433,6 +602,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         approvals: [],
         audit: [],
         idempotency: new Map(),
+        rateLimits: new Map(),
       });
     }
     return this.#tenants.get(key);
@@ -458,7 +628,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
     }
   }
 
-  #idempotent(state, operation, idempotencyKey, payload, action) {
+  async #idempotent(state, operation, idempotencyKey, payload, action) {
     const key = requiredString(idempotencyKey, "idempotency_key");
     const scopedKey = `${operation}:${key}`;
     const payloadHash = stableHash(payload);
@@ -469,7 +639,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       }
       return clone(existing.result);
     }
-    const result = action();
+    const result = await action();
     state.idempotency.set(scopedKey, { payload_hash: payloadHash, result: clone(result) });
     return result;
   }
@@ -534,4 +704,14 @@ function publicSource(record) {
 
 function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
+}
+
+function boundedPositiveInteger(value, field, maximum) {
+  if (!Number.isInteger(value) || value < 1 || value > maximum) {
+    throw new StateContractError(
+      "invalid_request",
+      `${field} must be a positive integer no greater than ${maximum}.`,
+    );
+  }
+  return value;
 }

@@ -18,6 +18,13 @@ export const WORKSTREAM_STATUSES = Object.freeze([
   "failed",
 ]);
 
+export const HANDOFF_COMPLETION_STATES = Object.freeze([
+  "pending",
+  "completed",
+  "blocked",
+  "failed",
+]);
+
 export const EVIDENCE_MODES = Object.freeze([
   "source_supplied",
   "connected_read_only",
@@ -98,8 +105,11 @@ export function artifactRevisionInput(value) {
     throw new StateContractError("invalid_artifact", "Artifact revision must be an object.");
   }
   const status = value.status ?? "draft";
-  if (!ARTIFACT_STATUSES.includes(status) || status === "superseded") {
-    throw new StateContractError("invalid_artifact_status", "A new artifact revision must be draft, ready_for_review, approved, or blocked.");
+  if (!["draft", "ready_for_review", "blocked"].includes(status)) {
+    throw new StateContractError(
+      "invalid_artifact_status",
+      "A new artifact revision must be draft, ready_for_review, or blocked. Approval requires a separate approval record.",
+    );
   }
   return {
     artifact_type: requiredString(value.artifact_type, "artifact_type"),
@@ -130,6 +140,16 @@ export function workstreamInput(value) {
     next_action: optionalString(value.next_action),
     handoff_id: optionalString(value.handoff_id),
   };
+}
+
+export function handoffCompletionState(value = "pending") {
+  if (!HANDOFF_COMPLETION_STATES.includes(value)) {
+    throw new StateContractError(
+      "invalid_handoff_completion_state",
+      `Handoff completion_state must be ${HANDOFF_COMPLETION_STATES.join(", ")}.`,
+    );
+  }
+  return value;
 }
 
 export function stableHash(value) {

@@ -17,7 +17,9 @@ const tenantTables = [
   "marketing_os_workstreams",
   "marketing_os_handoffs",
   "marketing_os_idempotency",
+  "marketing_os_rate_limits",
   "marketing_os_audit",
+  "marketing_os_deletion_receipts",
 ];
 
 for (const table of tenantTables) {
@@ -30,9 +32,13 @@ for (const required of [
   "marketing_os_current_organization()",
   "marketing_os_current_workspace()",
   "marketing_os_audit is append-only",
+  "approved artifact requires an approval record",
+  "publish approved context to workspace context",
+  "completion_state IN ('pending', 'completed', 'blocked', 'failed')",
   "external_mutation_requested",
   "draft_only",
   "idempotency_key",
+  "marketing_os_rate_limits_expiry",
   "revision",
 ]) {
   assert.ok(sql.includes(required), `schema is missing ${required}`);
