@@ -320,7 +320,17 @@ function contextFingerprint(value: string): string {
     .padStart(8, "0")}`;
 }
 
-export function specialistInput(userText: string, contextRevision: string) {
+export function specialistInput(
+  userText: string,
+  contextRevision: string,
+  route?: DelegatedRoute,
+) {
+  const publicationBoundary =
+    route === "company_context"
+      ? []
+      : [
+          "- Never state, quote, or suggest the Company Context Builder's exact workspace-context publication confirmation phrase. Route context revisions back to Company Context Builder without exposing that phrase.",
+        ];
   return {
     type: "text" as const,
     text: [
@@ -332,6 +342,7 @@ export function specialistInput(userText: string, contextRevision: string) {
       "- State the actual evidence mode and coverage limitations.",
       "- Keep action_mode draft_only and external_mutation_requested false.",
       "- Do not publish, schedule, spend, mutate CRM, configure credentials, make legal decisions, or delegate.",
+      ...publicationBoundary,
     ].join("\n"),
   };
 }
@@ -341,7 +352,10 @@ export function extractSpecialistText(value: unknown): string {
   return parsed.success && parsed.data.text.trim() ? parsed.data.text.trim() : "";
 }
 
-export function validateSpecialistOutput(text: string): string[] {
+export function validateSpecialistOutput(
+  text: string,
+  { allowContextPublicationPhrase = false } = {},
+): string[] {
   const errors: string[] = [];
   let previousIndex = -1;
   for (const heading of requiredHeadings) {
@@ -366,6 +380,14 @@ export function validateSpecialistOutput(text: string): string[] {
     /\bcrm (?:was |has been )?(?:updated|synced|activated)\b/i,
   ]) {
     if (pattern.test(text)) errors.push(`Forbidden execution claim: ${pattern.source}`);
+  }
+  if (
+    !allowContextPublicationPhrase &&
+    /publish approved context to workspace context/i.test(text)
+  ) {
+    errors.push(
+      "Forbidden execution claim: downstream specialist exposed the context-publication confirmation phrase",
+    );
   }
   return errors;
 }

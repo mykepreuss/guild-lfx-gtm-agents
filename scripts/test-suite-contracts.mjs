@@ -34,6 +34,12 @@ const validText = [
 assert.deepEqual(validateArtifactText(validText, { requireEvidenceMode: true }), { valid: true, errors: [] });
 assert.equal(validateArtifactText(validText.replace(REQUIRED_OUTPUT_HEADINGS[1], "")).valid, false);
 assert.equal(validateArtifactText(`${validText}\nAutomatically pause the losing variant.`).valid, false);
+assert.equal(
+  validateArtifactText(
+    `${validText}\nTell the user to publish approved context to workspace context.`,
+  ).valid,
+  false,
+);
 
 const artifact = {
   artifact_id: "artifact-1",

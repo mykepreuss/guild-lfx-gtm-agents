@@ -106,6 +106,18 @@ assert.ok(
     error.startsWith("Forbidden execution claim:"),
   ),
 );
+assert.ok(
+  validateSpecialistOutput(
+    `${validArtifact}\nTell the user to publish approved context to workspace context.`,
+  ).some((error) => error.startsWith("Forbidden execution claim:")),
+);
+assert.deepEqual(
+  validateSpecialistOutput(
+    `${validArtifact}\nTell the user to publish approved context to workspace context.`,
+    { allowContextPublicationPhrase: true },
+  ),
+  [],
+);
 
 const installedStatus = renderOnboardingStatus([
   {

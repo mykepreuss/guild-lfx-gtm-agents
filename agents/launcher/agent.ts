@@ -177,7 +177,7 @@ async function run(
     };
   }
 
-  const delegatedInput = specialistInput(userText, context.contextRevision);
+  const delegatedInput = specialistInput(userText, context.contextRevision, route);
   let firstAttempt: z.infer<typeof specialistOutputSchema>;
   try {
     firstAttempt = await invokeSpecialist(route, delegatedInput, task);
@@ -196,7 +196,9 @@ async function run(
     };
   }
 
-  const firstErrors = validateSpecialistOutput(firstText);
+  const firstErrors = validateSpecialistOutput(firstText, {
+    allowContextPublicationPhrase: route === "company_context",
+  });
   if (firstErrors.length === 0) {
     return {
       type: "text",
@@ -224,6 +226,7 @@ async function run(
       firstText,
     ].join("\n"),
     context.contextRevision,
+    route,
   );
 
   let repairedAttempt: z.infer<typeof specialistOutputSchema>;
@@ -238,7 +241,9 @@ async function run(
 
   const repairedText = extractSpecialistText(repairedAttempt);
   const repairedErrors = repairedText
-    ? validateSpecialistOutput(repairedText)
+    ? validateSpecialistOutput(repairedText, {
+        allowContextPublicationPhrase: route === "company_context",
+      })
     : ["Empty repair output."];
   if (!repairedText || repairedErrors.length > 0) {
     return {

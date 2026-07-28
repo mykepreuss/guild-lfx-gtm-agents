@@ -52,6 +52,7 @@ const executionClaimPatterns = Object.freeze([
   /\bspend (?:was |has been )?(?:increased|decreased|started|paused)\b/i,
   /\bcrm (?:was |has been )?(?:activated|updated|synced)\b/i,
   /\bcredentials? (?:was |were |has been |have been )?(?:configured|connected|stored)\b/i,
+  /publish approved context to workspace context/i,
 ]);
 
 export function defaultSafetyEnvelope() {
