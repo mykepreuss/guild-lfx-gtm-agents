@@ -75,6 +75,8 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       const snapshot = {
         workspace: binding,
         published_context_revision: nextRevision,
+        guild_context_id: request.guild_context_id ?? null,
+        rollback_context_id: request.rollback_context_id ?? null,
         compiled_brief: requiredString(request.compiled_brief, "compiled_brief"),
         readiness: request.readiness ?? "ready",
         source_references: [...new Set(request.source_references ?? [])],

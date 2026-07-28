@@ -1,7 +1,7 @@
 # Marketing OS State Service
 
-Status: provider-neutral contract, tested reference adapter, and production
-PostgreSQL schema foundation
+Status: provider-neutral contract, tested reference adapter, authenticated HTTP
+boundary, and production PostgreSQL schema foundation
 
 This package defines the durable state boundary for the Marketing OS cockpit. The interface covers encrypted source retention, immutable artifact revisions, artifact and context approvals, workstream status, handoffs, optimistic concurrency, idempotency, audit, export, and confirmed deletion.
 
@@ -13,6 +13,14 @@ idempotency records, and an append-only audit table. `postgres/schema.test.mjs`
 keeps the required controls in the normal verification path. The architecture
 decision and native/Blaxel capability matrix are recorded in
 `docs/adr/0001-public-v1-persistence-boundary.md`.
+
+`http-service.mjs` exposes the adapter through a fail-closed JSON API.
+`identity.mjs` verifies a delegated JWT through configured Guild issuer,
+audience, algorithm, and JWKS values. Organization, workspace, actor, session,
+task, and scopes come from verified claims. Body tenant fields are removed
+after an exact-match check, and a mismatch is rejected. Context publication
+requires a separate delegated publication scope and remains unavailable unless
+a workspace-scoped publisher is explicitly injected.
 
 The production implementation must preserve these semantics on managed PostgreSQL:
 

@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node test.mjs && node postgres/schema.test.mjs"
+    "test": "node test.mjs && node http-service.test.mjs && node postgres/schema.test.mjs"
+  },
+  "dependencies": {
+    "jose": "6.2.4"
   },
   "engines": {
     "node": ">=22"
