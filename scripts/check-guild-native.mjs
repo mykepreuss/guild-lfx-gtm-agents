@@ -93,12 +93,15 @@ const requiredLauncherSnippets = [
   "sameSessionDelegationEnabled",
   "Status: handoff ready",
   "guild_agent_install_request",
-  "guild_get_session",
-  "guild_get_workspace",
   "guild_get_task_workspace_agents",
   "FORMAT REPAIR ONLY.",
   "action_mode",
   "external_mutation_requested",
+];
+const forbiddenLauncherSnippets = [
+  "guild_get_session",
+  "guild_get_workspace_default_chat_agent",
+  "guild_get_workspace",
 ];
 const requiredStructuredFoundationSnippets = [
   "agent({",
@@ -379,6 +382,13 @@ function validateAgentPackage(agent) {
     for (const snippet of requiredSnippets) {
       if (!source.includes(snippet)) {
         fail(`${packageDir}/agent.ts must include required V1 contract snippet: ${snippet}`);
+      }
+    }
+    if (agent.id === "launcher") {
+      for (const snippet of forbiddenLauncherSnippets) {
+        if (source.includes(snippet)) {
+          fail(`${packageDir}/agent.ts must not use unsupported coded-runtime Guild read: ${snippet}`);
+        }
       }
     }
     if (requiresZod && !source.includes('from "zod"')) {

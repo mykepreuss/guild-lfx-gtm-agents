@@ -170,10 +170,7 @@ type LauncherState = z.infer<typeof stateSchema>;
 const tools: Record<string, Tool> = {
   ...pick(guildTools, [
     "guild_agent_install_request",
-    "guild_get_workspace_default_chat_agent",
     "guild_get_task_workspace_agents",
-    "guild_get_session",
-    "guild_get_workspace",
   ]),
 };
 
@@ -229,7 +226,7 @@ export default agent({
 
     const route = classification.route;
     if (route === "onboarding") {
-      return await runOnboarding(task, previousState, classification);
+      return await runOnboarding(task, previousState, classification, context.contextRevision);
     }
 
     const config = routeConfig[route];
@@ -547,7 +544,7 @@ function parseRoute(value: string): Route | undefined {
   return routes.includes(normalized as Route) ? (normalized as Route) : undefined;
 }
 
-async function readContextSnapshot(inputText: string, task: LauncherTask): Promise<{
+async function readContextSnapshot(inputText: string, _task: LauncherTask): Promise<{
   ready: boolean;
   contextRevision: string | null;
   compiled: string;
@@ -568,34 +565,13 @@ async function readContextSnapshot(inputText: string, task: LauncherTask): Promi
     };
   }
 
-  try {
-    if (!task.guild) throw new Error("Guild service is unavailable.");
-    const session = await task.guild.get_session({ session_id: task.sessionId });
-    const workspace = await task.guild.get_workspace({ workspace_id: session.workspace.id });
-    const compiled = workspace.context.compiled ?? "";
-    const managedBlock = compiled.match(
-      /<!-- guild-marketing-os-context:start -->[\s\S]*?<!-- guild-marketing-os-context:end -->/i,
-    )?.[0];
-    const ready = Boolean(
-      workspace.context.id &&
-        managedBlock &&
-        /\bStatus:\s*(?:published|approved)\b/i.test(managedBlock) &&
-        /##\s+Workspace Context Brief\b/i.test(managedBlock),
-    );
-    return {
-      ready,
-      contextRevision: workspace.context.id ?? session.context_id ?? null,
-      compiled,
-      error: ready ? undefined : "Managed Marketing OS context block is absent or not published.",
-    };
-  } catch (error) {
-    return {
-      ready: false,
-      contextRevision: null,
-      compiled: "",
-      error: `Workspace context read failed: ${safeError(error)}`,
-    };
-  }
+  return {
+    ready: false,
+    contextRevision: null,
+    compiled: "",
+    error:
+      "Managed Marketing OS context was not supplied to this Chat. Start a new workspace Chat or use Company Context Builder.",
+  };
 }
 
 export function removeCompiledWorkspaceContext(text: string, compiled: string): string {
@@ -703,19 +679,13 @@ async function runOnboarding(
   task: LauncherTask,
   state: LauncherState,
   classification: { route: Route; classifierAttempts: string[]; routingReason?: string },
+  contextRevision: string | null,
 ) {
-  if (!task.guild) {
-    return output({
-      type: "text",
-      text: renderBlocked("Guild service is unavailable; onboarding cannot be verified.", undefined),
-    });
-  }
   const installed = installedSuiteAgents(task);
   const missing = suiteInstallOrder.find((entry) => !installed.has(entry.packageName));
-  const session = await task.guild.get_session({ session_id: task.sessionId });
 
   if (missing) {
-    const audit = baseAudit(classification, session.context_id ?? null, null);
+    const audit = baseAudit(classification, contextRevision, null);
     audit.status = "blocked";
     audit.error = `${missing.displayName} requires user-approved installation.`;
     audit.next_handoff = `Approve installation of ${missing.displayName}, then resume onboarding.`;
@@ -737,22 +707,13 @@ async function runOnboarding(
     ]);
   }
 
-  const defaultAgent = await task.guild.get_workspace_default_chat_agent({
-    workspace_id: session.workspace.id,
-  });
-  const launcherIsDefault = JSON.stringify(defaultAgent).includes("guild-marketing-os-launcher");
-  const audit = baseAudit(classification, session.context_id ?? null, null);
-  audit.status = launcherIsDefault ? "ready_for_review" : "blocked";
-  audit.error = launcherIsDefault
-    ? undefined
-    : "All capability packages are installed, but Marketing OS Launcher is not the workspace default.";
-  audit.next_handoff = launcherIsDefault
-    ? "Start Company Context Builder or request one specialist workflow."
-    : "In the Guild workspace UI, make Marketing OS Launcher the default agent, then ask Launcher to verify suite status.";
+  const audit = baseAudit(classification, contextRevision, null);
+  audit.status = "ready_for_review";
+  audit.next_handoff = "Request one specialist workflow.";
   await task.save({ audit_trail: [...state.audit_trail, audit] });
   return output({
     type: "text",
-    text: renderOnboardingStatus(installed, launcherIsDefault, audit),
+    text: renderOnboardingStatus(installed, audit),
   });
 }
 
@@ -792,7 +753,6 @@ async function finishInstallRequest(
 
 function renderOnboardingStatus(
   installed: Map<string, { packageName: string; versionId: string }>,
-  launcherIsDefault: boolean,
   audit: z.infer<typeof routeAttemptSchema>,
 ): string {
   return [
@@ -807,11 +767,10 @@ function renderOnboardingStatus(
       return `| ${entry.displayName} | ${record ? "installed" : "blocked"} | ${record?.versionId ?? "unavailable"} |`;
     }),
     "",
-    `Launcher default: ${launcherIsDefault ? "verified" : "not verified"}`,
+    "Launcher is active in this Chat.",
     "",
-    launcherIsDefault
-      ? "Next action: set up company context or request one specialist workflow."
-      : "Next action: an administrator must make Marketing OS Launcher the default through the Guild workspace UI, then ask Launcher to verify suite status.",
+    "Admin check: in the Guild workspace UI, confirm Marketing OS Launcher is the default agent.",
+    "Next action: set up company context or request one specialist workflow.",
     "",
     `Status: ${audit.status === "ready_for_review" ? "ready" : "action needed"}`,
   ].join("\n");
