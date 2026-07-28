@@ -19,7 +19,7 @@ if (build.status !== 0) {
 const {
   deterministicRoute,
   removeCompiledWorkspaceContext,
-  renderSpecialistGuide,
+  renderOnboardingStatus,
   validateSpecialistOutput,
 } = await import(path.join(launcherDir, "dist/agent.js"));
 
@@ -107,33 +107,15 @@ assert.ok(
   ),
 );
 
-const specialistGuide = renderSpecialistGuide(
+const installedStatus = renderOnboardingStatus([
   {
-    displayName: "Messaging",
     packageName: "guild-marketing-os-messaging",
-    toolName: "marketing_os_messaging",
-  },
-  "Create three draft message pillars.",
-  "fingerprint:test-context",
-  {
-    packageName: "@guildai/example~guild-marketing-os-messaging",
     versionId: "019f-test-version",
   },
-  {
-    route: "messaging",
-    classifier_attempts: [],
-    context_revision: "fingerprint:test-context",
-    package_name: "@guildai/example~guild-marketing-os-messaging",
-    version_id: "019f-test-version",
-    artifact_attempts: [],
-    status: "needs_input",
-  },
-);
-assert.match(specialistGuide, /## Ready for Messaging/);
-assert.match(specialistGuide, /Status: handoff ready/);
-assert.match(specialistGuide, /No specialist work was started in this turn/);
-assert.doesNotMatch(specialistGuide, /blocked_on_delegation_return/);
-assert.doesNotMatch(specialistGuide, /019f-test-version/);
-assert.doesNotMatch(specialistGuide, /@guildai\/example/);
+]);
+assert.match(installedStatus, /\| Messaging \| installed \|/);
+assert.match(installedStatus, /Launcher is active in this Chat/);
+assert.doesNotMatch(installedStatus, /Version provenance/);
+assert.doesNotMatch(installedStatus, /019f-test-version/);
 
 console.log("Launcher routing and output validation test OK.");

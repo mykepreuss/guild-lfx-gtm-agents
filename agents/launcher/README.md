@@ -19,11 +19,11 @@ It:
 - keeps internal package/version provenance out of the customer-facing status
   table while retaining it in Guild evidence.
 
-The earlier self-managed delegation path remains in source as a rollback during
-the private spike. Live evidence showed its Messaging child completed while the
-Launcher root remained dispatched. The active implementation uses Guild's
-automatically managed runtime so the root suspend/resume cycle is owned by the
-platform.
+The earlier self-managed delegation path remains in Git and Guild version
+history as a rollback. Live evidence showed its Messaging child completed while
+the Launcher root remained dispatched. The active implementation uses Guild's
+compiled, automatically managed runtime so the root suspend/resume cycle is
+owned by the platform.
 
 The durable PostgreSQL cockpit adapter and delegated Guild tenant authorization
 are still public release gates. Until those are connected, Guild task/event

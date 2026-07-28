@@ -89,10 +89,8 @@ const requiredLauncherSnippets = [
   '"use agent";',
   "guildAgentTool",
   "routeConfig",
-  "installAllowlistedWorkspaceAgentTools",
-  "delegatedRouteForPackage",
-  "sameSessionDelegationEnabled",
-  "Status: handoff ready",
+  "invokeSpecialist",
+  "renderOnboardingStatus",
   "guild_agent_install_request",
   "guild_get_task_workspace_agents",
   "FORMAT REPAIR ONLY.",
@@ -367,6 +365,10 @@ function validateAgentPackage(agent) {
 
   if (exists(path.join(packageDir, "agent.ts"))) {
     const source = readText(path.join(packageDir, "agent.ts"));
+    const contractSource =
+      agent.id === "launcher" && exists(path.join(packageDir, "launcher-core.ts"))
+        ? `${source}\n${readText(path.join(packageDir, "launcher-core.ts"))}`
+        : source;
     if (!source.includes("@guildai/agents-sdk")) {
       fail(`${packageDir}/agent.ts should use the Guild Agent SDK.`);
     }
@@ -381,13 +383,13 @@ function validateAgentPackage(agent) {
           ? requiredLauncherSnippets
           : requiredReviewAgentSourceSnippets;
     for (const snippet of requiredSnippets) {
-      if (!source.includes(snippet)) {
+      if (!contractSource.includes(snippet)) {
         fail(`${packageDir}/agent.ts must include required V1 contract snippet: ${snippet}`);
       }
     }
     if (agent.id === "launcher") {
       for (const snippet of forbiddenLauncherSnippets) {
-        if (source.includes(snippet)) {
+        if (contractSource.includes(snippet)) {
           fail(`${packageDir}/agent.ts must not use unsupported coded-runtime Guild read: ${snippet}`);
         }
       }
