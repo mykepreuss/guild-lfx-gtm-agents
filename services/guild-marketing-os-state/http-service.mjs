@@ -10,6 +10,137 @@ const jsonHeaders = Object.freeze({
   "cache-control": "no-store",
 });
 
+export const stateServiceRouteDefinitions = Object.freeze([
+  {
+    method: "GET",
+    path: "/v1/context",
+    name: "context_read",
+    hasBody: false,
+  },
+  {
+    method: "POST",
+    path: "/v1/context/publish",
+    name: "context_publish",
+    hasBody: true,
+  },
+  {
+    method: "POST",
+    path: "/v1/sources",
+    name: "source_store",
+    hasBody: true,
+  },
+  {
+    method: "GET",
+    path: "/v1/sources/{sourceId}",
+    pattern: /^\/v1\/sources\/([^/]+)$/,
+    parameter: "sourceId",
+    name: "source_get",
+    hasBody: false,
+  },
+  {
+    method: "POST",
+    path: "/v1/sources/{sourceId}/revisions",
+    pattern: /^\/v1\/sources\/([^/]+)\/revisions$/,
+    parameter: "sourceId",
+    name: "source_revise",
+    hasBody: true,
+  },
+  {
+    method: "DELETE",
+    path: "/v1/sources/{sourceId}",
+    pattern: /^\/v1\/sources\/([^/]+)$/,
+    parameter: "sourceId",
+    name: "source_delete",
+    hasBody: true,
+  },
+  {
+    method: "POST",
+    path: "/v1/artifacts",
+    name: "artifact_store",
+    hasBody: true,
+  },
+  {
+    method: "GET",
+    path: "/v1/artifacts/{artifactId}",
+    pattern: /^\/v1\/artifacts\/([^/]+)$/,
+    parameter: "artifactId",
+    name: "artifact_get",
+    hasBody: false,
+  },
+  {
+    method: "POST",
+    path: "/v1/artifacts/{artifactId}/revisions",
+    pattern: /^\/v1\/artifacts\/([^/]+)\/revisions$/,
+    parameter: "artifactId",
+    name: "artifact_revise",
+    hasBody: true,
+  },
+  {
+    method: "POST",
+    path: "/v1/artifacts/{artifactId}/status",
+    pattern: /^\/v1\/artifacts\/([^/]+)\/status$/,
+    parameter: "artifactId",
+    name: "artifact_status",
+    hasBody: true,
+  },
+  {
+    method: "POST",
+    path: "/v1/artifacts/{artifactId}/approve",
+    pattern: /^\/v1\/artifacts\/([^/]+)\/approve$/,
+    parameter: "artifactId",
+    name: "artifact_approve",
+    hasBody: true,
+  },
+  {
+    method: "GET",
+    path: "/v1/workstreams/{specialist}",
+    pattern: /^\/v1\/workstreams\/([^/]+)$/,
+    parameter: "specialist",
+    name: "workstream_read",
+    hasBody: false,
+  },
+  {
+    method: "PUT",
+    path: "/v1/workstreams/{specialist}",
+    pattern: /^\/v1\/workstreams\/([^/]+)$/,
+    parameter: "specialist",
+    name: "workstream_update",
+    hasBody: true,
+  },
+  {
+    method: "POST",
+    path: "/v1/handoffs",
+    name: "handoff_create",
+    hasBody: true,
+  },
+  {
+    method: "PUT",
+    path: "/v1/handoffs/{handoffId}",
+    pattern: /^\/v1\/handoffs\/([^/]+)$/,
+    parameter: "handoffId",
+    name: "handoff_update",
+    hasBody: true,
+  },
+  {
+    method: "GET",
+    path: "/v1/audit",
+    name: "audit_read",
+    hasBody: false,
+  },
+  {
+    method: "GET",
+    path: "/v1/export",
+    name: "workspace_export",
+    hasBody: false,
+  },
+  {
+    method: "DELETE",
+    path: "/v1/workspace",
+    name: "workspace_delete",
+    hasBody: true,
+  },
+]);
+
 export function createMarketingOsStateHandler({
   adapter,
   verifyIdentity,
@@ -235,38 +366,21 @@ function normalizeRateLimit(value) {
 }
 
 function matchRoute(method, pathname) {
-  const exact = {
-    "GET /v1/context": ["context_read", false],
-    "POST /v1/context/publish": ["context_publish", true],
-    "POST /v1/sources": ["source_store", true],
-    "POST /v1/artifacts": ["artifact_store", true],
-    "POST /v1/handoffs": ["handoff_create", true],
-    "GET /v1/audit": ["audit_read", false],
-    "GET /v1/export": ["workspace_export", false],
-    "DELETE /v1/workspace": ["workspace_delete", true],
-  }[`${method} ${pathname}`];
-  if (exact) return { name: exact[0], hasBody: exact[1], params: {} };
-
-  const patterns = [
-    ["GET", /^\/v1\/sources\/([^/]+)$/, "source_get", false, "sourceId"],
-    ["POST", /^\/v1\/sources\/([^/]+)\/revisions$/, "source_revise", true, "sourceId"],
-    ["DELETE", /^\/v1\/sources\/([^/]+)$/, "source_delete", true, "sourceId"],
-    ["GET", /^\/v1\/artifacts\/([^/]+)$/, "artifact_get", false, "artifactId"],
-    ["POST", /^\/v1\/artifacts\/([^/]+)\/revisions$/, "artifact_revise", true, "artifactId"],
-    ["POST", /^\/v1\/artifacts\/([^/]+)\/status$/, "artifact_status", true, "artifactId"],
-    ["POST", /^\/v1\/artifacts\/([^/]+)\/approve$/, "artifact_approve", true, "artifactId"],
-    ["GET", /^\/v1\/workstreams\/([^/]+)$/, "workstream_read", false, "specialist"],
-    ["PUT", /^\/v1\/workstreams\/([^/]+)$/, "workstream_update", true, "specialist"],
-    ["PUT", /^\/v1\/handoffs\/([^/]+)$/, "handoff_update", true, "handoffId"],
-  ];
-  for (const [routeMethod, pattern, name, hasBody, parameter] of patterns) {
-    if (method !== routeMethod) continue;
-    const match = pathname.match(pattern);
-    if (!match) continue;
+  for (const route of stateServiceRouteDefinitions) {
+    if (method !== route.method) continue;
+    if (!route.pattern && pathname === route.path) {
+      return {
+        name: route.name,
+        hasBody: route.hasBody,
+        params: {},
+      };
+    }
+    const match = route.pattern ? pathname.match(route.pattern) : undefined;
+    if (!match || !route.parameter) continue;
     return {
-      name,
-      hasBody,
-      params: { [parameter]: decodeURIComponent(match[1]) },
+      name: route.name,
+      hasBody: route.hasBody,
+      params: { [route.parameter]: decodeURIComponent(match[1]) },
     };
   }
   return undefined;

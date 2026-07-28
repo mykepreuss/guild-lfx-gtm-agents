@@ -12,10 +12,11 @@ may be made public while any blocking row below remains open.
 | Coded allowlist / hostile request | Launcher 0.2.5 blocked self-delegation and publication, then recovered to Messaging in the same Chat `019faa23-8838-351a-0000-b674324cbf8e` | Pass in private alpha |
 | Coded clear-intent routing | Builder plus all seven specialist routes passed in fresh normal Chats; failures and fixes are retained in browser evidence | Pass in private alpha |
 | Coded child result return | Complete specialist output returned to the originating Launcher Chat for every route | Pass in private alpha |
+| Public task-local agent binding | SDK 0.4.2 dynamic helper adds every workspace agent to a mutable toolset and has no allowlist; private Launcher remains statically allowlisted | **Blocked on targeted SDK/self-managed proof; Guide fallback selected if unreliable** |
 | Guide fallback | Ambiguous request returned Marketing OS Guide with no specialist task in `019faa25-d311-351a-0000-92e3d5c2ba7a` | Pass in private alpha |
 | Browser normal-Chat UX | Launcher 0.2.5 is the private workspace default; onboarding, Builder, seven specialists, safety recovery, and ambiguity pass | Pass in private alpha |
 | Browser specialist selection | Automatic Launcher delegation removes the prior `@mention` dependency | Pass in private alpha |
-| Cross-session cockpit persistence | Production PostgreSQL adapter, Cloud Run container, migration path, envelope encryption, and disposable database rehearsal pass | **Blocked on authenticated managed deployment** |
+| Cross-session cockpit persistence | Production PostgreSQL adapter, Cloud Run container, migration path, envelope encryption, disposable database rehearsal, GCP Terraform, and importable OpenAPI contract pass locally | **Blocked on authenticated managed deployment** |
 | Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
 | Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
@@ -28,6 +29,8 @@ may be made public while any blocking row below remains open.
 
 Local production-service evidence is recorded in
 [`docs/validation/2026-07-28-state-service.md`](validation/2026-07-28-state-service.md).
+The public Launcher binding decision is recorded in
+[`docs/adr/0002-launcher-runtime-agent-binding.md`](adr/0002-launcher-runtime-agent-binding.md).
 
 ## Required rollout order
 

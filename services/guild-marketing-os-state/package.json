@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "migrate": "node postgres/migrate.mjs",
-    "test": "node test.mjs && node envelope-encryption.test.mjs && node http-service.test.mjs && node server.test.mjs && node postgres/schema.test.mjs && node postgres/migrate.test.mjs && node deploy/gcp/deployment.test.mjs",
+    "test": "node test.mjs && node envelope-encryption.test.mjs && node http-service.test.mjs && node openapi.test.mjs && node server.test.mjs && node postgres/schema.test.mjs && node postgres/migrate.test.mjs && node deploy/gcp/deployment.test.mjs",
     "test:postgres:integration": "node postgres/run-integration.mjs"
   },
   "dependencies": {

@@ -22,6 +22,14 @@ after an exact-match check, and a mismatch is rejected. Context publication
 requires a separate delegated publication scope and remains unavailable unless
 a workspace-scoped publisher is explicitly injected.
 
+`openapi.json` is the importable OpenAPI 3.0 contract for the managed
+integration. It exposes every implemented route, requires delegated bearer
+identity for every non-health operation, omits tenant and actor fields from
+request schemas, keeps context publication on its separate scope, and encodes
+the exact context-publication and workspace-deletion phrases. Its server URL is
+intentionally a placeholder until a managed deployment passes the release
+gates.
+
 `postgres-adapter.mjs` implements the production adapter against PostgreSQL.
 Every operation uses one checked-out client and one transaction, sets verified
 tenant values through transaction-local PostgreSQL settings before accessing

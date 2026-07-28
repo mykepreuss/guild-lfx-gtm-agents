@@ -4,8 +4,9 @@
 
 This record covers the production PostgreSQL adapter, authenticated HTTP
 boundary, envelope encryption, Cloud Run container entrypoint, schema
-migration, and local disposable-database rehearsal. It does not claim a
-managed GCP deployment or a shipped Guild delegated-identity contract.
+migration, local disposable-database rehearsal, production-shaped GCP
+Terraform, and the importable OpenAPI integration contract. It does not claim
+a managed GCP deployment or a shipped Guild delegated-identity contract.
 
 ## Automated result
 
@@ -15,6 +16,11 @@ suite checks.
 
 The state-service package also passed `npm audit --omit=dev` with zero reported
 vulnerabilities.
+
+Terraform 1.5.7 initialized the locked Google 6.50.0 and Random 3.9.0
+providers, and `terraform validate` passed. The downloaded provider cache was
+moved outside the repository before the full verifier ran. Redocly CLI 1.34.5
+validated `openapi.json` with its recommended rules and no warnings.
 
 ## Rehearsed controls
 
@@ -59,6 +65,24 @@ vulnerabilities.
   migration also rejects a runtime role that is a superuser or has
   `BYPASSRLS`, then grants only the explicit application tables and tenant
   helper functions.
+
+## Managed deployment and integration contracts
+
+- The Terraform module pins the container by image digest and provisions a
+  separate Cloud Run migration job and identity.
+- Cloud SQL uses PostgreSQL 16, regional availability, private networking,
+  SSD, backups, point-in-time recovery, query insights, deletion protection,
+  and a dedicated customer-managed KMS key.
+- Runtime and migration database URLs are separate Secret Manager values and
+  are readable only by their corresponding service identities.
+- Source envelope encryption uses a different KMS key readable only by the
+  runtime identity.
+- Terraform variables require the real Guild issuer, audience, and JWKS URL;
+  the runbook forbids applying with placeholder or maintainer credentials.
+- The OpenAPI contract covers every implemented route by reading the runtime
+  route manifest in its test. Every non-health operation inherits delegated
+  bearer-JWT security, request schemas omit tenant/actor identity, and context
+  publication retains its separate scope and exact phrase.
 
 ## Remaining external gates
 
