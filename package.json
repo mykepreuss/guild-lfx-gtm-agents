@@ -8,6 +8,9 @@
     "check:context": "node scripts/check-guild-native.mjs --context",
     "check:guild-native": "node scripts/check-guild-native.mjs",
     "benchmark:context": "node scripts/benchmark-context-variants.mjs",
+    "benchmark:context:live": "node scripts/run-context-benchmark-live.mjs",
+    "benchmark:context:reprocess": "node scripts/reprocess-context-benchmark.mjs",
+    "test:context-benchmark-scoring": "node scripts/test-context-benchmark-scoring.mjs",
     "publish:guild-agent": "node scripts/publish-guild-agent.mjs",
     "test:workspace-context-bridge": "node services/workspace-context-publish-bridge/test.mjs",
     "test:contracts": "node scripts/test-suite-contracts.mjs",
@@ -24,6 +27,6 @@
     "test:guild-smoke:full": "node scripts/run-guild-e2e.mjs --smoke --full",
     "test:guild-smoke:no-cache": "node scripts/run-guild-e2e.mjs --smoke --no-cache",
     "test:guild-smoke:full:no-cache": "node scripts/run-guild-e2e.mjs --smoke --full --no-cache",
-    "verify": "npm run test:workspace-context-bridge && npm run test:contracts && npm run check:specialist-runtime-sync && npm run test:specialist-runtime && npm run test:launcher-routing && npm run test:launcher-cockpit && npm run test:state-adapter && npm run test:state-postgres && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
+    "verify": "npm run test:workspace-context-bridge && npm run test:contracts && npm run test:context-benchmark-scoring && npm run check:specialist-runtime-sync && npm run test:specialist-runtime && npm run test:launcher-routing && npm run test:launcher-cockpit && npm run test:state-adapter && npm run test:state-postgres && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
   }
 }

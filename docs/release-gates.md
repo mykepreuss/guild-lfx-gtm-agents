@@ -24,7 +24,7 @@ may be made public while any blocking row below remains open.
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
 | Tenant isolation | Forced PostgreSQL RLS, production-adapter cross-tenant rehearsal, and full HTTP/JWKS tenant-spoof test pass locally | **Blocked on deployed Guild-issued identity spoof test** |
 | Backup/restore, export, deletion | Encrypted export, confirmed purge, retained minimal deletion receipt, and audit-retention tests pass locally | **Blocked on Cloud SQL backup/restore rehearsal** |
-| Context-size benchmark | `npm run benchmark:context -- --manifest <file>` enforces three variants, all seven routes, golden-fact retention, artifact completeness, unsupported-claim parity, and conflict-recall parity | **Blocked on complete live evaluation set** |
+| Context-size benchmark | Isolated live 21-session run completed: current 2/7, compressed 2/7 with all golden facts, pointer minimum 6/7 while losing pricing/funding/proof/HIPAA facts. A strengthened compressed-only rerun improved to 5/7 but retained two genuine safety blocks and four unqualified sensitive lines. Original, corrected, and remediation evidence are all retained. | **Blocked — no eligible variant selected** |
 | Clean separate-organization rehearsal | `developers-at-guild/developer-sandbox` is visible but Guild reports `is_viewer_member: false`; no mutation was attempted | **Blocked on owner authorization** |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
 | External execution | No publishing, scheduling, spend, CRM mutation, credential setup, or legal approval performed | Pass |
@@ -33,6 +33,8 @@ Local production-service evidence is recorded in
 [`docs/validation/2026-07-28-state-service.md`](validation/2026-07-28-state-service.md).
 The public Launcher binding decision is recorded in
 [`docs/adr/0002-launcher-runtime-agent-binding.md`](adr/0002-launcher-runtime-agent-binding.md).
+The isolated context-size evidence and blocked decision are recorded in
+[`docs/validation/2026-07-28-context-benchmark.md`](validation/2026-07-28-context-benchmark.md).
 
 ## Required rollout order
 

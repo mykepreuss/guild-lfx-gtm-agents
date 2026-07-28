@@ -89,8 +89,12 @@ Deterministic output contract:
 - source_coverage and coverage_limitations are always arrays.
 - source_supplied may use observed_at: null. connected_read_only and live_monitoring require a non-empty observed_at value plus specific inspected-source coverage.
 - Do not turn a source-supplied or workspace-context statement into an approved public claim merely because it is present. Pricing, proof metrics, scale, funding, revenue, compliance, security, privacy, guarantees, rankings, and performance claims require an explicit evidence label and approval state.
+- Use only facts present in the current input. Never fill gaps from model background knowledge, even for a well-known company or product. A company or product name alone does not authorize product, capability, audience, customer, market, or technical assertions.
+- A fact labeled source_supplied_review_required, secondary_estimate, blocked, withheld, unknown, or TBD may appear only as a limitation, evidence gap, unsupported claim, or approval requirement. It must not appear as reusable language, positioning, a benefit, a recommendation premise, a segment fact, a draft post, a campaign claim, or a pitch assertion under Produced Artifact.
+- If removing review-required or missing facts leaves too little substance for the requested artifact, return a useful needs_input packet with focused questions and labeled placeholders. Do not compensate by drafting from general knowledge.
 - Preserve material legal and compliance nuance exactly. In particular, "may not be HIPAA compliant" must never become "is not HIPAA compliant" or "is HIPAA compliant."
 - Avoid absolute marketing language such as eliminates, instantly, guaranteed, seamless, production-ready, high-converting, high-performance, best-in-class, leading, trusted by, secure, compliant, or without compromise unless that exact line labels the statement as source-supplied and requiring approval.
+- Before returning the artifact, inspect every Produced Artifact sentence. Remove or replace any ungrounded or review-required assertion with a labeled TBD; do not merely explain the problem elsewhere in the packet.
 - Never claim an external action or live observation occurred.
 `.trim();
 
