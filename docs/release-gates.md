@@ -20,7 +20,7 @@ may be made public while any blocking row below remains open.
 | Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
 | Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
-| Tenant isolation | Forced PostgreSQL RLS and production-adapter cross-tenant rehearsal pass locally | **Blocked on deployed Guild-identity spoof test** |
+| Tenant isolation | Forced PostgreSQL RLS, production-adapter cross-tenant rehearsal, and full HTTP/JWKS tenant-spoof test pass locally | **Blocked on deployed Guild-issued identity spoof test** |
 | Backup/restore, export, deletion | Encrypted export, confirmed purge, retained minimal deletion receipt, and audit-retention tests pass locally | **Blocked on Cloud SQL backup/restore rehearsal** |
 | Context-size benchmark | `npm run benchmark:context -- --manifest <file>` enforces three variants, all seven routes, golden-fact retention, artifact completeness, unsupported-claim parity, and conflict-recall parity | **Blocked on complete live evaluation set** |
 | Clean separate-organization rehearsal | `developers-at-guild/developer-sandbox` is visible but Guild reports `is_viewer_member: false`; no mutation was attempted | **Blocked on owner authorization** |

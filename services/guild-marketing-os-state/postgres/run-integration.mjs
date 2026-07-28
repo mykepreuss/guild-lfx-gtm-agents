@@ -30,25 +30,33 @@ try {
   await waitForPostgres(database.connectionString);
   console.log("Running PostgreSQL state integration suite...");
 
-  const test = spawn(
-    process.execPath,
-    ["postgres/integration.test.mjs"],
-    {
-      cwd: new URL("..", import.meta.url),
-      env: {
-        ...process.env,
-        POSTGRES_TEST_URL: database.connectionString,
-      },
-      stdio: "inherit",
+  for (const testFile of [
+    "postgres/integration.test.mjs",
+    "postgres/http-integration.test.mjs",
+  ]) {
+    const status = await runTest(testFile, database.connectionString);
+    if (status !== 0) {
+      process.exitCode = status;
+      break;
+    }
+  }
+} finally {
+  if (database) await database.cleanup();
+}
+
+async function runTest(testFile, connectionString) {
+  const test = spawn(process.execPath, [testFile], {
+    cwd: new URL("..", import.meta.url),
+    env: {
+      ...process.env,
+      POSTGRES_TEST_URL: connectionString,
     },
-  );
-  const status = await new Promise((resolve, reject) => {
+    stdio: "inherit",
+  });
+  return await new Promise((resolve, reject) => {
     test.once("error", reject);
     test.once("exit", (code) => resolve(code ?? 1));
   });
-  if (status !== 0) process.exitCode = status;
-} finally {
-  if (database) await database.cleanup();
 }
 
 async function waitForPostgres(connectionString) {

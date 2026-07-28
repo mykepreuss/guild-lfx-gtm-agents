@@ -39,6 +39,15 @@ revision checks, and appends hash-linked audit entries. The explicit
 PostgreSQL server (or a disposable Docker container), exercises the production
 adapter, and removes the temporary database afterward.
 
+That disposable rehearsal now runs two layers against the same isolated
+PostgreSQL instance. The first exercises the adapter directly. The second
+starts a real HTTP server and local JWKS endpoint, signs short-lived RS256
+delegated JWTs, and drives the authenticated service boundary end to end. It
+proves wrong-audience and tenant-spoof rejection, trusted actor replacement,
+encrypted storage, cross-tenant isolation, separate context-publication scope,
+stale-publication rejection, export, confirmed deletion, and preservation of
+the other tenant.
+
 Sources are immutable revisions: correcting a source creates a new encrypted
 revision and preserves the prior revision for audit until deletion. Confirmed
 source deletion removes ciphertext, authentication material, and wrapped data

@@ -11,8 +11,8 @@ a managed GCP deployment or a shipped Guild delegated-identity contract.
 ## Automated result
 
 `npm run verify` passed from the repository root. The command now includes the
-disposable PostgreSQL production-adapter rehearsal in addition to all existing
-suite checks.
+disposable PostgreSQL production-adapter and authenticated HTTP/JWKS
+rehearsals in addition to all existing suite checks.
 
 The state-service package also passed `npm audit --omit=dev` with zero reported
 vulnerabilities.
@@ -51,6 +51,31 @@ validated `openapi.json` with its recommended rules and no warnings.
 - The schema migration is idempotent and succeeds when applied twice.
 - The disposable PostgreSQL process and temporary data directory are removed
   after the run.
+
+## Full service-boundary rehearsal
+
+The second disposable-database test starts a real HTTP state service and a
+local JWKS endpoint. It signs short-lived RS256 tokens carrying organization,
+workspace, actor, session, task, audience, issuer, expiry, and scopes, then
+drives the production PostgreSQL adapter through the same HTTP boundary that a
+managed Guild integration will use.
+
+The rehearsal proves:
+
+- missing and wrong-audience bearer tokens fail closed;
+- body-supplied tenant spoofing is rejected before storage;
+- a second tenant cannot read the first tenant's source;
+- raw source is not returned by the store operation and the database contains
+  ciphertext plus a wrapped key rather than plaintext;
+- a body-supplied approval actor is replaced by the verified JWT actor;
+- context publication fails without its separate delegated scope;
+- valid publication invokes the publisher once, while a stale revision is
+  rejected before the publisher runs;
+- authenticated export returns the retained source and published snapshot;
+- workspace deletion is idempotent, purges the deleted tenant, and makes later
+  reads return `410`; and
+- the second tenant's encrypted source remains readable and stored after the
+  first tenant is deleted.
 
 ## Container and migration boundary
 
