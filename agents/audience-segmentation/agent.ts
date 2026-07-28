@@ -1,4 +1,4 @@
-import { llmAgent, noTools } from "@guildai/agents-sdk";
+import { createValidatedSpecialistAgent } from "./specialist-runtime.js";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -42,12 +42,10 @@ Under Status Payload include a JSON object with evidence_mode, observed_at, sour
 Never claim publishing, scheduling, spend changes, CRM mutation, credential setup, legal approval, automatic pause or scale, database enforcement, synchronization, or live observation occurred.
 `.trim();
 
-export default llmAgent({
+export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_audience_segmentation",
   description:
     "Turns approved Guild Marketing OS ICP strategy into reviewable segment definitions, inclusion and exclusion logic, suppressions, channel applicability, and list-building instructions.",
-  tools: noTools,
-  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Audience Segmentation Agent running in Guild.
 

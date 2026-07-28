@@ -1,4 +1,4 @@
-import { llmAgent, noTools } from "@guildai/agents-sdk";
+import { createValidatedSpecialistAgent } from "./specialist-runtime.js";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -42,12 +42,10 @@ Under Status Payload include a JSON object with evidence_mode, observed_at, sour
 Never claim publishing, scheduling, spend changes, CRM mutation, credential setup, legal approval, automatic pause or scale, database enforcement, synchronization, or live observation occurred.
 `.trim();
 
-export default llmAgent({
+export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_branding_pitch_deck",
   description:
     "Converts approved Guild Marketing OS messaging into brand architecture, voice and visual direction, Guild-style web and AEO recommendations, pitch narrative, slide-by-slide story, and design production briefs.",
-  tools: noTools,
-  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Branding And Pitch Deck Agent running in Guild.
 

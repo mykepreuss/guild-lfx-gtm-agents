@@ -108,6 +108,25 @@ const requiredHeadings = [
   "## Downstream Handoff",
 ] as const;
 
+const specialistStatusPayloadSchema = z.object({
+  evidence_mode: z.enum([
+    "source_supplied",
+    "connected_read_only",
+    "live_monitoring",
+  ]),
+  observed_at: z.string().nullable(),
+  source_coverage: z.array(z.string()),
+  coverage_limitations: z.array(z.string()),
+  status: z.enum(["needs_input", "ready_for_review", "blocked"]),
+  safety: z.object({
+    action_mode: z.literal("draft_only"),
+    external_mutation_requested: z.literal(false),
+    blocked_actions: z.array(z.string()),
+    unsupported_claims: z.array(z.string()),
+    evidence_gaps: z.array(z.string()),
+  }),
+});
+
 export async function classifyRoute(
   text: string,
   task: Pick<Task, "llm">,
@@ -377,41 +396,187 @@ export function validateSpecialistOutput(
   const errors: string[] = [];
   let previousIndex = -1;
   for (const heading of requiredHeadings) {
-    const index = text.indexOf(heading);
-    if (index === -1) errors.push(`Missing required heading: ${heading}`);
-    else if (index < previousIndex) errors.push(`Required heading out of order: ${heading}`);
-    previousIndex = Math.max(previousIndex, index);
+    const indexes = allTextIndexes(text, heading);
+    if (indexes.length !== 1) {
+      errors.push(
+        indexes.length === 0
+          ? `Format error: missing required heading: ${heading}`
+          : `Format error: required heading appears ${indexes.length} times: ${heading}`,
+      );
+      continue;
+    }
+    if (indexes[0] < previousIndex) {
+      errors.push(`Format error: required heading out of order: ${heading}`);
+    }
+    previousIndex = Math.max(previousIndex, indexes[0]);
   }
-  if (!/\b(?:source_supplied|connected_read_only|live_monitoring)\b/.test(text)) {
-    errors.push("Missing evidence mode.");
+
+  const evidenceSection = specialistSection(
+    text,
+    "## Assumptions And Missing Evidence",
+    "## Approval Gate",
+  );
+  const evidenceModes =
+    evidenceSection.match(
+      /\b(?:source_supplied|connected_read_only|live_monitoring)\b/g,
+    ) ?? [];
+  if (evidenceModes.length !== 1) {
+    errors.push(
+      "Format error: Assumptions And Missing Evidence must contain exactly one evidence mode.",
+    );
   }
-  if (!/"?action_mode"?\s*:\s*"?draft_only"?/.test(text)) {
-    errors.push("Missing draft-only safety mode.");
+
+  const statusSection = specialistSection(
+    text,
+    "## Status Payload",
+    "## Downstream Handoff",
+  );
+  const statusMatches = [
+    ...statusSection.matchAll(/```json\s*([\s\S]*?)```/gi),
+  ];
+  let statusPayload:
+    | z.infer<typeof specialistStatusPayloadSchema>
+    | undefined;
+  if (statusMatches.length !== 1) {
+    errors.push(
+      "Format error: Status Payload must contain exactly one JSON code fence.",
+    );
+  } else {
+    try {
+      const parsed = specialistStatusPayloadSchema.safeParse(
+        JSON.parse(statusMatches[0][1]),
+      );
+      if (parsed.success) {
+        statusPayload = parsed.data;
+      } else {
+        errors.push(
+          `Format error: Status Payload does not match the contract: ${parsed.error.issues
+            .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+            .join("; ")}`,
+        );
+      }
+    } catch {
+      errors.push("Format error: Status Payload JSON is malformed.");
+    }
   }
-  if (!/"?external_mutation_requested"?\s*:\s*false/.test(text)) {
-    errors.push("Missing external_mutation_requested false.");
+  if (
+    statusPayload &&
+    evidenceModes.length === 1 &&
+    statusPayload.evidence_mode !== evidenceModes[0]
+  ) {
+    errors.push(
+      "Evidence error: narrative and Status Payload evidence modes do not match.",
+    );
   }
+  if (
+    statusPayload &&
+    statusPayload.evidence_mode !== "source_supplied" &&
+    (!statusPayload.observed_at ||
+      statusPayload.source_coverage.length === 0)
+  ) {
+    errors.push(
+      "Evidence error: connected or live evidence requires observed_at and inspected-source coverage.",
+    );
+  }
+
+  const safetyNarrative = [
+    specialistSection(
+      text,
+      "## Produced Artifact",
+      "## Assumptions And Missing Evidence",
+    ),
+    specialistSection(
+      text,
+      "## Approval Gate",
+      "## AEO / AI-Readiness Contribution",
+    ),
+    specialistSection(
+      text,
+      "## AEO / AI-Readiness Contribution",
+      "## Status Payload",
+    ),
+    specialistSection(text, "## Downstream Handoff", "\u0000"),
+  ].join("\n");
+  for (const rawLine of safetyNarrative
+    .split("\n")
+    .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z])/))) {
+    const line = rawLine.trim();
+    if (!line || specialistLineIsQualified(line)) continue;
+    for (const [pattern, label] of [
+      [/\b(?:eliminate|eliminates|eliminated)\b/i, "absolute eliminate claim"],
+      [/\binstantly\b/i, "instant-result claim"],
+      [/\bproduction-ready\b/i, "production-readiness claim"],
+      [/\bhigh-converting\b/i, "conversion-performance claim"],
+      [/\bhigh-performance\b/i, "performance claim"],
+      [/\bscales? securely\b/i, "security-and-scale claim"],
+      [/\bwithout compromises?\b/i, "absolute no-compromise claim"],
+      [/\btrusted by\b/i, "trust/scale claim"],
+      [/\bbest-in-class\b|\bmarket[- ]leading\b|\bindustry[- ]leading\b/i, "ranking claim"],
+      [/\bcontinuous experiments?\b/i, "continuous-execution claim"],
+      [/\bis not HIPAA compliant\b/i, "incorrectly strengthened HIPAA claim"],
+      [/\bis HIPAA compliant\b/i, "unsupported HIPAA compliance claim"],
+      [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
+      [/\bscales? safely\b/i, "safety-and-scale claim"],
+    ] as const) {
+      if (pattern.test(line)) {
+        errors.push(`Safety error: unqualified ${label}.`);
+      }
+    }
+  }
+
   for (const pattern of [
     /\bautomatically (?:pause|scale|publish|schedule|sync|activate)\b/i,
     /\b(?:published|scheduled|synced|activated) successfully\b/i,
     /\bcredentials? (?:were |was |have been |has been )?configured\b/i,
     /\bcrm (?:was |has been )?(?:updated|synced|activated)\b/i,
   ]) {
-    if (pattern.test(text)) errors.push(`Forbidden execution claim: ${pattern.source}`);
+    if (pattern.test(safetyNarrative)) {
+      errors.push(`Safety error: forbidden execution claim: ${pattern.source}`);
+    }
   }
   if (
     !allowContextPublicationPhrase &&
     /publish approved context to workspace context/i.test(text)
   ) {
     errors.push(
-      "Forbidden execution claim: downstream specialist exposed the context-publication confirmation phrase",
+      "Safety error: downstream specialist exposed the context-publication confirmation phrase",
     );
   }
   return errors;
 }
 
 export function onlyFormatErrors(errors: string[]): boolean {
-  return errors.every((error) => !error.startsWith("Forbidden execution claim:"));
+  return errors.length > 0 && errors.every((error) => error.startsWith("Format error:"));
+}
+
+function allTextIndexes(text: string, value: string): number[] {
+  const indexes: number[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const index = text.indexOf(value, cursor);
+    if (index === -1) break;
+    indexes.push(index);
+    cursor = index + value.length;
+  }
+  return indexes;
+}
+
+function specialistSection(
+  text: string,
+  startHeading: string,
+  endHeading: string,
+): string {
+  const start = text.indexOf(startHeading);
+  if (start === -1) return "";
+  const bodyStart = start + startHeading.length;
+  const end = text.indexOf(endHeading, bodyStart);
+  return text.slice(bodyStart, end === -1 ? undefined : end).trim();
+}
+
+function specialistLineIsQualified(line: string): boolean {
+  return /\b(?:do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires (?:separate )?(?:evidence|approval|review)|tbd|source[-_ ]supplied(?: only)?|claim status|evidence status|missing proof|limitation)\b/i.test(
+    line,
+  );
 }
 
 export function unqualifiedPackageName(value: string): string {

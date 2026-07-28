@@ -1,4 +1,4 @@
-import { llmAgent, noTools } from "@guildai/agents-sdk";
+import { createValidatedSpecialistAgent } from "./specialist-runtime.js";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -42,12 +42,10 @@ Under Status Payload include a JSON object with evidence_mode, observed_at, sour
 Never claim publishing, scheduling, spend changes, CRM mutation, credential setup, legal approval, automatic pause or scale, database enforcement, synchronization, or live observation occurred.
 `.trim();
 
-export default llmAgent({
+export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_market_signal",
   description:
     "Summarizes external market, community, search, answer-engine, developer, and social signals so Guild Marketing OS strategy starts from evidence rather than internal opinion.",
-  tools: noTools,
-  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS Market Signal Agent running in Guild.
 

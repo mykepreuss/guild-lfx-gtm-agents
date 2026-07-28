@@ -2467,7 +2467,6 @@ async function buildWorkspaceContextPublishOutput(
     };
   }
 
-  let approvedSourceText: string;
   try {
     const source = sourceResponseSchema.parse(
       await task.tools.marketing_os_source_get({
@@ -2485,7 +2484,6 @@ async function buildWorkspaceContextPublishOutput(
         "The exact approved source revision is unavailable or deleted.",
       );
     }
-    approvedSourceText = source.raw_source;
   } catch (error) {
     const blockedOutput = markWorkspaceContextPublishBlocked(
       approvedOutput,
@@ -2505,7 +2503,6 @@ async function buildWorkspaceContextPublishOutput(
 
   const compactionResult = await buildCompactedWorkspaceContext(
     approvedOutput,
-    approvedSourceText,
     task,
   );
 
@@ -2834,17 +2831,9 @@ function renderManagedWorkspaceContextBlock(output: Output, compactedContext: Co
 
 async function buildCompactedWorkspaceContext(
   approvedOutput: Output,
-  approvedSourceText: string | undefined,
   task: AgentTask,
 ): Promise<WorkspaceContextCompactionResult> {
-  const sourceText = approvedSourceText?.trim()
-    ? approvedSourceText
-    : [
-      renderReadyToPublishWorkspaceContext(approvedOutput),
-      "",
-      renderDownstreamHandoffContext(approvedOutput),
-    ].join("\n");
-  const cleanedSourceText = cleanApprovedSourceForWorkspaceContext(sourceText);
+  const cleanedSourceText = buildApprovedWorkspaceContextCorpus(approvedOutput);
   const estimatedSourceTokens = estimateWorkspaceContextTokens(cleanedSourceText);
   let firstCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task);
   if (!firstCompaction) {
@@ -2868,7 +2857,7 @@ async function buildCompactedWorkspaceContext(
   if (firstBriefCheck.length > 0) {
     return {
       status: "blocked",
-      reason: `The compacted workspace context brief is missing required sections: ${firstBriefCheck.join(", ")}.`,
+      reason: `The compacted workspace context brief failed deterministic validation: ${firstBriefCheck.join(", ")}.`,
       cleanedSourceText,
     };
   }
@@ -2927,7 +2916,7 @@ async function buildCompactedWorkspaceContext(
   if (regeneratedBriefCheck.length > 0) {
     return {
       status: "blocked",
-      reason: `The regenerated workspace context brief is missing required sections: ${regeneratedBriefCheck.join(", ")}.`,
+      reason: `The regenerated workspace context brief failed deterministic validation: ${regeneratedBriefCheck.join(", ")}.`,
       audit: firstAudit,
       cleanedSourceText,
     };
@@ -2964,7 +2953,7 @@ async function buildCompactedWorkspaceContext(
     if (repairedBriefCheck.length > 0) {
       return {
         status: "blocked",
-        reason: `The audit-repaired workspace context brief is missing required sections: ${repairedBriefCheck.join(", ")}.`,
+        reason: `The audit-repaired workspace context brief failed deterministic validation: ${repairedBriefCheck.join(", ")}.`,
         audit: regeneratedAudit,
         cleanedSourceText,
       };
@@ -3116,7 +3105,7 @@ Workspace Context Compaction
 
 Return only valid JSON. Do not use markdown fences.
 
-Create a concise always-on Guild workspace context brief from the approved source corpus. Target ${targetWorkspaceContextTokenMin}-${targetWorkspaceContextTokenMax} tokens. Preserve material facts, nuance, explicit constraints, and explicit unknowns. Do not add facts that are not present in the source.
+Create a concise always-on Guild workspace context brief from the approved reusable context corpus. Target ${targetWorkspaceContextTokenMin}-${targetWorkspaceContextTokenMax} tokens. Preserve material reusable facts, nuance, explicit constraints, evidence labels, and explicit unknowns. Do not add facts that are not present in the source.
 
 Required JSON shape:
 {
@@ -3128,7 +3117,9 @@ Required JSON shape:
 The workspace_context_brief must use these exact Markdown section headings:
 ${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
 
-Must preserve if present: dates, numbers, named products, named audiences, proof metrics, third-party review ratings, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
+Only facts in the approved reusable context corpus may be restated as reusable facts. The encrypted raw source is intentionally absent.
+Any item labeled review-required, blocked, withheld, missing, assumption, or do-not-use must remain a limitation or category-level summary; never turn it into an approved public claim or reintroduce its underlying raw claim.
+Must preserve if approved and present: dates, named products, named audiences, named competitors, explicit constraints, and explicit unknowns.
 Do not infer appointment dates, causality, guarantees, compliance workarounds, or operational readiness unless the source states them directly.
 For private-company financials, distinguish company-disclosed funding from secondary-reported valuation or revenue estimates; never call secondary valuations or ARR estimates company-confirmed.
 For pricing and packaging, preserve tier names and included capabilities without strengthening them with words like "full", "complete", "all", or implementation mechanisms not in the source. If the source says "automatic visitor routing", do not rewrite it as "IP routing"; if it says Basic includes unlimited form submissions or Optimize includes audience targeting, keep those details.
@@ -3142,7 +3133,7 @@ Known next agents: ${approvedOutput.statusPayload.nextAgents.join(", ")}
 ${auditInstruction}
 ${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
-Cleaned approved source corpus:
+Approved reusable context corpus:
 ${cleanedSourceText}
 `.trim();
 }
@@ -3153,7 +3144,8 @@ Workspace Context Compaction Audit
 
 Return only valid JSON. Do not use markdown fences.
 
-Compare the cleaned approved source corpus against the compacted workspace context brief. Be strict about material facts, named entities, numbers, dates, compliance caveats, pricing, proof metrics, competitors, acquisitions, and explicit unknowns.
+Compare the approved reusable context corpus against the compacted workspace context brief. Be strict about material facts, evidence labels, named entities, dates, constraints, competitors, and explicit unknowns.
+Treat any pricing, proof, scale, funding, revenue, compliance, security, privacy, ranking, guarantee, or performance claim in the brief as unsupported unless that exact reusable fact appears in the approved corpus. Do not request restoration of raw source claims that were intentionally summarized as review-required, blocked, withheld, or do-not-use.
 
 Required JSON shape:
 {
@@ -3166,7 +3158,7 @@ Required JSON shape:
 Use empty arrays when there are no issues. Put only claims that materially affect downstream Marketing OS agents in lost_material_facts. Put any claim in unsupported_new_claims if it appears in the brief but is not supported by the cleaned source.
 ${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
-Cleaned approved source corpus:
+Approved reusable context corpus:
 ${cleanedSourceText}
 
 Compacted workspace context brief:
@@ -3178,7 +3170,97 @@ ${compaction.source_corpus_summary}
 }
 
 function validateWorkspaceContextBrief(brief: string): string[] {
-  return requiredWorkspaceBriefSections.filter((section) => !new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}\\s*$`, "im").test(brief));
+  const errors = requiredWorkspaceBriefSections
+    .filter((section) => !new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}\\s*$`, "im").test(brief))
+    .map((section) => `missing section: ${section}`);
+  const unsafeLines = brief
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line || /^#{1,6}\s/.test(line)) return false;
+      if (!isWorkspaceSensitiveClaimLine(line)) return false;
+      return !/\b(?:review[- ]required|requires (?:separate )?(?:evidence|approval|review)|withheld|blocked|do not (?:use|reuse|claim)|must not (?:use|reuse|claim)|not approved|tbd|missing evidence|source[-_ ]supplied(?: only)?|limitation|unknown|unspecified|remain open|omitted|excluded)\b/i.test(
+        line,
+      );
+    });
+  if (unsafeLines.length > 0) {
+    errors.push(
+      `unqualified review-required claim(s): ${unsafeLines
+        .slice(0, 3)
+        .map((line) => line.slice(0, 120))
+        .join(" | ")}`,
+    );
+  }
+  return errors;
+}
+
+function isWorkspaceSensitiveClaimLine(line: string): boolean {
+  return /\b(?:pricing|price|privacy|security|secure|compliance|compliant|certified|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best-in-class|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\$[0-9]/i.test(
+    line,
+  );
+}
+
+function buildApprovedWorkspaceContextCorpus(output: Output): string {
+  const approvedFacts = output.approvedFacts
+    .filter(
+      (claim) =>
+        (claim.status === "approved" || claim.status === "user_supplied") &&
+        !isGuardedReusableClaim(claim.claim),
+    )
+    .map((claim) => `- [${claim.status}] ${claim.claim}`);
+  const approvedProof = output.proofBackedClaims
+    .filter(isReusableProofClaim)
+    .map((claim) => `- [${claim.status}] ${claim.claim}`);
+  const reviewRequired = [
+    ...output.claimsNeedingApproval,
+    ...output.contextArtifacts.proofAndConstraints.blockedClaims,
+  ].filter((claim) => claim.claim.trim());
+  const reviewCategories = summarizeBlockedClaimCategories(reviewRequired);
+
+  return [
+    "# Approved Reusable Marketing OS Context Corpus",
+    "",
+    "This corpus is derived from the exact durably approved Company Context artifact. The encrypted raw source is retained separately and is intentionally excluded from always-on workspace context.",
+    "",
+    "## Runtime Summary",
+    renderReadyToPublishWorkspaceContext(output),
+    "",
+    "## Downstream Handoff Context",
+    renderDownstreamHandoffContext(output),
+    "",
+    "## Approved Reusable Facts",
+    ...(approvedFacts.length ? approvedFacts : ["- No reusable facts are approved beyond the named company and operating constraints."]),
+    "",
+    "## Approved Reusable Proof",
+    ...(approvedProof.length ? approvedProof : ["- No quantified, pricing, scale, compliance, security, financial, ranking, or performance proof is approved for public reuse."]),
+    "",
+    "## Review-Required Source Summary",
+    `- ${reviewRequired.length} source claim(s) are withheld from reusable context pending separate evidence and owner review.`,
+    `- Review-required categories: ${formatList(reviewCategories)}.`,
+    "- Do not restore, paraphrase, or imply the underlying withheld claims in the compact brief.",
+    "",
+    "## Sanitized Context Artifacts",
+    `- Company: ${output.contextArtifacts.companyContext.companyName}`,
+    `- Category: ${output.contextArtifacts.companyContext.category}`,
+    `- Primary audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}`,
+    `- Goals: ${formatList(output.contextArtifacts.companyContext.goals)}`,
+    `- Messaging overview: ${output.contextArtifacts.messagingSource.overview}`,
+    `- Positioning: ${output.contextArtifacts.messagingSource.positioning}`,
+    `- Answer-ready language: ${formatList(output.contextArtifacts.messagingSource.answerReadyLanguage)}`,
+    `- Approved channels: ${formatList(output.contextArtifacts.channelRegistry.approvedChannels)}`,
+    `- Channels TBD: ${formatList(output.contextArtifacts.channelRegistry.channelsTbd)}`,
+    `- AEO entity clarity: ${output.aeoReadiness.entityClarity}`,
+    `- AEO missing proof: ${formatList(output.aeoReadiness.missingProof)}`,
+    "",
+    "## Operating Constraints",
+    ...output.contextArtifacts.proofAndConstraints.constraints.map(
+      (constraint) => `- ${constraint}`,
+    ),
+  ]
+    .join("\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function renderCompactionAudit(compactedContext: CompactedWorkspaceContext): string {

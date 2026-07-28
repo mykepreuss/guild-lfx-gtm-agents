@@ -28,11 +28,13 @@ readiness claim. When a user asks for downstream work, Builder identifies
 itself as context-only and directs the request to Launcher or the named
 specialist; it does not turn the instruction into a new company packet.
 
-The seven specialists are self-contained draft/review agents. They set
-`useWorkspaceAgents: false` (or use `noTools`), cannot delegate, and return the
-shared Marketing OS headings, evidence mode, safety envelope, approval gate,
-status payload, and handoff. Private Guild Skills are optional maintainer
-assets, not runtime dependencies.
+The seven specialists are self-contained coded draft/review agents. They use
+`noTools`, cannot delegate, and generate through the shared validated runtime
+copied from `_shared/specialist-runtime.ts`. The runtime enforces the Marketing
+OS headings, evidence mode, typed safety envelope, approval gate, status
+payload, and handoff; it permits one format-only repair and never silently
+retries evidence or safety failures. Private Guild Skills are optional
+maintainer assets, not runtime dependencies.
 
 ## Intended Guild user flow
 

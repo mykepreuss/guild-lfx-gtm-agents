@@ -1,4 +1,4 @@
-import { llmAgent, noTools } from "@guildai/agents-sdk";
+import { createValidatedSpecialistAgent } from "./specialist-runtime.js";
 
 const sharedRules = `
 Guild Marketing OS operating rules:
@@ -42,12 +42,10 @@ Under Status Payload include a JSON object with evidence_mode, observed_at, sour
 Never claim publishing, scheduling, spend changes, CRM mutation, credential setup, legal approval, automatic pause or scale, database enforcement, synchronization, or live observation occurred.
 `.trim();
 
-export default llmAgent({
+export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_icp",
   description:
     "Defines Guild Marketing OS target audience models, personas, pains, objections, motivations, triggers, fit criteria, disqualifiers, and audience answer priorities from approved context and market signal.",
-  tools: noTools,
-  useWorkspaceAgents: false,
   systemPrompt: `
 You are the Guild Marketing OS ICP Agent running in Guild.
 

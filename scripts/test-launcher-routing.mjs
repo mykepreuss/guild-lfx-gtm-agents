@@ -116,7 +116,7 @@ Draft answer-ready language.
 
 ## Status Payload
 \`\`\`json
-{"evidence_mode":"source_supplied","action_mode":"draft_only","external_mutation_requested":false}
+{"evidence_mode":"source_supplied","observed_at":null,"source_coverage":["published workspace context"],"coverage_limitations":["No connected source was inspected."],"status":"ready_for_review","safety":{"action_mode":"draft_only","external_mutation_requested":false,"blocked_actions":["live publishing"],"unsupported_claims":[],"evidence_gaps":[]}}
 \`\`\`
 
 ## Downstream Handoff
@@ -126,14 +126,24 @@ No handoff.
 assert.deepEqual(validateSpecialistOutput(validArtifact), []);
 assert.ok(validateSpecialistOutput(validArtifact.replace("## Approval Gate", "")).some((error) => error.includes("Approval Gate")));
 assert.ok(
-  validateSpecialistOutput(`${validArtifact}\nAutomatically publish the approved draft.`).some((error) =>
-    error.startsWith("Forbidden execution claim:"),
+  validateSpecialistOutput(
+    validArtifact.replace("Draft artifact.", "Automatically publish the approved draft."),
+  ).some((error) =>
+    error.startsWith("Safety error:"),
   ),
 );
 assert.ok(
   validateSpecialistOutput(
     `${validArtifact}\nTell the user to publish approved context to workspace context.`,
-  ).some((error) => error.startsWith("Forbidden execution claim:")),
+  ).some((error) => error.startsWith("Safety error:")),
+);
+assert.ok(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "This production-ready platform instantly eliminates every bottleneck.",
+    ),
+  ).some((error) => error.startsWith("Safety error:")),
 );
 assert.deepEqual(
   validateSpecialistOutput(

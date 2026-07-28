@@ -56,7 +56,7 @@ Draft answer-ready language for review.
 
 ## Status Payload
 \`\`\`json
-{"evidence_mode":"source_supplied","action_mode":"draft_only","external_mutation_requested":false}
+{"evidence_mode":"source_supplied","observed_at":null,"source_coverage":["published workspace context"],"coverage_limitations":["No connected source was inspected."],"status":"ready_for_review","safety":{"action_mode":"draft_only","external_mutation_requested":false,"blocked_actions":["live publishing"],"unsupported_claims":[],"evidence_gaps":[]}}
 \`\`\`
 
 ## Downstream Handoff
@@ -183,7 +183,7 @@ function createTask({
           return installedAgents();
         },
         async guild_get_agent_version() {
-          return { version_number: "1.1.1" };
+          return { version_number: "1.2.0" };
         },
         async guild_agent_install_request() {
           throw new Error("not expected");
@@ -258,7 +258,7 @@ function launcherInput(request) {
   );
   assert.match(result.text, /Handled by: Messaging/);
   assert.match(result.text, /Cockpit record:/);
-  assert.match(result.text, /Specialist version: 1\.1\.1/);
+  assert.match(result.text, /Specialist version: 1\.2\.0/);
   assert.equal(specialistCall, 2);
   assert.match(
     harness.specialistInputs[1].text,
@@ -271,7 +271,7 @@ function launcherInput(request) {
   assert.equal(run.attempts.length, 2);
   assert.equal(run.attempts[0].status, "format_invalid");
   assert.equal(run.attempts[1].status, "succeeded");
-  assert.equal(run.package_version, "1.1.1");
+  assert.equal(run.package_version, "1.2.0");
   assert.ok(run.artifact_id);
   assert.ok(run.handoff_id);
   assert.equal(harness.readState().last_run_id, run.run_id);
@@ -500,7 +500,7 @@ function launcherInput(request) {
     specialist: "Messaging",
     context_revision: contextRevision,
     package_name: "guild-marketing-os-messaging",
-    package_version: "1.1.1",
+    package_version: "1.2.0",
     input_envelope: {
       user_request: "Create messaging for the approved audience.",
       context_revision: contextRevision,

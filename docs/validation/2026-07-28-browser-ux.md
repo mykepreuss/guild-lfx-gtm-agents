@@ -58,12 +58,16 @@ Both defects were fixed and covered by automated regression tests. Session
 - action mode remained `draft_only`; and
 - no context publication occurred.
 
-### Seven specialist routes
+### Seven specialist routes — structural and transport checks
 
 Each clear-intent request was sent from a brand-new ordinary workspace Chat.
 Every result returned in the originating Chat with Launcher attribution,
 specialist attribution, the complete seven-heading Marketing OS frame, actual
 evidence mode, a draft-only safety envelope, and no external mutation.
+
+These runs proved routing, child-result return, structure, and external-action
+safety. A later content-quality probe found a separate unsupported-claim
+failure in live Messaging `1.1.1`; see the follow-up below.
 
 | Specialist | Session | Result |
 | --- | --- | --- |
@@ -121,6 +125,19 @@ action.
   return a clarification. Clear deterministic routes do not pay that
   classification cost.
 
+## Follow-up claim-quality failure
+
+Session `019faaa8-aaf4-351a-0000-d1474c524193` ran a harmless draft-only
+Messaging request in ordinary workspace Chat after the walkthrough. The result
+returned the correct structure but used unsupported absolute language and
+strengthened the required HIPAA nuance. No external action occurred.
+
+This is retained as a failed acceptance attempt. The fix is implemented in
+source-only specialist `1.2.0`, Builder `1.2.0`, and Launcher `0.3.0`, with
+deterministic validation on both sides of specialist delegation. Full details
+are in
+[`2026-07-28-specialist-contract.md`](2026-07-28-specialist-contract.md).
+
 ## Evidence
 
 The non-mutating collector preserved complete session, task, event, agent
@@ -131,10 +148,12 @@ context and runtime metadata.
 
 ## Decision
 
-The private single-workspace alpha passes normal-Chat routing, context-readiness
-regression, onboarding status, all seven specialist routes, downstream
-publication-boundary enforcement, hostile-request blocking, same-Chat recovery,
-and ambiguous-intent guidance.
+The private single-workspace alpha passes normal-Chat routing,
+context-readiness regression, onboarding status, all seven specialist
+transport routes, downstream publication-boundary enforcement, hostile-request
+blocking, same-Chat recovery, and ambiguous-intent guidance. The follow-up
+content-quality probe means the currently live specialist versions do not pass
+the public claim-safety gate.
 
 Public V1 remains blocked. The live browser passes do not satisfy:
 

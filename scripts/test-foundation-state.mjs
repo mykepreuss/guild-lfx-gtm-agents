@@ -49,39 +49,39 @@ const stateTenant = {
 
 const compactedBrief = `
 ### Company Identity
-Webflow, Inc. is a privately held Delaware corporation founded in 2013 and headquartered in San Francisco. Public context lists 900+ team members in 25 countries, 3.5M users, and $335M in total funding.
+Company name: Webflow. Additional legal-entity, scale, funding, and location claims are review-required and withheld from always-on reusable context.
 
 ### Positioning And Strategy
-Webflow has moved from visual development platform to Website Experience Platform and now an agentic web marketing platform for teams that need to build, manage, personalize, experiment, and connect revenue-driving web experiences.
+Category and positioning remain TBD until the review-required source claims receive separate evidence and owner approval.
 
 ### Products And Platform
-Core products and surfaces include visual design, CMS, hosting, collaboration, Localization, Analyze, Optimize, AEO, Webflow Cloud, DevLink, Figma to Webflow, apps, APIs, webhooks, OAuth, and marketplace extensions.
+Named product and platform details from the raw source are review-required and withheld from reusable context.
 
 ### Audiences And Buying Motion
-Primary audiences are marketers, designers / creative teams, developers / engineering leaders, agencies / freelancers, startups, and enterprise teams. The buyer center is marketing-led but requires engineering guardrails for governance and integration.
+Primary audiences remain reviewable hypotheses pending approved segment evidence.
 
 ### Pricing And Commercial Model
-Webflow runs a hybrid self-serve and enterprise model spanning free and paid Site plans, Workspace plans, add-ons such as Analyze, Optimize, and Localization, a Team plan, and custom Enterprise.
+Pricing and commercial claims are review-required and omitted from always-on reusable context.
 
 ### Proof Points
-Public proof includes Orangetheory Fitness cost savings, Fivetran speed-to-market gains, Retool demo-booking lift from testing, Wave conversion and traffic improvements, and IONITY active-user growth.
+Quantified proof and customer outcome claims are review-required and omitted from always-on reusable context.
 
 ### Compliance And Constraints
-Trust context includes SOC 2 Type II, ISO 27001, ISO 27017 and PCI materials, U.S. data storage, DPF/SCC/UK IDTA transfer mechanisms, encryption in transit and at rest, SSO, SCIM, JIT, audit log API, and a clear not HIPAA / no PHI constraint.
+Legal, privacy, security, and compliance claims are review-required. Do not reuse them as public claims without separate evidence and owner review.
 
 ### Competitive Landscape
-Named competitors and comparison references include WordPress, Framer, Contentful, Sitecore, Wix. Webflow's wedge is visual control, managed infrastructure, integrated CMS, optimization, governance, APIs, and AEO readiness.
+Competitive claims and differentiation remain TBD until approved comparison evidence is available.
 
 ### Open Questions And Unknowns
-Revenue figures are secondary estimates, public forward growth targets are unspecified, audited financials are unavailable, and education/nonprofit vertical targeting is unspecified in reviewed official sources.
+Approved description, category, proof, pricing, trust claims, and audience validation remain open.
 
 ### Downstream Operating Rules
-Treat this compacted Guild workspace context as the first source of truth for Webflow-specific facts. Use the retained approved source corpus only when detailed provenance is needed. Do not take live publishing, spend, CRM, credential, trigger, install, or visibility actions without explicit approval.
+Treat only evidence-labeled approved reusable facts as public-claim inputs. The encrypted raw source remains available through its durable source reference. Do not take live publishing, spend, CRM, credential, trigger, install, or visibility actions.
 `.trim();
 
 const sourceCorpusSummary = [
-  "Compacted from the approved Webflow Company Profile covering company identity, product, pricing, audiences, channels, funding, technology, compliance, competitors, customers, proof, and knowledge graph design.",
-  "Raw citation markers, Mermaid diagrams, pseudo-query examples, code blocks, and long table formatting were stripped before LLM compaction.",
+  "Compacted from the durably approved reusable Company Context artifact.",
+  "The encrypted raw source and review-required claims were intentionally excluded from always-on workspace context.",
 ].join("\n");
 
 const task = {
@@ -106,18 +106,18 @@ const task = {
             text: JSON.stringify({
               lost_material_facts: ["Webflow headquarters address: 398 11th Street, Floor 2, San Francisco, CA 94103."],
               unsupported_new_claims: [],
-              overcompressed_nuance: ["Preserve the source caveat that Webflow may not be HIPAA compliant and customers should not provide PHI."],
-              recommended_fixes: ["Append the missing material fact and compliance nuance to the brief."],
+              overcompressed_nuance: ["Preserve that additional location details remain review-required rather than approved reusable facts."],
+              recommended_fixes: ["Append the missing material fact as review-required, not reusable."],
             }),
           };
         }
         if (auditCalls === 1) {
           return {
             text: JSON.stringify({
-              lost_material_facts: ["Webflow is not HIPAA compliant / no PHI."],
+              lost_material_facts: ["Review-required source claims are intentionally withheld from reusable context."],
               unsupported_new_claims: [],
               overcompressed_nuance: [],
-              recommended_fixes: ["Add the HIPAA limitation to Compliance And Constraints."],
+              recommended_fixes: ["Preserve the withheld-claims rule in Downstream Operating Rules."],
             }),
           };
         }
@@ -135,7 +135,13 @@ const task = {
         compactionCalls += 1;
         return {
           text: JSON.stringify({
-            workspace_context_brief: compactedBrief,
+            workspace_context_brief:
+              llmScenario === "unqualified_sensitive_brief"
+                ? compactedBrief.replace(
+                    "Pricing and commercial claims are review-required and omitted from always-on reusable context.",
+                    "Webflow has $335M in funding and is SOC 2 Type II compliant.",
+                  )
+                : compactedBrief,
             source_corpus_summary: sourceCorpusSummary,
             estimated_token_reduction: "Reduced from full approved source corpus to concise always-on workspace context brief.",
           }),
@@ -493,26 +499,26 @@ async function runPublishFlow(label, wrapInput) {
     [`${storedSource.source_id}:${storedSource.revision}`],
     `${label}: published context must retain source provenance`,
   );
-  for (const materialFact of [
-    "Webflow, Inc.",
-    "2013",
+  assert.match(createdContextBody, /Company name: Webflow/, label);
+  assert.match(createdContextBody, /review-required and withheld/, label);
+  assert.match(createdContextBody, /encrypted raw source/i, label);
+  for (const withheldClaim of [
     "3.5M users",
     "$335M",
-    "Website Experience Platform",
-    "agentic web marketing platform",
-    "Analyze",
-    "Optimize",
-    "AEO",
-    "Webflow Cloud",
+    "99.99% uptime",
     "SOC 2 Type II",
     "ISO 27001",
     "not HIPAA",
-    "WordPress",
-    "Framer",
-    "Contentful",
-    "Sitecore",
+    "Orangetheory Fitness",
+    "Fivetran",
+    "Retool",
+    "Wave",
+    "IONITY",
   ]) {
-    assert.ok(createdContextBody.includes(materialFact), `${label}: compacted context should retain ${materialFact}`);
+    assert.ok(
+      !createdContextBody.includes(withheldClaim),
+      `${label}: always-on context must withhold review-required claim ${withheldClaim}`,
+    );
   }
   assert.equal(compactionCalls, 2, `${label}: publish should regenerate once after lost material facts`);
   assert.equal(auditCalls, 2, `${label}: publish should audit initial and regenerated compactions`);
@@ -689,6 +695,44 @@ assert.match(blockedPublish.output.text, /workspace_context_status: blocked/, "u
 assert.match(blockedPublish.output.text, /Workspace context compaction audit did not pass/, "unsupported claim audit");
 assert.equal(createdContextBody, "", "unsupported audit should block before workspace write");
 assert.equal(bridgePublishCalls, 0, "unsupported audit should block before bridge publish");
+
+state = approvedStateForAuditTests;
+createdContextBody = "";
+bridgePublishInput = undefined;
+bridgePublishCalls = 0;
+bridgeScenario = "successful";
+llmScenario = "unqualified_sensitive_brief";
+compactionCalls = 0;
+auditCalls = 0;
+const sensitiveBriefBlocked = await foundationAgent.start(
+  { type: "text", text: "publish approved context to workspace context" },
+  task,
+);
+assert.equal(
+  sensitiveBriefBlocked.type,
+  "output",
+  "unqualified sensitive compaction",
+);
+assert.match(
+  sensitiveBriefBlocked.output.text,
+  /workspace_context_status: blocked/,
+  "unqualified sensitive compaction",
+);
+assert.match(
+  sensitiveBriefBlocked.output.text,
+  /failed deterministic validation/,
+  "unqualified sensitive compaction",
+);
+assert.equal(
+  auditCalls,
+  0,
+  "unqualified sensitive compaction must block before an LLM audit can bless it",
+);
+assert.equal(
+  bridgePublishCalls,
+  0,
+  "unqualified sensitive compaction must block before publication",
+);
 
 state = undefined;
 stateAdapter = new MemoryMarketingOsStateAdapter();

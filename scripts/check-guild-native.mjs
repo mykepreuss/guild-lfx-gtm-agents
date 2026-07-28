@@ -81,7 +81,10 @@ const requiredReviewAgentSourceSnippets = [
   "Evidence mode: live_monitoring",
   "action_mode: draft_only",
   "external_mutation_requested: false",
-  "useWorkspaceAgents: false",
+  "createValidatedSpecialistAgent",
+  "validateSpecialistArtifact",
+  "Format repair only.",
+  "tools: noTools",
 ];
 const requiredLauncherSnippets = [
   "agent({",
@@ -316,7 +319,7 @@ function validateContextHubReferences(agent) {
 
 function validateAgentPackage(agent) {
   const packageDir = agent.packageDir;
-  const requiresZod = agent.id === "foundation-setup" || agent.id === "launcher";
+  const requiresZod = true;
 
   if (!packageDir.startsWith("agents/")) {
     fail(`${agent.id} packageDir must stay under agents/.`);
@@ -375,11 +378,14 @@ function validateAgentPackage(agent) {
 
   if (exists(path.join(packageDir, "agent.ts"))) {
     const source = readText(path.join(packageDir, "agent.ts"));
+    const specialistRuntimePath = path.join(packageDir, "specialist-runtime.ts");
     const contractSource =
       agent.id === "launcher" && exists(path.join(packageDir, "launcher-core.ts"))
         ? `${source}\n${readText(path.join(packageDir, "launcher-core.ts"))}`
-        : source;
-    if (!source.includes("@guildai/agents-sdk")) {
+        : exists(specialistRuntimePath)
+          ? `${source}\n${readText(specialistRuntimePath)}`
+          : source;
+    if (!contractSource.includes("@guildai/agents-sdk")) {
       fail(`${packageDir}/agent.ts should use the Guild Agent SDK.`);
     }
     if (!source.includes("identifier:")) {
@@ -404,7 +410,7 @@ function validateAgentPackage(agent) {
         }
       }
     }
-    if (requiresZod && !source.includes('from "zod"')) {
+    if (requiresZod && !contractSource.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
     if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {

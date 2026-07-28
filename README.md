@@ -198,10 +198,12 @@ The order is the recommended full GTM build sequence, not a hard dependency chai
 
 ## Runtime Methods
 
-Every public agent is self-contained. The seven specialist prompts inline the
-authoritative review method and share the same structured evidence and safety
-contract. Files in `guild-skills/` may assist maintainers, but installation and
-successful output must not depend on them.
+Every public agent is self-contained. The seven specialists inline the
+authoritative review method and run through the same coded, typed evidence and
+safety contract. Formatting may be repaired once; evidence and safety failures
+return a blocked receipt without a silent retry. Files in `guild-skills/` may
+assist maintainers, but installation and successful output must not depend on
+them.
 
 ## Operating Boundaries
 
@@ -234,6 +236,7 @@ Before broad production use, add explicit orchestration, broader structured cont
 ```sh
 npm run verify
 npm run check:context
+npm run test:specialist-runtime
 npm run test:guild-smoke
 npm run test:guild-smoke:full
 npm run test:guild-adversarial
