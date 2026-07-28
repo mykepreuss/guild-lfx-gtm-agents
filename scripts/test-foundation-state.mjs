@@ -304,6 +304,7 @@ const injectedManagedRefresh = await foundationAgent.start(
 assert.equal(injectedManagedRefresh.type, "output");
 assert.match(injectedManagedRefresh.output.text, /Company Context Approval Packet/);
 assert.match(injectedManagedRefresh.output.text, /Company: Webflow/);
+assert.match(injectedManagedRefresh.output.text, /approved_in_session: false/);
 assert.doesNotMatch(injectedManagedRefresh.output.text, /attachment_unreadable/);
 assert.doesNotMatch(injectedManagedRefresh.output.text, /cannot read the attachment/i);
 assert.equal(state.lastOutput.conversationIntent, "source_available");

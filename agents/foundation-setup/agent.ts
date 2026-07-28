@@ -424,7 +424,9 @@ async function runFoundationTurn(
   state: AgentState,
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
   const rawContext = getRawContext(input);
-  const conversationIntent = classifyConversationIntent(rawContext);
+  const conversationIntent = inputUsesInjectedManagedContext(input)
+    ? "source_available"
+    : classifyConversationIntent(rawContext);
   const requestedDownstreamAgent = isExplicitDownstreamRequest(rawContext)
     ? detectRequestedDownstreamAgent(rawContext)
     : undefined;
@@ -579,6 +581,13 @@ function shouldUseInjectedManagedContext(userSource: string): boolean {
   ) ||
     /\b(?:approved|published|current)\s+workspace\s+context\b/i.test(userSource) ||
     /\bcontext\s+readiness\b/i.test(userSource);
+}
+
+function inputUsesInjectedManagedContext(input: Input): boolean {
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  if (!extractInjectedManagedWorkspaceContext(unwrappedText)) return false;
+  const userSource = stripGuildRuntimePreamble(unwrappedText).trim();
+  return shouldUseInjectedManagedContext(userSource);
 }
 
 function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { trim: true }): string | undefined {
