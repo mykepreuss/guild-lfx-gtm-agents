@@ -933,14 +933,10 @@ const automaticTools = {
 type AutomaticTools = typeof automaticTools;
 type AutomaticLauncherTask = Task<AutomaticTools>;
 
-export default agent({
-  identifier: "guild_marketing_os_launcher",
-  description:
-    "Routes draft-only Marketing OS work to an explicit suite allowlist, returns complete specialist artifacts, and fails safely when context or a required package is unavailable.",
-  inputSchema,
-  outputSchema,
-  tools: automaticTools,
-  async run(input, task: AutomaticLauncherTask) {
+async function run(
+  input: z.infer<typeof inputSchema>,
+  task: AutomaticLauncherTask,
+): Promise<z.infer<typeof outputSchema>> {
     const context = await readContextSnapshot(input.text, task as unknown as LauncherTask);
     const userText = removeCompiledWorkspaceContext(input.text, context.compiled);
     const classification = await classifyRoute(userText, task as unknown as LauncherTask);
@@ -1130,7 +1126,16 @@ export default agent({
         repairedText,
       ),
     };
-  },
+}
+
+export default agent({
+  identifier: "guild_marketing_os_launcher",
+  description:
+    "Routes draft-only Marketing OS work to an explicit suite allowlist, returns complete specialist artifacts, and fails safely when context or a required package is unavailable.",
+  inputSchema,
+  outputSchema,
+  tools: automaticTools,
+  run,
 });
 
 function installedSuiteAgentsFromWorkspace(
