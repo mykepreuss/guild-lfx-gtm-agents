@@ -53,6 +53,14 @@ tenant-scoped PostgreSQL rate limiter, defaulting to 120 requests per 60
 seconds; deployments may set `RATE_LIMIT_MAX_REQUESTS` and
 `RATE_LIMIT_WINDOW_SECONDS`.
 
+`deploy/gcp` contains the production-shaped Google Cloud Terraform module and
+deployment runbook. It keeps the runtime and migration identities separate,
+uses private regional Cloud SQL with backups and point-in-time recovery,
+scopes database secrets to their consumers, pins the service image by digest,
+and gives source envelope encryption and Cloud SQL separate KMS keys. The
+module can be initialized and validated without deploying, but it must not be
+applied with placeholder Guild identity values.
+
 Apply the schema with a separate migration identity before starting the
 service:
 
