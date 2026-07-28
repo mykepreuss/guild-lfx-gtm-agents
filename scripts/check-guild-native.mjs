@@ -96,6 +96,7 @@ const requiredLauncherSnippets = [
   "guild_agent_install_request",
   "marketing_os_run_create",
   "marketing_os_attempt_record",
+  "marketing_os_artifact_approve",
   "guild_get_task_workspace_agents",
   "FORMAT REPAIR ONLY.",
   "action_mode",

@@ -197,6 +197,12 @@ function deterministicRouteDecision(
   }
 
   if (
+    /\bapprove\b[\s\S]{0,160}\b(?:artifact|revision)\b/i.test(text)
+  ) {
+    return { route: "cockpit", reason: "artifact_approval_intent" };
+  }
+
+  if (
     /\b(?:set up|build|create|refresh|update)\s+(?:the\s+|our\s+|a\s+)?(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
       text,
     )
@@ -511,6 +517,55 @@ export function renderSpecialistBlocked(
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function parseArtifactApprovalRequest(text: string): {
+  requested: boolean;
+  route?: DelegatedRoute;
+  revision?: number;
+  artifactId?: string;
+} {
+  const requested =
+    /\bapprove\b/i.test(text) && /\b(?:artifact|revision)\b/i.test(text);
+  if (!requested) return { requested: false };
+
+  const routeMatches: DelegatedRoute[] = [];
+  const routePatterns: Array<[DelegatedRoute, RegExp]> = [
+    ["company_context", /\b(?:company|workspace|marketing os)\s+context\b/i],
+    ["market_signal", /\bmarket signal\b/i],
+    ["icp", /\b(?:icp|ideal customer)\b/i],
+    ["audience_segmentation", /\b(?:audience\s+)?segmentation\b/i],
+    ["messaging", /\bmessaging\b/i],
+    ["branding_pitch_deck", /\b(?:branding|brand|pitch deck)\b/i],
+    [
+      "social_monitoring_content",
+      /\b(?:social monitoring|social content|content calendar)\b/i,
+    ],
+    [
+      "campaigns_paid_media",
+      /\b(?:campaigns?|paid media|media plan)\b/i,
+    ],
+  ];
+  for (const [route, pattern] of routePatterns) {
+    if (pattern.test(text)) routeMatches.push(route);
+  }
+
+  const revisionMatch = text.match(/\brevision\s+(\d+)\b/i);
+  const revision = revisionMatch
+    ? Number.parseInt(revisionMatch[1], 10)
+    : undefined;
+  const artifactMatch = text.match(
+    /\bartifact\s+((?!revision\b)[a-z0-9][a-z0-9_-]{7,})\b/i,
+  );
+  return {
+    requested: true,
+    route: routeMatches.length === 1 ? routeMatches[0] : undefined,
+    revision:
+      revision && Number.isSafeInteger(revision) && revision > 0
+        ? revision
+        : undefined,
+    artifactId: artifactMatch?.[1],
+  };
 }
 
 export function safeError(error: unknown): string {

@@ -25,7 +25,15 @@ deployment are available.
   creating a duplicate workflow run or requiring the user to paste the prior
   artifact.
 - A cockpit request renders all eight workstreams with state, latest artifact,
-  blocker, and next action. It does not invoke a specialist.
+  approval state, blocker, and next action. It does not invoke a specialist.
+- An approval command must resolve to one exact artifact revision. Ambiguous
+  workstream/revision matches require the artifact ID from the Launcher receipt.
+  The state service records the user's exact text, transitions the artifact and
+  run, completes the handoff, and marks the workstream approved only when that
+  artifact is still the workstream's latest revision.
+- If artifact approval succeeds but a later cockpit update fails, the Launcher
+  reports the partial state honestly. Repeating the approval reconciles the
+  remaining records without adding a second approval.
 - The customer-visible result includes the complete specialist artifact plus a
   compact receipt for artifact revision, run ID, specialist version, and context
   revision.
@@ -38,9 +46,13 @@ against the real in-memory state adapter:
 1. malformed Messaging output followed by one successful format repair;
 2. durable artifact, handoff, run, workstream, and session-state finalization;
 3. cockpit status from a separate Launcher session;
-4. cross-session continuation of a pre-existing format-invalid run;
-5. fail-closed behavior when durable run creation is unavailable; and
-6. safety-failed output retained as a blocked run with no repair attempt.
+4. exact, idempotent artifact approval and approved cockpit rendering;
+5. ambiguous approval rejection followed by exact artifact-ID approval;
+6. recovery from an artifact-approved/run-update-failed partial transition;
+7. cross-session continuation of a pre-existing format-invalid run;
+8. fail-closed behavior when durable run creation or attempt retention is
+   unavailable; and
+9. safety-failed output retained as a blocked run with no repair attempt.
 
 The same state contract already has PostgreSQL, JWT/JWKS HTTP, tenant isolation,
 idempotency, optimistic concurrency, audit, export, deletion, encryption, and

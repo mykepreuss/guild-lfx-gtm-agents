@@ -64,7 +64,22 @@ export const artifactRecordSchema = z
     artifact_id: z.string(),
     revision: z.number().int().positive(),
     artifact_type: z.string(),
-    status: z.string(),
+    status: z.enum([
+      "draft",
+      "ready_for_review",
+      "approved",
+      "superseded",
+      "blocked",
+    ]),
+    approvals: z
+      .array(
+        z
+          .object({
+            exact_approval_text: z.string(),
+          })
+          .passthrough(),
+      )
+      .default([]),
   })
   .passthrough();
 
@@ -166,6 +181,19 @@ export const storeArtifactRequestSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const readArtifactRequestSchema = z.object({
+  artifactId: z.string(),
+  revision: z.number().int().positive().optional(),
+});
+
+export const approveArtifactRequestSchema = z.object({
+  artifactId: z.string(),
+  idempotency_key: z.string(),
+  revision: z.number().int().positive(),
+  expected_revision: z.number().int().positive(),
+  approval_text: z.string().min(1),
+});
+
 export const createHandoffRequestSchema = z.object({
   idempotency_key: z.string(),
   source_agent: z.string(),
@@ -178,6 +206,13 @@ export const createHandoffRequestSchema = z.object({
   completion_state: z
     .enum(["pending", "completed", "blocked", "failed"])
     .optional(),
+});
+
+export const updateHandoffRequestSchema = z.object({
+  handoffId: z.string(),
+  idempotency_key: z.string(),
+  expected_revision: z.number().int().positive(),
+  completion_state: z.enum(["pending", "completed", "blocked", "failed"]),
 });
 
 export const updateWorkflowRunRequestSchema = z.object({
@@ -239,7 +274,7 @@ export const handoffResponseSchema = z.object({
   data: handoffRecordSchema,
 });
 export const workstreamResponseSchema = z.object({
-  data: workstreamRecordSchema.optional(),
+  data: workstreamRecordSchema.nullable().optional(),
 });
 
 export const launcherAgentStateSchema = z.object({
@@ -375,11 +410,17 @@ export function renderCockpitStatus(
       : run?.artifact_revision
         ? `r${run.artifact_revision}`
         : "—";
+    const approval =
+      state === "approved"
+        ? "approved"
+        : state === "ready_for_review"
+          ? "pending"
+          : "—";
     const blocker =
       workstream?.blockers?.[0] ?? run?.blockers?.[0] ?? "—";
     const next =
       workstream?.next_action ?? run?.next_action ?? "Start this workflow.";
-    return `| ${entry.displayName} | ${state} | ${artifact} | ${escapeCell(
+    return `| ${entry.displayName} | ${state} | ${artifact} | ${approval} | ${escapeCell(
       blocker,
     )} | ${escapeCell(next)} |`;
   });
@@ -390,8 +431,8 @@ export function renderCockpitStatus(
   return [
     "# Marketing OS Cockpit",
     "",
-    "| Workstream | State | Artifact | Blocker | Next action |",
-    "| --- | --- | --- | --- | --- |",
+    "| Workstream | State | Artifact | Approval | Blocker | Next action |",
+    "| --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
     resumable.length
@@ -402,6 +443,31 @@ export function renderCockpitStatus(
     "",
     "Status: cockpit state loaded",
     "No external action was performed.",
+  ].join("\n");
+}
+
+export function renderArtifactApprovalReceipt({
+  artifactId,
+  artifactRevision,
+  runId,
+  specialist,
+  approvalText,
+}: {
+  artifactId: string;
+  artifactRevision: number;
+  runId: string;
+  specialist: string;
+  approvalText: string;
+}): string {
+  return [
+    "# Marketing OS Approval",
+    "",
+    `${specialist} artifact ${artifactId} revision ${artifactRevision} is approved.`,
+    "",
+    `Workflow run: ${runId}`,
+    `Exact approval text: ${approvalText}`,
+    "Status: approved",
+    "This approval authorizes only the stored draft artifact. No publishing, scheduling, spend, CRM mutation, context publication, or other external action occurred.",
   ].join("\n");
 }
 

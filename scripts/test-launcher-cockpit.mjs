@@ -100,8 +100,30 @@ function createStateTools(adapter) {
     async marketing_os_artifact_store(request) {
       return { data: await adapter.storeArtifact(tenant, request) };
     },
+    async marketing_os_artifact_get({ artifactId, revision }) {
+      return {
+        data: await adapter.getArtifact(tenant, artifactId, revision),
+      };
+    },
+    async marketing_os_artifact_approve({ artifactId, ...request }) {
+      return {
+        data: await adapter.approveArtifact(tenant, {
+          ...request,
+          artifact_id: artifactId,
+          actor: "user-test",
+        }),
+      };
+    },
     async marketing_os_handoff_create(request) {
       return { data: await adapter.createHandoff(tenant, request) };
+    },
+    async marketing_os_handoff_update({ handoffId, ...request }) {
+      return {
+        data: await adapter.updateHandoff(tenant, {
+          ...request,
+          handoff_id: handoffId,
+        }),
+      };
     },
     async marketing_os_run_update({ runId, ...request }) {
       return {
@@ -112,7 +134,9 @@ function createStateTools(adapter) {
       };
     },
     async marketing_os_workstream_read({ specialist }) {
-      return { data: await adapter.readWorkstream(tenant, specialist) };
+      return {
+        data: (await adapter.readWorkstream(tenant, specialist)) ?? null,
+      };
     },
     async marketing_os_workstream_update(request) {
       return { data: await adapter.updateWorkstream(tenant, request) };
@@ -126,6 +150,7 @@ function createTask({
   specialist,
   failRunCreate = false,
   failAttemptRecord = false,
+  failApprovalRunUpdate = false,
 }) {
   let state;
   const specialistInputs = [];
@@ -138,6 +163,15 @@ function createTask({
   if (failAttemptRecord) {
     stateTools.marketing_os_attempt_record = async () => {
       throw new Error("attempt ledger unavailable");
+    };
+  }
+  if (failApprovalRunUpdate) {
+    const updateRun = stateTools.marketing_os_run_update;
+    stateTools.marketing_os_run_update = async (request) => {
+      if (request.status === "approved") {
+        throw new Error("run approval synchronization unavailable");
+      }
+      return updateRun(request);
     };
   }
   return {
@@ -255,9 +289,206 @@ function launcherInput(request) {
     cockpit.task,
   );
   assert.match(status.text, /# Marketing OS Cockpit/);
-  assert.match(status.text, /\| Messaging \| ready_for_review \| r1 \|/);
+  assert.match(
+    status.text,
+    /\| Messaging \| ready_for_review \| r1 \| pending \|/,
+  );
   assert.match(status.text, /No incomplete workflow is waiting to resume/);
   assert.match(status.text, /No external action was performed/);
+
+  const approval = createTask({
+    adapter,
+    sessionId: "session-approval",
+    specialist: async () => {
+      throw new Error("approval must not call a specialist");
+    },
+  });
+  const approvalText = "Approve Messaging artifact revision 1.";
+  const approved = await launcher.run(
+    launcherInput(approvalText),
+    approval.task,
+  );
+  assert.match(approved.text, /# Marketing OS Approval/);
+  assert.match(approved.text, /Status: approved/);
+  assert.match(approved.text, new RegExp(`Exact approval text: ${approvalText}`));
+  assert.match(approved.text, /No publishing, scheduling, spend, CRM mutation/);
+
+  const approvedRun = await adapter.getWorkflowRun(tenant, run.run_id);
+  assert.equal(approvedRun.status, "approved");
+  const approvedArtifact = await adapter.getArtifact(
+    tenant,
+    run.artifact_id,
+    run.artifact_revision,
+  );
+  assert.equal(approvedArtifact.status, "approved");
+  assert.equal(approvedArtifact.approvals.length, 1);
+  assert.equal(
+    approvedArtifact.approvals[0].exact_approval_text,
+    approvalText,
+  );
+  const approvedWorkstream = await adapter.readWorkstream(
+    tenant,
+    "Messaging",
+  );
+  assert.equal(approvedWorkstream.status, "approved");
+  const exported = await adapter.exportWorkspace(tenant);
+  assert.equal(
+    exported.handoffs.find(
+      (handoff) => handoff.handoff_id === run.handoff_id,
+    ).completion_state,
+    "completed",
+  );
+
+  const repeated = await launcher.run(
+    launcherInput(approvalText),
+    approval.task,
+  );
+  assert.match(repeated.text, /Status: approved/);
+  assert.equal(
+    (
+      await adapter.getArtifact(
+        tenant,
+        run.artifact_id,
+        run.artifact_revision,
+      )
+    ).approvals.length,
+    1,
+    "repeating the exact approval must remain idempotent",
+  );
+
+  const approvedStatus = await launcher.run(
+    launcherInput("Check Marketing OS workstream status and next action."),
+    cockpit.task,
+  );
+  assert.match(
+    approvedStatus.text,
+    /\| Messaging \| approved \| r1 \| approved \|/,
+  );
+}
+
+{
+  const adapter = new MemoryMarketingOsStateAdapter();
+  const generation = createTask({
+    adapter,
+    sessionId: "session-partial-approval-generation",
+    specialist: async () => ({ type: "text", text: validArtifact }),
+  });
+  await launcher.run(
+    launcherInput("Create messaging for partial approval recovery."),
+    generation.task,
+  );
+  const [run] = await adapter.listWorkflowRuns(tenant);
+  const approvalText = "Approve Messaging artifact revision 1.";
+  const failingApproval = createTask({
+    adapter,
+    sessionId: "session-partial-approval-failure",
+    failApprovalRunUpdate: true,
+    specialist: async () => {
+      throw new Error("approval must not call a specialist");
+    },
+  });
+  const partial = await launcher.run(
+    launcherInput(approvalText),
+    failingApproval.task,
+  );
+  assert.match(partial.text, /was approved, but the related cockpit records/);
+  assert.match(
+    partial.text,
+    /Status: approval recorded; cockpit synchronization blocked/,
+  );
+  assert.equal(
+    (
+      await adapter.getArtifact(
+        tenant,
+        run.artifact_id,
+        run.artifact_revision,
+      )
+    ).status,
+    "approved",
+  );
+  assert.equal(
+    (await adapter.getWorkflowRun(tenant, run.run_id)).status,
+    "ready_for_review",
+  );
+
+  const recovery = createTask({
+    adapter,
+    sessionId: "session-partial-approval-recovery",
+    specialist: async () => {
+      throw new Error("approval recovery must not call a specialist");
+    },
+  });
+  const recovered = await launcher.run(
+    launcherInput(approvalText),
+    recovery.task,
+  );
+  assert.match(recovered.text, /Status: approved/);
+  assert.match(
+    recovered.text,
+    new RegExp(`Exact approval text: ${approvalText}`),
+  );
+  assert.equal(
+    (await adapter.getWorkflowRun(tenant, run.run_id)).status,
+    "approved",
+  );
+  assert.equal(
+    (
+      await adapter.getArtifact(
+        tenant,
+        run.artifact_id,
+        run.artifact_revision,
+      )
+    ).approvals.length,
+    1,
+  );
+}
+
+{
+  const adapter = new MemoryMarketingOsStateAdapter();
+  for (const [index, request] of [
+    "Create messaging for audience A.",
+    "Create messaging for audience B.",
+  ].entries()) {
+    const harness = createTask({
+      adapter,
+      sessionId: `session-ambiguous-approval-${index + 1}`,
+      specialist: async () => ({ type: "text", text: validArtifact }),
+    });
+    const result = await launcher.run(launcherInput(request), harness.task);
+    assert.match(result.text, /Status: ready for review/);
+  }
+
+  const approval = createTask({
+    adapter,
+    sessionId: "session-ambiguous-approval",
+    specialist: async () => {
+      throw new Error("approval must not call a specialist");
+    },
+  });
+  const ambiguous = await launcher.run(
+    launcherInput("Approve Messaging artifact revision 1."),
+    approval.task,
+  );
+  assert.match(ambiguous.text, /matches more than one durable artifact/);
+  assert.match(ambiguous.text, /approval target is ambiguous/);
+
+  const runs = await adapter.listWorkflowRuns(tenant);
+  const selected = runs[0];
+  const exact = await launcher.run(
+    launcherInput(
+      `Approve Messaging artifact ${selected.artifact_id} revision ${selected.artifact_revision}.`,
+    ),
+    approval.task,
+  );
+  assert.match(exact.text, /Status: approved/);
+  assert.equal(
+    (await adapter.getWorkflowRun(tenant, selected.run_id)).status,
+    "approved",
+  );
+  assert.equal(
+    (await adapter.getWorkflowRun(tenant, runs[1].run_id)).status,
+    "ready_for_review",
+  );
 }
 
 {
@@ -393,5 +624,5 @@ function launcherInput(request) {
 }
 
 console.log(
-  "Launcher durable cockpit, repair, resume, fail-closed, and safety tests OK.",
+  "Launcher durable cockpit, approval, repair, resume, fail-closed, and safety tests OK.",
 );

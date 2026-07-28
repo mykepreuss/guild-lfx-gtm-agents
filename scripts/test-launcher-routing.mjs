@@ -18,6 +18,7 @@ if (build.status !== 0) {
 
 const {
   deterministicRoute,
+  parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
   renderOnboardingStatus,
   validateSpecialistOutput,
@@ -28,6 +29,7 @@ const routingCases = [
   ["Verify suite status for this workspace", "onboarding"],
   ["Check Marketing OS workstream status and next action", "cockpit"],
   ["Show cockpit progress", "cockpit"],
+  ["Approve Messaging artifact revision 1", "cockpit"],
   ["Set up the Marketing OS company context", "company_context"],
   ["Summarize competitor and market signals", "market_signal"],
   ["Draft an ICP and ideal customer profile", "icp"],
@@ -53,6 +55,26 @@ assert.equal(
   deterministicRoute("Create messaging and a paid media campaign"),
   undefined,
   "multi-workflow requests should use the strict classifier",
+);
+assert.deepEqual(
+  parseArtifactApprovalRequest("Approve Messaging artifact revision 3."),
+  {
+    requested: true,
+    route: "messaging",
+    revision: 3,
+    artifactId: undefined,
+  },
+);
+assert.deepEqual(
+  parseArtifactApprovalRequest(
+    "Approve artifact artifact_019faa08-43e5-351a-0000-9235d92b0dff revision 2.",
+  ),
+  {
+    requested: true,
+    route: undefined,
+    revision: 2,
+    artifactId: "artifact_019faa08-43e5-351a-0000-9235d92b0dff",
+  },
 );
 const compiledContext =
   "<!-- guild-marketing-os-context:start -->\nBlocked actions: No workspace context publish except through the exact approved Company Context Builder publish confirmation.\n<!-- guild-marketing-os-context:end -->";

@@ -22,6 +22,9 @@ It:
   the tenant-bound Marketing OS state-service contract;
 - resumes an incomplete route across sessions and renders a cockpit status table
   without requiring the user to paste the prior result;
+- approves only an unambiguous artifact revision, preserves the exact user
+  approval text, and synchronizes the artifact, run, workstream, and handoff
+  without treating approval as permission to execute;
 - keeps internal package/version provenance out of the customer-facing status
   table while retaining it in durable records and the artifact receipt.
 

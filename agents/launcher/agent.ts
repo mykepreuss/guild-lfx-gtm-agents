@@ -16,6 +16,7 @@ import {
   installedSuiteAgents,
   onlyFormatErrors,
   outputSchema,
+  parseArtifactApprovalRequest,
   readContextSnapshot,
   removeCompiledWorkspaceContext,
   renderBlocked,
@@ -34,6 +35,7 @@ import {
 } from "./launcher-core.js";
 import {
   allocateRunIdentity,
+  approveArtifactRequestSchema,
   artifactResponseSchema,
   completeRunState,
   createHandoffRequestSchema,
@@ -42,15 +44,18 @@ import {
   handoffRationale,
   handoffResponseSchema,
   listWorkflowRunsRequestSchema,
+  readArtifactRequestSchema,
   readLauncherAgentState,
   readWorkflowRunRequestSchema,
   readWorkstreamRequestSchema,
   recordWorkflowAttemptRequestSchema,
+  renderArtifactApprovalReceipt,
   renderCockpitReceipt,
   renderCockpitStatus,
   resumeRequested,
   storeArtifactRequestSchema,
   updateWorkflowRunRequestSchema,
+  updateHandoffRequestSchema,
   updateWorkstreamRequestSchema,
   workflowAttemptResponseSchema,
   workflowRunResponseSchema,
@@ -63,6 +68,7 @@ import {
 
 export {
   deterministicRoute,
+  parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
   renderDelegatedResult,
   renderOnboardingStatus,
@@ -218,6 +224,65 @@ const tools = {
       errors: [],
     },
   }),
+  marketing_os_artifact_get: guildServiceTool("guild-marketing-os-state", {
+    description:
+      "Read one tenant-bound Marketing OS artifact revision before an explicit approval transition.",
+    inputSchema: readArtifactRequestSchema,
+    outputSchema: artifactResponseSchema,
+    endpoint: {
+      method: "GET",
+      path: "/v1/artifacts/{artifactId}",
+      description: "Read a Marketing OS artifact revision",
+      format: "application/json",
+      parameters: [
+        {
+          name: "artifactId",
+          type: "path",
+          schema: readArtifactRequestSchema.shape.artifactId,
+        },
+        {
+          name: "revision",
+          type: "query",
+          schema: readArtifactRequestSchema.shape.revision,
+        },
+      ],
+      parameterSchema: readArtifactRequestSchema,
+      responseSchema: artifactResponseSchema,
+      errors: [],
+    },
+  }),
+  marketing_os_artifact_approve: guildServiceTool(
+    "guild-marketing-os-state",
+    {
+      description:
+        "Approve one exact tenant-bound Marketing OS artifact revision while preserving the user's exact approval text.",
+      inputSchema: approveArtifactRequestSchema,
+      outputSchema: artifactResponseSchema,
+      endpoint: {
+        method: "POST",
+        path: "/v1/artifacts/{artifactId}/approve",
+        description: "Approve a Marketing OS artifact revision",
+        format: "application/json",
+        parameters: [
+          {
+            name: "artifactId",
+            type: "path",
+            schema: approveArtifactRequestSchema.shape.artifactId,
+          },
+          ...Object.entries(approveArtifactRequestSchema.shape)
+            .filter(([name]) => name !== "artifactId")
+            .map(([name, schema]) => ({
+              name,
+              type: "body" as const,
+              schema,
+            })),
+        ],
+        parameterSchema: approveArtifactRequestSchema,
+        responseSchema: artifactResponseSchema,
+        errors: [],
+      },
+    },
+  ),
   marketing_os_handoff_create: guildServiceTool("guild-marketing-os-state", {
     description:
       "Create a durable handoff from a specialist artifact back to the Marketing OS Launcher cockpit.",
@@ -232,6 +297,35 @@ const tools = {
         ([name, schema]) => ({ name, type: "body" as const, schema }),
       ),
       parameterSchema: createHandoffRequestSchema,
+      responseSchema: handoffResponseSchema,
+      errors: [],
+    },
+  }),
+  marketing_os_handoff_update: guildServiceTool("guild-marketing-os-state", {
+    description:
+      "Complete the durable specialist-to-Launcher handoff after its exact artifact revision is approved.",
+    inputSchema: updateHandoffRequestSchema,
+    outputSchema: handoffResponseSchema,
+    endpoint: {
+      method: "PUT",
+      path: "/v1/handoffs/{handoffId}",
+      description: "Update a Marketing OS handoff",
+      format: "application/json",
+      parameters: [
+        {
+          name: "handoffId",
+          type: "path",
+          schema: updateHandoffRequestSchema.shape.handoffId,
+        },
+        ...Object.entries(updateHandoffRequestSchema.shape)
+          .filter(([name]) => name !== "handoffId")
+          .map(([name, schema]) => ({
+            name,
+            type: "body" as const,
+            schema,
+          })),
+      ],
+      parameterSchema: updateHandoffRequestSchema,
       responseSchema: handoffResponseSchema,
       errors: [],
     },
@@ -388,6 +482,10 @@ async function run(
   }
 
   if (classification.route === "cockpit") {
+    const approval = parseArtifactApprovalRequest(userText);
+    if (approval.requested) {
+      return await approveCockpitArtifact(userText, approval, task);
+    }
     try {
       const runs = workflowRunsResponseSchema.parse(
         await task.tools.marketing_os_runs_list({}),
@@ -405,7 +503,7 @@ async function run(
             workstreamResponseSchema.parse(response).data,
         )
         .filter(
-          (value): value is WorkstreamRecord => value !== undefined,
+          (value): value is WorkstreamRecord => Boolean(value),
         );
       return {
         type: "text",
@@ -640,11 +738,12 @@ async function run(
 
   let workstream: WorkstreamRecord | undefined;
   try {
-    workstream = workstreamResponseSchema.parse(
-      await task.tools.marketing_os_workstream_read({
-        specialist: config.displayName,
-      }),
-    ).data;
+    workstream =
+      workstreamResponseSchema.parse(
+        await task.tools.marketing_os_workstream_read({
+          specialist: config.displayName,
+        }),
+      ).data ?? undefined;
     const updatedWorkstream = workstreamResponseSchema.parse(
       await task.tools.marketing_os_workstream_update({
         specialist: config.displayName,
@@ -992,6 +1091,222 @@ async function run(
     return {
       type: "text",
       text: renderSpecialistBlocked(reason, currentRun.run_id),
+    };
+  }
+}
+
+async function approveCockpitArtifact(
+  exactApprovalText: string,
+  approval: ReturnType<typeof parseArtifactApprovalRequest>,
+  task: LauncherTask,
+): Promise<z.infer<typeof outputSchema>> {
+  if (!approval.revision) {
+    return {
+      type: "text",
+      text: renderGuide(
+        "Name the exact positive artifact revision to approve, using the revision shown in the Launcher receipt.",
+        "approval target required",
+      ),
+    };
+  }
+  if (!approval.route && !approval["artifactId"]) {
+    return {
+      type: "text",
+      text: renderGuide(
+        "Name the specialist workstream or exact artifact ID together with the revision. Example: Approve Messaging artifact revision 1.",
+        "approval target required",
+      ),
+    };
+  }
+
+  let runs: WorkflowRun[];
+  try {
+    runs = workflowRunsResponseSchema.parse(
+      await task.tools.marketing_os_runs_list({}),
+    ).data;
+  } catch (error) {
+    return {
+      type: "text",
+      text: renderBlocked(
+        `Durable Marketing OS approval state is unavailable: ${safeError(error)}. No approval was recorded.`,
+      ),
+    };
+  }
+
+  const candidates = runs.filter(
+    (candidate) =>
+      ["ready_for_review", "approved"].includes(candidate.status) &&
+      candidate.artifact_id &&
+      candidate.artifact_revision === approval.revision &&
+      (!approval.route || candidate["route"] === approval.route) &&
+      (!approval["artifactId"] ||
+        candidate.artifact_id === approval["artifactId"]),
+  );
+  if (candidates.length === 0) {
+    return {
+      type: "text",
+      text: renderGuide(
+        "No review-ready or approved durable workflow matches that exact artifact target. Open cockpit status and use the artifact ID and revision from its Launcher receipt.",
+        "approval target not found",
+      ),
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      type: "text",
+      text: renderGuide(
+        `That target matches more than one durable artifact (${candidates
+          .map((candidate) => candidate.artifact_id)
+          .join(", ")}). Repeat the approval with one exact artifact ID and revision.`,
+        "approval target is ambiguous",
+      ),
+    };
+  }
+
+  const target = candidates[0];
+  if (
+    !target ||
+    !target.artifact_id ||
+    !target.artifact_revision ||
+    !target.handoff_id
+  ) {
+    return {
+      type: "text",
+      text: renderBlocked(
+        "The durable workflow is missing its artifact or handoff reference. No approval was recorded.",
+      ),
+    };
+  }
+
+  const artifactId = target.artifact_id;
+  const artifactRevision = target.artifact_revision;
+  const idempotencyPrefix = `launcher-${target.run_id}-approval-r${artifactRevision}`;
+  let artifactApproved = false;
+  let recordedApprovalText = exactApprovalText;
+
+  try {
+    let artifact = artifactResponseSchema.parse(
+      await task.tools.marketing_os_artifact_get({
+        artifactId,
+        revision: artifactRevision,
+      }),
+    ).data;
+    if (
+      artifact.artifact_id !== artifactId ||
+      artifact.revision !== artifactRevision
+    ) {
+      throw new Error("State service returned a different artifact revision.");
+    }
+    if (!["ready_for_review", "approved"].includes(artifact.status)) {
+      return {
+        type: "text",
+        text: renderGuide(
+          `Artifact ${artifactId} revision ${artifactRevision} is ${artifact.status}; only a ready-for-review artifact can be approved.`,
+          "artifact is not review ready",
+        ),
+      };
+    }
+
+    const workstream = workstreamResponseSchema.parse(
+      await task.tools.marketing_os_workstream_read({
+        specialist: target.specialist,
+      }),
+    ).data;
+
+    if (artifact.status === "ready_for_review") {
+      artifact = artifactResponseSchema.parse(
+        await task.tools.marketing_os_artifact_approve({
+          artifactId,
+          idempotency_key: `${idempotencyPrefix}-artifact`,
+          revision: artifactRevision,
+          expected_revision: artifactRevision,
+          approval_text: exactApprovalText,
+        }),
+      ).data;
+    }
+    if (artifact.status !== "approved") {
+      throw new Error("Artifact approval did not return approved state.");
+    }
+    artifactApproved = true;
+    const storedApproval = artifact.approvals.at(-1);
+    if (storedApproval) {
+      recordedApprovalText = storedApproval.exact_approval_text;
+    }
+
+    if (target.status !== "approved") {
+      workflowRunResponseSchema.parse(
+        await task.tools.marketing_os_run_update({
+          runId: target.run_id,
+          idempotency_key: `${idempotencyPrefix}-run`,
+          expected_revision: target.revision,
+          status: "approved",
+          artifact_id: artifactId,
+          artifact_revision: artifactRevision,
+          handoff_id: target.handoff_id,
+          blockers: [],
+          next_action: "Use the approved draft artifact in a later review-only workflow.",
+        }),
+      );
+    }
+
+    handoffResponseSchema.parse(
+      await task.tools.marketing_os_handoff_update({
+        handoffId: target.handoff_id,
+        idempotency_key: `${idempotencyPrefix}-handoff`,
+        expected_revision: 1,
+        completion_state: "completed",
+      }),
+    );
+
+    if (
+      workstream &&
+      workstream.latest_artifact_id === artifactId &&
+      workstream.latest_artifact_revision === artifactRevision &&
+      workstream.status !== "approved"
+    ) {
+      workstreamResponseSchema.parse(
+        await task.tools.marketing_os_workstream_update({
+          specialist: target.specialist,
+          idempotency_key: `${idempotencyPrefix}-workstream`,
+          expected_revision: workstream.revision,
+          status: "approved",
+          latest_artifact_id: artifactId,
+          latest_artifact_revision: artifactRevision,
+          blockers: [],
+          next_action:
+            "Use the approved draft artifact in a later review-only workflow.",
+          handoff_id: target.handoff_id,
+        }),
+      );
+    }
+
+    return {
+      type: "text",
+      text: renderArtifactApprovalReceipt({
+        artifactId,
+        artifactRevision,
+        runId: target.run_id,
+        specialist: target.specialist,
+        approvalText: recordedApprovalText,
+      }),
+    };
+  } catch (error) {
+    return {
+      type: "text",
+      text: [
+        "# Marketing OS Approval",
+        "",
+        artifactApproved
+          ? `Artifact ${artifactId} revision ${artifactRevision} was approved, but the related cockpit records could not all be synchronized.`
+          : `Artifact ${artifactId} revision ${artifactRevision} was not approved because the durable transition failed.`,
+        "",
+        `Workflow run: ${target.run_id}`,
+        `Details: ${safeError(error)}`,
+        artifactApproved
+          ? "Status: approval recorded; cockpit synchronization blocked"
+          : "Status: approval blocked safely",
+        "No publishing, scheduling, spend, CRM mutation, context publication, or other external action occurred.",
+      ].join("\n"),
     };
   }
 }
