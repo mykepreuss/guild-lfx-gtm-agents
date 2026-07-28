@@ -1,3 +1,5 @@
+"use agent";
+
 import {
   agent,
   callTools,

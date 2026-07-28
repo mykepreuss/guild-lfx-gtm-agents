@@ -86,6 +86,7 @@ const requiredReviewAgentSourceSnippets = [
 const requiredLauncherSnippets = [
   "agent({",
   'identifier: "guild_marketing_os_launcher"',
+  '"use agent";',
   "guildAgentTool",
   "routeConfig",
   "installAllowlistedWorkspaceAgentTools",
