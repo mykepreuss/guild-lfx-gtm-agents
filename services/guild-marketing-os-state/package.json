@@ -1,0 +1,12 @@
+{
+  "name": "@guild-marketing-os/state-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test.mjs && node postgres/schema.test.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

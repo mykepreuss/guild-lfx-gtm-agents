@@ -12,4 +12,5 @@ _private/
 research/
 source-map.md
 work/*.md
+work/evidence/
 *.local.md

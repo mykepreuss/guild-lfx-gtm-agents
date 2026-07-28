@@ -1,4 +1,12 @@
-import { agent, guildServiceTool, output as agentOutput, type Task } from "@guildai/agents-sdk";
+import {
+  agent,
+  guildServiceTool,
+  guildTools,
+  output as agentOutput,
+  pick,
+  type GuildService,
+  type Task,
+} from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -33,6 +41,7 @@ const conversationIntentSchema = z.enum([
   "attachment_unreadable",
   "save_state_question",
   "missing_context",
+  "downstream_request",
   "downstream_request_without_context",
   "approval_or_edit",
 ]);
@@ -167,6 +176,17 @@ const structuredOutputSchema = z.object({
     nextAgents: z.array(knownAgentSchema),
     blockers: z.array(z.string()),
     requiredArtifacts: z.array(artifactSchema),
+    evidence_mode: z.literal("source_supplied"),
+    observed_at: z.string().nullable(),
+    source_coverage: z.array(z.string()),
+    coverage_limitations: z.array(z.string()),
+    safety: z.object({
+      action_mode: z.literal("draft_only"),
+      external_mutation_requested: z.literal(false),
+      blocked_actions: z.array(z.string()),
+      unsupported_claims: z.array(z.string()),
+      evidence_gaps: z.array(z.string()),
+    }),
   }),
   downstreamHandoff: z.array(
     z.object({
@@ -222,6 +242,14 @@ const agentStateSchema = z.object({
   workspaceId: z.string().optional(),
 });
 type AgentState = z.infer<typeof agentStateSchema>;
+type PublishedWorkspaceContext = {
+  ready: boolean;
+  workspaceId: string;
+  workspaceFullName: string;
+  contextId?: string;
+  compiled: string;
+  companyName?: string;
+};
 
 const workspaceContextPublishRequestSchema = z.object({
   session_id: z.string(),
@@ -260,16 +288,15 @@ const workspaceContextAuditSchema = z.object({
 });
 
 const tools = {
+  ...pick(guildTools, ["guild_get_session", "guild_get_workspace"]),
   workspace_context_publish: guildServiceTool("guild-marketing-os-workspace-context", {
     description: [
-      "Publish an approved Guild Marketing OS managed workspace context block through a host-controlled bridge.",
-      "The bridge resolves the current session workspace, reads the published workspace context, preserves unmanaged manual context, replaces the managed block, creates a draft context version, publishes it, and returns rollback metadata.",
+      "Publish an approved Guild Marketing OS managed workspace context block through the workspace's configured integration.",
+      "The integration must verify delegated organization/workspace identity, resolve the current session workspace, preserve unmanaged context, replace the managed block, create a draft context version, publish it, and return rollback metadata.",
       "The agent must not call raw internal Guild workspace context endpoints directly.",
     ].join(" "),
     inputSchema: workspaceContextPublishRequestSchema,
     outputSchema: workspaceContextPublishResponseSchema,
-    owner: "michaelpreuss",
-    versionNumber: "1.0.1",
     endpoint: {
       method: "POST",
       path: "/workspace-context/publish",
@@ -398,10 +425,21 @@ async function runFoundationTurn(
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
   const rawContext = getRawContext(input);
   const conversationIntent = classifyConversationIntent(rawContext);
+  const requestedDownstreamAgent = isExplicitDownstreamRequest(rawContext)
+    ? detectRequestedDownstreamAgent(rawContext)
+    : undefined;
 
   if (isWorkspaceContextPublishConfirmation(rawContext)) {
     const publishResult = await buildWorkspaceContextPublishOutput(input, task, state);
     return finalizeTurn(publishResult.output, publishResult.state);
+  }
+
+  if (requestedDownstreamAgent) {
+    const publishedContext = await readPublishedWorkspaceContext(task);
+    if (publishedContext?.ready) {
+      return finalizeTurn(buildDownstreamWithContextOutput(input, requestedDownstreamAgent, publishedContext), state);
+    }
+    return finalizeTurn(buildDownstreamWithoutContextOutput(input, requestedDownstreamAgent), state);
   }
 
   if (conversationIntent === "save_state_question") {
@@ -669,7 +707,9 @@ function hasUrlOnlySource(rawContext: string): boolean {
     !sourceDocumentHeadingPattern(rawContext);
 }
 
-function detectRequestedDownstreamAgent(rawContext: string): (typeof agentValues)[number] | undefined {
+function detectRequestedDownstreamAgent(
+  rawContext: string,
+): Exclude<(typeof agentValues)[number], "Company Context Builder"> | undefined {
   const normalized = rawContext.toLowerCase();
   if (/\b(campaign|paid|ads?|budget|landing page|performance|retargeting)\b/i.test(normalized)) return "Campaigns And Paid Media";
   if (/\b(social|content|post|reply|monitoring|digest|linkedin|twitter|x\b|reddit)\b/i.test(normalized)) return "Social Monitoring And Content";
@@ -679,6 +719,49 @@ function detectRequestedDownstreamAgent(rawContext: string): (typeof agentValues
   if (/\b(icp|persona|target audience|who to target|buyer|user role)\b/i.test(normalized)) return "ICP";
   if (/\b(market|competitor|competition|community|search|answer engine|signal)\b/i.test(normalized)) return "Market Signal";
   return undefined;
+}
+
+function isExplicitDownstreamRequest(rawContext: string): boolean {
+  if (hasFieldedSourcePacket(rawContext) || sourceDocumentHeadingPattern(rawContext)) return false;
+  return /\b(?:create|draft|build|write|develop|prepare|review|revise|produce|make|help with|need|want)\b[\s\S]{0,180}\b(?:campaign|paid media|ads?|social|content|post|monitoring|brand|branding|pitch|deck|positioning|messaging|message|boilerplate|copy|segment|segmentation|icp|persona|target audience|market signal|competitor|competition)\b/i.test(rawContext) ||
+    /\b(?:campaign|paid media|social monitoring|content plan|brand brief|pitch deck|messaging framework|message pillars|audience segmentation|icp|market signal)\b[\s\S]{0,120}\b(?:please|for us|for our|from approved context|using approved context)\b/i.test(rawContext);
+}
+
+async function readPublishedWorkspaceContext(task: AgentTask): Promise<PublishedWorkspaceContext | undefined> {
+  try {
+    const guild = task.guild as GuildService | undefined;
+    const session = guild
+      ? await guild.get_session({ session_id: task.sessionId })
+      : await task.tools.guild_get_session({ session_id: task.sessionId });
+    const workspace = guild
+      ? await guild.get_workspace({ workspace_id: session.workspace.id })
+      : await task.tools.guild_get_workspace({ workspace_id: session.workspace.id });
+    const compiled = workspace.context.compiled ?? "";
+    const managedStart = compiled.indexOf(managedContextStart);
+    const managedEnd = compiled.indexOf(managedContextEnd);
+    const managedBlock =
+      managedStart !== -1 && managedEnd > managedStart
+        ? compiled.slice(managedStart, managedEnd + managedContextEnd.length)
+        : "";
+    const ready = Boolean(
+      workspace.context.id &&
+        managedBlock &&
+        /\bStatus:\s*(?:published|approved)\b/i.test(managedBlock) &&
+        /##\s+Workspace Context Brief\b/i.test(managedBlock),
+    );
+    const companyName = managedBlock.match(/^\s*(?:Company|Company name):\s*(.+)$/im)?.[1]?.trim();
+
+    return {
+      ready,
+      workspaceId: workspace.id,
+      workspaceFullName: workspace.full_name,
+      contextId: workspace.context.id ?? session.context_id ?? undefined,
+      compiled,
+      companyName,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function buildExtractionPrompt(input: Input, rawContext: string, conversationIntent: ConversationIntent): string {
@@ -719,7 +802,24 @@ Your JSON must match this TypeScript-style shape:
   "openQuestions": string[],
   "approvalGates": [{ "ownerRole": string, "decision": string, "requiredBefore": string, "status": "needed" | "approved" | "blocked" }],
   "aeoReadiness": { "status": "blocked" | "draft" | "review_ready", "entityClarity": string, "answerReadyOpportunities": string[], "missingProof": string[], "recommendedWebInputs": string[] },
-  "statusPayload": { "companyName": string, "readiness": "blocked" | "draft" | "review_ready", "nextAgents": string[], "blockers": string[], "requiredArtifacts": string[] },
+  "statusPayload": {
+    "companyName": string,
+    "readiness": "blocked" | "draft" | "review_ready",
+    "nextAgents": string[],
+    "blockers": string[],
+    "requiredArtifacts": string[],
+    "evidence_mode": "source_supplied",
+    "observed_at": string | null,
+    "source_coverage": string[],
+    "coverage_limitations": string[],
+    "safety": {
+      "action_mode": "draft_only",
+      "external_mutation_requested": false,
+      "blocked_actions": string[],
+      "unsupported_claims": string[],
+      "evidence_gaps": string[]
+    }
+  },
   "downstreamHandoff": [{ "agent": string, "receives": string[], "reason": string }],
   "markdownPacket": string
 }
@@ -2491,10 +2591,73 @@ function isBareApprovalCommand(rawContext: string): boolean {
   return /^\s*(?:approve|approved|confirm|looks good|ship it)\s+(?:company context|the company context|this|it|the draft)\s*\.?\s*$/i.test(rawContext.trim());
 }
 
-function buildDownstreamWithoutContextOutput(input: Input): Output {
+function buildDownstreamWithContextOutput(
+  input: Input,
+  requestedAgent: Exclude<(typeof agentValues)[number], "Company Context Builder">,
+  publishedContext: PublishedWorkspaceContext,
+): Output {
+  const contextRevision = publishedContext.contextId ?? "published revision";
+  const companyName = publishedContext.companyName ?? "Published workspace company";
+  const output = buildFallbackOutput(input, [], "downstream_request");
+  output.status = "ready_for_review";
+  output.persistenceState = {
+    drafted_in_session: false,
+    approved_in_session: true,
+    saved_to_workspace_context: true,
+    saved_to_context_artifacts: false,
+    workspace_context_id: publishedContext.contextId,
+    workspace_context_status: "published",
+    persistence_note: `Read published Guild workspace context revision ${contextRevision}. No new company context draft was created.`,
+  };
+  output.consumedContext.used = [`Published Guild workspace context revision ${contextRevision}`];
+  output.consumedContext.missing = [];
+  output.contextArtifacts.companyContext.companyName = companyName;
+  output.contextArtifacts.companyContext.status = "draft";
+  output.contextArtifacts.companyContext.missingContext = [];
+  output.workspaceContextDraft = "No new workspace context draft was created.";
+  output.approvedFacts = [];
+  output.extractedClaims = [];
+  output.proofBackedClaims = [];
+  output.claimsNeedingApproval = [];
+  output.assumptionsAndMissingEvidence = [];
+  output.openQuestions = [];
+  output.approvalGates = [
+    {
+      ownerRole: "Marketing Owner",
+      decision: `Continue through Marketing OS Launcher or select ${requestedAgent}.`,
+      requiredBefore: "Specialist artifact generation.",
+      status: "needed",
+    },
+  ];
+  output.statusPayload.companyName = companyName;
+  output.statusPayload.readiness = "review_ready";
+  output.statusPayload.nextAgents = [requestedAgent];
+  output.statusPayload.blockers = [];
+  output.statusPayload.source_coverage = [`Published workspace context revision ${contextRevision}`];
+  output.statusPayload.coverage_limitations = [
+    "Company Context Builder is context-only and did not generate the requested specialist artifact.",
+  ];
+  output.statusPayload.safety.evidence_gaps = [];
+  output.downstreamHandoff = [
+    {
+      agent: requestedAgent,
+      receives: downstreamReceivesForAgent(requestedAgent),
+      reason: `Published context revision ${contextRevision} is available. Continue through Marketing OS Launcher or @mention ${requestedAgent}; Company Context Builder does not generate specialist artifacts.`,
+    },
+  ];
+  return output;
+}
+
+function buildDownstreamWithoutContextOutput(
+  input: Input,
+  requestedAgent: Exclude<(typeof agentValues)[number], "Company Context Builder"> =
+    detectRequestedDownstreamAgent(getRawContext(input)) ?? "Campaigns And Paid Media",
+): Output {
   const rawContext = getRawContext(input);
-  const requestedAgent = detectRequestedDownstreamAgent(rawContext) ?? "Campaigns And Paid Media";
-  const companyName = extractCompanyName(rawContext) ?? "TBD";
+  const companyName =
+    cleanExtractedName(
+      extractLineAfterLabels(rawContext, ["Company name", "Brand name", "Organization name", "Product name"]) ?? "",
+    ) ?? "TBD";
   const output = buildFallbackOutput(input, ["Approved company context is required before downstream specialist work."], "downstream_request_without_context");
   output.status = "blocked";
   output.contextArtifacts.companyContext.companyName = companyName;
@@ -2518,6 +2681,11 @@ function buildDownstreamWithoutContextOutput(input: Input): Output {
   output.statusPayload.readiness = "blocked";
   output.statusPayload.nextAgents = ["Company Context Builder"];
   output.statusPayload.blockers = ["Company context is not approved yet.", `${requestedAgent} should receive a handoff after context approval.`];
+  output.statusPayload.coverage_limitations = [
+    "No published Marketing OS workspace context revision could be verified.",
+    "Company Context Builder is context-only and did not generate the requested specialist artifact.",
+  ];
+  output.statusPayload.safety.evidence_gaps = ["Approved published company context"];
   output.downstreamHandoff = [
     {
       agent: "Company Context Builder",
@@ -3056,6 +3224,17 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
       nextAgents: ["Market Signal", "ICP", "Messaging"],
       blockers,
       requiredArtifacts: requestedArtifacts,
+      evidence_mode: "source_supplied",
+      observed_at: null,
+      source_coverage: rawContext ? ["Current-session user-supplied source text"] : [],
+      coverage_limitations: ["No connected read-only source or live monitor was queried."],
+      safety: {
+        action_mode: "draft_only",
+        external_mutation_requested: false,
+        blocked_actions: operatingConstraints,
+        unsupported_claims: [],
+        evidence_gaps: missing,
+      },
     },
     downstreamHandoff: [
       {
@@ -3325,6 +3504,10 @@ function summarizeBlockedClaimCategories(claims: readonly Claim[]): string[] {
 }
 
 function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
+  if (output.conversationIntent === "downstream_request") {
+    return renderDownstreamRoutingPacket(output);
+  }
+
   return `${renderPacketSummary(output)}
 
 ---
@@ -3460,6 +3643,48 @@ ${output.downstreamHandoff
 
 ## Do Not Do Yet
 ${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `- ${constraint}`).join("\n")}
+`;
+}
+
+function renderDownstreamRoutingPacket(output: Omit<Output, "markdownPacket">): string {
+  const requestedAgent = output.statusPayload.nextAgents[0] ?? "Company Context Builder";
+  return `# Company Context Builder Routing Note
+
+## Consumed Context
+- Used: ${formatList(output.consumedContext.used)}
+- Missing: ${formatList(output.consumedContext.missing)}
+- Evidence mode: source_supplied
+
+## Produced Artifact
+- Company Context Builder is context-only.
+- Published company context is available.
+- No new company context packet or workspace-context draft was created from the request.
+- Continue through Marketing OS Launcher or @mention ${requestedAgent}.
+
+## Assumptions And Missing Evidence
+- The requested specialist must validate task-specific evidence and limitations in its own artifact.
+
+## Approval Gate
+${output.approvalGates
+  .map((gate) => `- ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
+  .join("\n")}
+
+## AEO / AI-Readiness Contribution
+- No new AEO or AI-readiness artifact was generated by this routing response.
+
+## Status Payload
+\`\`\`json
+${JSON.stringify({
+  ...output.statusPayload,
+  conversationIntent: output.conversationIntent,
+  persistenceState: output.persistenceState,
+}, null, 2)}
+\`\`\`
+
+## Downstream Handoff
+${output.downstreamHandoff
+  .map((handoff) => `- ${handoff.agent}: receives ${handoff.receives.join(", ")}. ${handoff.reason}`)
+  .join("\n")}
 `;
 }
 

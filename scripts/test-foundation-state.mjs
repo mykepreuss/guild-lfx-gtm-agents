@@ -38,6 +38,7 @@ let bridgeScenario = "successful";
 let llmScenario = "successful";
 let compactionCalls = 0;
 let auditCalls = 0;
+let workspaceReadMode = "published";
 
 const compactedBrief = `
 ### Company Identity
@@ -144,6 +145,47 @@ const task = {
     return state;
   },
   tools: {
+    async guild_get_session() {
+      return {
+        id: "session_test",
+        workspace: {
+          id: "workspace_test",
+          name: "marketing-os",
+          full_name: "example/marketing-os",
+          owner: { id: "owner_test", type: "organization", name: "example" },
+        },
+        session_type: "chat",
+        context_id: workspaceReadMode === "published" ? "context_published" : null,
+        created_at: "2026-07-28T00:00:00.000Z",
+        updated_at: "2026-07-28T00:00:00.000Z",
+      };
+    },
+    async guild_get_workspace() {
+      const managedContext =
+        workspaceReadMode === "published"
+          ? [
+              "<!-- guild-marketing-os-context:start -->",
+              "# Guild Marketing OS Managed Company Context",
+              "Status: published",
+              "Company: Webflow",
+              "## Workspace Context Brief",
+              "Approved compact context.",
+              "<!-- guild-marketing-os-context:end -->",
+            ].join("\n")
+          : "No approved Marketing OS company context.";
+      return {
+        id: "workspace_test",
+        name: "marketing-os",
+        full_name: "example/marketing-os",
+        owner: { id: "owner_test", type: "organization", name: "example" },
+        context: {
+          id: workspaceReadMode === "published" ? "context_published" : null,
+          compiled: managedContext,
+          generated: "",
+          manual: managedContext,
+        },
+      };
+    },
     async workspace_context_publish(input) {
       bridgePublishCalls += 1;
       bridgePublishInput = input;
@@ -448,5 +490,35 @@ assert.equal(bridgePublishCalls, 1, "bridge unavailable publish should attempt t
 assert.equal(createdContextBody, "", "bridge unavailable publish should not create a context body");
 assert.equal(state.approvedSourceText, fixture, "bridge unavailable publish should retain exact approved source for retry");
 bridgeScenario = "successful";
+
+state = undefined;
+workspaceReadMode = "published";
+const downstreamWithContext = await foundationAgent.start(
+  {
+    type: "text",
+    text: "Create a messaging framework from our approved workspace context.",
+  },
+  task,
+);
+assert.equal(downstreamWithContext.type, "output", "downstream request with published context");
+assert.match(downstreamWithContext.output.text, /Company Context Builder is context-only/, "downstream request with published context");
+assert.match(downstreamWithContext.output.text, /Continue through Marketing OS Launcher or @mention Messaging/, "downstream request with published context");
+assert.match(downstreamWithContext.output.text, /context_published/, "downstream request should report the resolved context revision");
+assert.match(downstreamWithContext.output.text, /"conversationIntent": "downstream_request"/, "downstream request should use routing intent");
+assert.doesNotMatch(downstreamWithContext.output.text, /# Company Context Approval Packet/, "downstream request must not create a new context packet");
+
+state = undefined;
+workspaceReadMode = "missing";
+const downstreamWithoutContext = await foundationAgent.start(
+  {
+    type: "text",
+    text: "Create a messaging framework for the company in this workspace.",
+  },
+  task,
+);
+assert.equal(downstreamWithoutContext.type, "output", "downstream request without published context");
+assert.match(downstreamWithoutContext.output.text, /Company context is not approved yet/, "missing context should remain visibly blocked");
+assert.match(downstreamWithoutContext.output.text, /Company: TBD/, "instruction text must not be parsed as a company name");
+assert.doesNotMatch(downstreamWithoutContext.output.text, /Company: Create a messaging framework/, "instruction must not become company name");
 
 console.log("Foundation state/publish test OK.");

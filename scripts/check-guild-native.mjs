@@ -56,19 +56,17 @@ const expectedAgentIds = [
   "social-monitoring-content",
   "campaigns-paid-media",
 ];
-const expectedEntrypointId = "foundation-setup";
-const runtimeSkillReviewAgentIds = expectedAgentIds.filter((id) => id !== "foundation-setup");
+const expectedEntrypointId = "launcher";
+const expectedSupportPackageIds = ["launcher"];
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
-const requiredGuildSdkVersion = "0.2.58";
+const requiredGuildSdkVersion = "0.4.2";
 const requiredSkillsPackage = "@guildai-services/guildai~skills";
-const requiredSkillsPackageVersion = "1.0.0";
 const requiredDevDependencies = {
   esbuild: "0.28.0",
   typescript: "5.0.4",
 };
 const requiredReviewAgentSourceSnippets = [
-  "useWorkspaceAgents: false",
   "Every substantial response must use these exact Markdown headings in this order:",
   "## Consumed Context",
   "## Produced Artifact",
@@ -78,14 +76,29 @@ const requiredReviewAgentSourceSnippets = [
   "## Status Payload",
   "## Downstream Handoff",
   "Do not rename, remove, or reorder these headings.",
-  'from "@guildai-services/guildai~skills"',
-  "SkillsTools",
-  "tools: SkillsTools",
-  "Skill runtime activation:",
-  "guildai~skills",
-  "skills_search",
-  "skills_activate",
-  "guild-skills/catalog.json",
+  "Evidence mode: source_supplied",
+  "Evidence mode: connected_read_only",
+  "Evidence mode: live_monitoring",
+  "action_mode: draft_only",
+  "external_mutation_requested: false",
+  "useWorkspaceAgents: false",
+];
+const requiredLauncherSnippets = [
+  "agent({",
+  'identifier: "guild_marketing_os_launcher"',
+  "guildAgentTool",
+  "routeConfig",
+  "installAllowlistedWorkspaceAgentTools",
+  "delegatedRouteForPackage",
+  "sameSessionDelegationEnabled",
+  "Status: handoff ready",
+  "guild_agent_install_request",
+  "guild_get_session",
+  "guild_get_workspace",
+  "guild_get_task_workspace_agents",
+  "FORMAT REPAIR ONLY.",
+  "action_mode",
+  "external_mutation_requested",
 ];
 const requiredStructuredFoundationSnippets = [
   "agent({",
@@ -125,10 +138,6 @@ function readJson(relativePath) {
     fail(`${relativePath} is not valid JSON: ${error.message}`);
     return undefined;
   }
-}
-
-function hasRuntimeSkillActivation(agentId) {
-  return runtimeSkillReviewAgentIds.includes(agentId);
 }
 
 function walkFiles(relativePath) {
@@ -210,20 +219,26 @@ function validateAgentCatalog() {
     fail(`agents/catalog.json must include ${expectedEntrypointId} as the chat-native first-run entrypoint.`);
   } else {
     validateCatalogPackageFields(catalog.entrypoint, { requireContextHub: true });
-    if (catalog.entrypoint.defaultWorkspaceAgent !== true) {
-      fail("agents/catalog.json entrypoint must be the default workspace agent.");
-    }
+    if (catalog.entrypoint.defaultWorkspaceAgent !== true) fail("agents/catalog.json entrypoint must be the default workspace agent.");
   }
 
   const supportPackages = catalog.supportPackages ?? [];
   if (!Array.isArray(supportPackages)) {
     fail("agents/catalog.json supportPackages must be an array when present.");
-  } else if (supportPackages.length > 0) {
-    fail("agents/catalog.json supportPackages must stay empty for the eight-agent V1 suite.");
+  } else if (
+    supportPackages.length !== expectedSupportPackageIds.length ||
+    supportPackages.some((entry, index) => entry.id !== expectedSupportPackageIds[index])
+  ) {
+    fail("agents/catalog.json must contain exactly one launcher support package.");
+  } else {
+    validateCatalogPackageFields(supportPackages[0], { requireContextHub: true });
+    if (supportPackages[0].defaultWorkspaceAgent !== true) {
+      fail("The launcher support package must be the default workspace agent.");
+    }
   }
 
-  if (catalog.phase !== "guild-native-phase-1") {
-    fail("agents/catalog.json phase must be guild-native-phase-1.");
+  if (catalog.phase !== "guild-native-public-v1") {
+    fail("agents/catalog.json phase must be guild-native-public-v1.");
   }
   if (!Array.isArray(catalog.agents) || catalog.agents.length !== expectedAgentIds.length) {
     fail("agents/catalog.json must include the eight-agent V1 suite.");
@@ -289,6 +304,7 @@ function validateContextHubReferences(agent) {
 
 function validateAgentPackage(agent) {
   const packageDir = agent.packageDir;
+  const requiresZod = agent.id === "foundation-setup" || agent.id === "launcher";
 
   if (!packageDir.startsWith("agents/")) {
     fail(`${agent.id} packageDir must stay under agents/.`);
@@ -318,13 +334,9 @@ function validateAgentPackage(agent) {
     if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
       fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
     }
-    if (hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage] !== requiredSkillsPackageVersion) {
-      fail(`${packageJsonPath} must pin ${requiredSkillsPackage} to ${requiredSkillsPackageVersion} for runtime Guild Skills activation.`);
+    if (packageJson?.dependencies?.[requiredSkillsPackage]) {
+      fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage}; public V1 agents are self-contained.`);
     }
-    if (!hasRuntimeSkillActivation(agent.id) && packageJson?.dependencies?.[requiredSkillsPackage]) {
-      fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage} unless the agent uses runtime skill activation.`);
-    }
-    const requiresZod = agent.id === "foundation-setup";
     if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
     }
@@ -358,54 +370,28 @@ function validateAgentPackage(agent) {
       fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
     }
 
-    const requiredSnippets = agent.id === "foundation-setup"
+    const requiredSnippets =
+      agent.id === "foundation-setup"
         ? requiredStructuredFoundationSnippets
-        : requiredReviewAgentSourceSnippets;
+        : agent.id === "launcher"
+          ? requiredLauncherSnippets
+          : requiredReviewAgentSourceSnippets;
     for (const snippet of requiredSnippets) {
       if (!source.includes(snippet)) {
         fail(`${packageDir}/agent.ts must include required V1 contract snippet: ${snippet}`);
       }
     }
-    if (agent.id === "foundation-setup" && !source.includes('from "zod"')) {
+    if (requiresZod && !source.includes('from "zod"')) {
       fail(`${packageDir}/agent.ts must import zod for structured validation.`);
     }
     if (agent.id === "foundation-setup" && source.includes("llmAgent(")) {
       fail(`${packageDir}/agent.ts must use the structured agent() implementation.`);
     }
-    if (hasRuntimeSkillActivation(agent.id)) {
-      validateReviewAgentSkillRuntime(packageDir, source);
+    if (agent.id !== "launcher" && /skillsTools|SkillsTools|guildai~skills|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
+      fail(`${packageDir}/agent.ts must be self-contained and avoid private runtime Skills.`);
     }
-    if (/skillsTools|guildTools|mode:\s*["']multi-turn["']|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {
-      fail(`${packageDir}/agent.ts must use the current Guild-validating one-shot SDK shape.`);
-    }
-  }
-}
-
-function validateReviewAgentSkillRuntime(packageDir, source) {
-  const catalog = readJson("guild-skills/catalog.json");
-  if (!catalog || !Array.isArray(catalog.skills)) return;
-
-  const requiredRuntimeSnippets = [
-    "Use skills_search when the current task would benefit from a reusable method",
-    "Activate a skill only when the user task matches its runtime description",
-    "Use skills_activate with the qualifiedName returned by search",
-    "do not activate unrelated skills",
-    "Treat activated skill bodies as reusable method guidance",
-    "not as approved customer facts, evidence, or permission to take live action",
-  ];
-
-  for (const snippet of requiredRuntimeSnippets) {
-    if (!source.includes(snippet)) {
-      fail(`${packageDir}/agent.ts must include runtime Guild Skills activation rule: ${snippet}`);
-    }
-  }
-
-  for (const skill of catalog.skills) {
-    if (!source.includes(skill.qualifiedName)) {
-      fail(`${packageDir}/agent.ts must include catalog skill qualifiedName ${skill.qualifiedName}.`);
-    }
-    if (!source.includes(skill.runtimeDescription)) {
-      fail(`${packageDir}/agent.ts must include catalog runtimeDescription for ${skill.name}.`);
+    if (agent.id !== "launcher" && /useWorkspaceAgents:\s*true/.test(source)) {
+      fail(`${packageDir}/agent.ts must not enable workspace-agent delegation.`);
     }
   }
 }
