@@ -1,74 +1,62 @@
 # Guild Marketing OS Company Context Builder
 
 Guild package: `guild-marketing-os-company-context-builder`
-Package owner: `michaelpreuss`
+
+Status: Guild Chat context lifecycle source ready for private-alpha proof.
 
 ## Purpose
 
-Turns raw company context into approved context artifact drafts, entity facts, proof points, AEO readiness gaps, a compact Guild workspace context brief, approval checkpoints, and next-agent routing.
+Company Context Builder turns readable source text into a Company Context
+Approval Packet containing company facts, audiences, messaging sources, brand
+guidance, channel scope, proof constraints, dashboard signals, missing
+evidence, AEO readiness, and a compact Workspace Context candidate.
 
-Launcher routes first-run company-context setup here. The Builder should make a
-project leader feel like the system is processing their company context, not
-routing them through a separate setup menu.
+Launcher routes first-run context setup here. For downstream marketing requests
+Builder identifies itself as context-only and sends the user to Launcher or the
+named specialist.
 
-## Contract
+## Chat State
 
-This is the first structured Guild Marketing OS agent. It uses a canonical text input/output schema for Guild chat compatibility, then validates an internal Zod-backed context packet before rendering the review Markdown.
+In a direct Builder Chat, the source text, artifact reference, revision, and
+approval state are kept in Guild task state. No external state service is
+required.
 
-Accepted input:
+When Builder runs through Launcher, Launcher is the durable artifact owner and
+records the packet, approval, publication provenance, workstream, and handoff
+in the canonical cockpit.
 
-- required `type: "text"` and `text` for Guild workspace chat compatibility.
-- readable company/source text pasted into the message. If a user attaches a PDF or file without pasted text, the agent must explain that it cannot draft context from unread file contents in the current chat run.
+## Approval And Publication
 
-Returned output:
+The lifecycle remains deliberately two-step:
 
-- canonical `type: "text"` and `text`
-- full Markdown review packet containing approved context artifact drafts, approved facts and missing evidence, approval gates, AEO readiness, status payload, and downstream handoff
-- persistence state and exact source/artifact references showing whether the
-  packet is stored, approved, staged, blocked, or published to Guild workspace
-  context
-- short inline review summary at the top of the Markdown packet
+1. Review and approve the exact Company Context artifact revision.
+2. Send exactly `publish approved context to workspace context`.
 
-## Guild Usage
+Direct Builder Chat does not publish Workspace Context. It directs the user
+back to the canonical Launcher Chat so the separate publication gate and its
+provenance stay in one cockpit.
 
-Users should start here, paste readable company/source text, review the Company Context Approval Packet, approve it, then send exactly `publish approved context to workspace context` when the compact workspace context brief is ready to publish.
+Launcher performs the workspace-scoped Guild publication, preserving unmanaged
+manual context and recording the resulting context ID and revision.
 
 ## Operating Boundary
 
-Review-first. This agent does not schedule, install, spend, sync, trigger, change visibility, or modify external live systems.
+Builder is review-first and context-only. It does not schedule, install, spend,
+sync, trigger, change public visibility, mutate external systems, or turn
+artifact approval into execution approval.
 
-Its only runtime mutations are tenant-bound context persistence and the explicit
-workspace-context publication flow:
+Readable source text must be available in the Chat. If an attachment cannot be
+read by the running Guild agent, Builder asks for the relevant text instead of
+inventing context.
 
-1. Store the exact readable source as an encrypted raw-source revision and the
-   complete Company Context Approval Packet as a review-ready artifact.
-   Raw source text is not retained in Builder session state; it is read back
-   from the encrypted revision only for approved context compaction.
-2. User approves the exact artifact revision in a follow-up turn. The service
-   records the user's exact approval text.
-3. User sends exactly `publish approved context to workspace context`.
-4. The agent compacts the approved source corpus, audits the compacted brief,
-   and sends only the managed block plus approved artifact/source provenance to
-   the `guild-marketing-os-state` integration.
-5. The state service verifies delegated organization/workspace identity,
-   optimistic context revision, approved artifact revision, and the exact
-   publication phrase before its workspace-scoped publisher replaces only the
-   managed block and records rollback metadata.
+## Verification
 
-Version 1.2.0 is source-ready but not installed in the private workspace. The
-browser-proven 1.1.2 Builder remains installed until Guild supplies a trusted
-outbound tenant identity and the managed state service is deployed.
-
-## Test
-
-From this package directory:
+From the repository root:
 
 ```sh
-guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
-```
-
-Run repo verification from the repository root:
-
-```sh
+npm run test:foundation-state
 npm run verify
 ```
+
+Private live Guild publication evidence is still required before public
+release.

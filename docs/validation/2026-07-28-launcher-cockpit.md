@@ -1,5 +1,9 @@
 # Launcher Durable Cockpit Validation — 2026-07-28
 
+> Superseded architecture evidence. The active Guild-only validation is
+> `2026-07-28-guild-native-cockpit.md`; the external state-service references
+> below are retained to preserve the failed and intermediate evidence trail.
+
 ## Result
 
 Marketing OS Launcher 0.3.0 source is connected to the provider-neutral state

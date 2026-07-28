@@ -1,195 +1,168 @@
 # ADR 0001: Public V1 Persistence Boundary
 
-- Status: Accepted for implementation; public-release gate remains blocked
+- Status: Accepted for implementation; supersedes the external-service decision
 - Date: 2026-07-28
 - Owners: Guild Marketing OS maintainers
 
 ## Decision
 
-Marketing OS uses the provider-neutral `MarketingOsStateAdapter` contract in
-`services/guild-marketing-os-state`. The production target is Cloud Run backed
-by Cloud SQL for PostgreSQL. Native Guild storage and the existing
-single-workspace context bridge are not eligible for public V1.
+Public V1 is Guild-only.
 
-The service must derive the organization and workspace binding from a verified,
-short-lived Guild-issued identity. It must not accept an organization or
-workspace supplied only by an agent request body. Every database transaction
-sets both tenant identifiers locally and PostgreSQL row-level security enforces
-the same binding.
+Marketing OS uses one continuing Launcher Chat as the canonical cockpit. The
+Launcher stores structured workflow runs, every specialist attempt, artifact
+revisions, exact-text approvals, workstream status, handoffs, context
+publication provenance, and an append-only audit trail with Guild task state
+through `task.save()` and `task.restore()`.
 
-Context publication remains disabled for public release until Guild provides a
-delegated, workspace-scoped authorization that the service can verify and use
-without a maintainer token. The exact approval phrase remains
-`publish approved context to workspace context`, but the phrase is necessary,
-not sufficient: the approved artifact revision, expected current revision,
-idempotency key, actor, and delegated workspace authorization must also match.
+Guild Workspace Context stores only the latest approved compact company brief
+and operating rules needed by every agent. It is not an artifact database and
+must not contain the complete source corpus, specialist history, or raw
+cockpit export.
+
+No public agent depends on Cloud Run, Cloud SQL, Blaxel, a maintainer Guild
+token, a custom Marketing OS integration, or customer infrastructure
+credentials. The existing external adapter and deployment source remain
+private contingency and reference work. They are excluded from the public
+runtime and from `npm run verify`.
+
+## Product contract
+
+The customer creates or selects a dedicated Marketing OS workspace, installs
+Launcher, and uses one Launcher Chat as the cockpit. Launcher explicitly tells
+the customer that this is the canonical Chat and that resuming it preserves
+workstreams, artifacts, approvals, and handoffs.
+
+The cockpit supports:
+
+- deterministic and strictly classified routing;
+- one initial specialist attempt and at most one format-only repair;
+- retention of tool, format, and safety failures;
+- review-ready artifact revisions;
+- exact artifact approval;
+- workstream and handoff status;
+- a complete structured JSON export in Chat;
+- two-step confirmed deletion of structured cockpit state; and
+- approved compact Workspace Context publication after the exact phrase
+  `publish approved context to workspace context`.
+
+The deletion command is
+`delete marketing os cockpit state from this chat`. It deletes runs, attempts,
+artifact bodies, approvals, handoffs, workstreams, and their local index from
+the saved task state. It does not claim to delete Guild's own session history
+or previously published Workspace Context.
 
 ## Capability matrix
 
-| Requirement | Guild SDK 0.4.2 | Existing Blaxel bridge | Cloud Run + Cloud SQL target |
-| --- | --- | --- | --- |
-| Resolve session to workspace | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
-| Read compiled workspace context | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
-| Revisioned artifact/source database | No agent-facing contract found | No | Implemented and locally exercised |
-| Durable route/invocation evidence | No agent-facing contract found | No | Immutable run/attempt ledger implemented and locally exercised |
-| Workspace-scoped context draft/publish | The current docs describe operations that the published 0.4.2 package does not contain | Technically possible, but uses one maintainer token | Blocked until a shipped, live-proven Guild authorization contract exists |
-| Tenant isolation | No durable store to assess | Fail: fixed workspace/host identity assumptions | PostgreSQL RLS plus verified server-side tenant binding |
-| Idempotency and optimistic concurrency | No durable store to assess | Partial context-only behavior | Production adapter and database rehearsal pass |
-| Immutable audit, export, explicit deletion | No durable store to assess | No | Production adapter and database rehearsal pass |
-| Managed PostgreSQL backups and recovery | Not applicable | Not provided by the bridge | Cloud SQL managed backup/PITR configuration |
-| Customer credential exposure | Not applicable | Blaxel credential is hidden, but maintainer Guild token is shared | No infrastructure credentials are customer-visible |
+| Requirement | Guild-only V1 |
+| --- | --- |
+| Durable work within the cockpit | Guild task state retained across tool calls and resumption of the canonical Chat |
+| Detailed artifact revisions | Stored in Launcher task state |
+| Attempts and honest failure history | Stored before retry or finalization |
+| Approvals | Exact user text stored on the exact artifact revision |
+| Workstreams and handoffs | Stored and rendered by Launcher |
+| Shared approved company context | Versioned Guild Workspace Context |
+| Context publication | Direct authenticated Guild service endpoint from the interactive Launcher task |
+| Export | Complete structured state returned as a JSON Chat artifact |
+| Deletion | Exact-confirmation purge of structured Launcher state |
+| Tenant boundary | Guild organization, workspace, session, task, and authenticated interactive-user boundaries |
+| External credentials | None |
+| Cross-new-Chat reconstruction | Not supported in V1; the user resumes the canonical Chat |
 
-## Native ceiling spike
+## State ceiling and guardrail
 
-The packages compile and validate against the current published
-`@guildai/agents-sdk` 0.4.2. Its generated `GuildService` exposes workspace,
-installed-agent, default-agent, session, and compiled-context reads. It does not
-expose an agent-facing database contract.
+Guild limits serialized task state to 8 MiB. Launcher applies a conservative
+6 MiB ceiling before every save. Above that ceiling, it fails closed and asks
+the customer to export or delete older work before adding another artifact.
 
-Guild's current online Task documentation lists `get_workspace_contexts`,
-`create_workspace_context`, `experimental_fetch`, and
-`experimental_fetch_async`. The npm registry still reports 0.4.2 as latest,
-and the installed 0.4.2 generated service interface contains none of those four
-operations. The package documentation explicitly says the package is ground
-truth. Public V1 therefore cannot depend on the online-only surface until a
-published SDK exposes it and a private live spike proves the authorization and
-revision behavior.
+The cockpit stores task-relevant requests and validated outputs. Workspace
+Context stores only a compact brief. Large source files remain part of the
+Guild conversation and attachment history; Marketing OS does not claim a
+separate encrypted blob lifecycle or unlimited retention.
 
-Guild custom integrations currently document API key, OAuth, and OAuth M2M
-credential injection at the organization level. The published contract does
-not document a Guild-signed outbound identity carrying organization,
-workspace, actor, session, and task claims, nor a Guild JWKS/issuer contract
-for a customer service to verify. Passing workspace identifiers in an agent
-request body is insufficient because a malicious or compromised agent could
-spoof them.
+## Workspace Context publication
 
-The logged-in organization integration creator confirms the shipped surface.
-For REST and MCP integrations it offers API key, OAuth 2.0, OAuth 2.0 M2M, or
-no outbound authentication. Its HMAC-SHA256 and Ed25519 signing controls apply
-to inbound webhooks sent to Guild. No option signs Guild-to-service requests
-with tenant, actor, session, and task claims. The OAuth configuration is
-limited to a fixed Guild callback, static authorization/token URLs, client
-credentials, scopes, PKCE, and static authorization parameters; no
-organization/workspace/session/task placeholder is exposed. A disposable form
-draft was discarded without creating an integration.
+Launcher owns publication because it owns the approved Company Context
+artifact revision in the canonical cockpit.
 
-This means native Guild state is useful for deterministic context reads and
-installation verification, but it cannot currently be the V1 system of record.
-It may become the context-publication path after the documented operations ship
-and pass the live authorization spike.
+Publication requires:
 
-## Why not the current Blaxel bridge
+1. a validated Company Context result imported into Launcher;
+2. approval of the exact artifact revision;
+3. the exact second phrase
+   `publish approved context to workspace context`;
+4. a live read of the current Guild workspace and its context versions;
+5. preservation of all unmanaged manual context;
+6. idempotent detection of an already-published artifact revision; and
+7. a saved context-version receipt in the cockpit audit trail.
 
-Blaxel supports workspace isolation, API keys/service accounts, OAuth for its
-own APIs, private workloads, and observability. Its current CLI and public
-resource surface do not provide the complete managed PostgreSQL lifecycle
-required here. More importantly, the existing bridge authenticates to Guild
-with a maintainer token and is bound to one maintainer workspace. That fails
-the delegated tenant-authentication requirement regardless of where the
-service runs.
+The Launcher uses Guild's authenticated `guild` service boundary with explicit
+workspace-context endpoint schemas. This intentionally exercises the context
+surface documented online even though generated SDK 0.4.2 types lag behind it.
+Public release still requires a live proof of this exact call from a private
+Launcher version.
 
-The existing bridge remains a private compatibility path only while the
-replacement is built. It must not be used by a public package.
+Direct Company Context Builder sessions remain outside the canonical cockpit.
+They retain their own draft and approval state in that Guild Chat, but they
+route publication back to Launcher and never claim that direct-session state
+was imported automatically.
 
-## Required production controls
+## Audit and concurrency
 
-- Cloud Run accepts only authenticated requests from the configured Guild
-  integration.
-- A verifier validates issuer, audience, signature, expiry, actor,
-  organization, workspace, and session/task linkage.
-- Request-body tenant claims are ignored unless they exactly match the verified
-  identity.
-- Cloud SQL uses private connectivity, encryption in transit, customer-managed
-  encryption at rest where required, automated backups, point-in-time recovery,
-  and restore rehearsals.
-- PostgreSQL row-level security is forced on every tenant table.
-- Raw source uses envelope encryption before insertion; a per-tenant data key is
-  wrapped by KMS. Deletion removes ciphertext and schedules wrapped-key
-  destruction when the workspace is deleted.
-- Audit entries are append-only and hash-linked. Application roles cannot
-  update or delete them.
-- Launcher runs record route, specialist, context revision, invoked package and
-  version, full attempt inputs/outputs, validation errors, artifact revision,
-  status, blocker, and handoff. Attempts are immutable and only a
-  `format_invalid` first result can receive one format-only repair.
-- Export and deletion are authenticated, rate-limited, audited, and require
-  exact confirmation text for destructive operations.
-- Logs contain opaque IDs and error codes, never raw source, artifact bodies,
-  access tokens, or direct personal contact/payment identifiers.
+Every cockpit mutation appends a sequenced event with timestamp, action,
+entity, revision, status, and bounded metadata. Artifact bodies and attempts
+remain on their own records rather than being duplicated into the audit log.
 
-## Implementation and local production proof
+Idempotency keys are stored in task state. Run, artifact, handoff, approval,
+workstream, and context-publication retries return the existing result when the
+same key or approved artifact is seen again. Expected revisions reject stale
+run, handoff, and workstream transitions.
 
-The Cloud Run service source is complete enough for an authenticated deployment:
+V1 has one canonical writer: the continuing Launcher Chat. Multi-Chat or
+multi-user optimistic concurrency is not represented as supported.
 
-- `PostgresMarketingOsStateAdapter` uses one checked-out client per transaction,
-  transaction-local tenant settings, forced RLS, aggregate locks, idempotency
-  locks, optimistic revision checks, and hash-linked audit entries.
-- Raw sources use AES-256-GCM data keys wrapped through Cloud KMS. The Cloud Run
-  implementation obtains KMS access from its service identity metadata token;
-  it accepts no service-account key.
-- Source corrections create new immutable encrypted revisions. A confirmed
-  source deletion clears ciphertext and wrapped-key material from every
-  revision, not only the latest.
-- Artifact approval cannot be bypassed by storing an approved revision or using
-  a generic status change. PostgreSQL also rejects an approved row without its
-  matching approval record.
-- Authenticated requests consume a tenant-and-actor-scoped PostgreSQL rate
-  bucket, so limits remain effective across Cloud Run instances.
-- The container listens on `0.0.0.0:$PORT`, exposes liveness/readiness checks,
-  uses a non-root runtime user, and handles shutdown.
-- `npm run migrate` applies and verifies the schema with a separate
-  `DATABASE_ADMIN_URL`; the running service does not accept that credential.
-  The migration refuses a superuser or `BYPASSRLS` runtime role and grants only
-  the explicit application tables and tenant helper functions.
-- `npm run test:postgres:integration` starts a disposable PostgreSQL instance
-  and passes concurrent idempotency, revision conflicts, forced RLS isolation,
-  envelope-encrypted export, audit immutability, approval integrity, confirmed
-  deletion, deletion-receipt checks, and durable Launcher workflow-run
-  lifecycle checks through both the adapter and authenticated HTTP boundary.
-- Production dependencies currently report zero known npm vulnerabilities.
+## Security and safety consequence
 
-No managed GCP environment is configured in this workspace, so backup/restore,
-private networking, KMS IAM, Cloud Run identity, load, and failover evidence
-remain deployment gates rather than local claims.
+Removing the external service removes an additional tenant-authentication
+boundary, external credential lifecycle, customer-data database, KMS
+integration, managed deployment, backup system, and incident surface.
 
-## Rollback
+The tradeoff is explicit:
 
-The adapter boundary permits switching providers without changing agent
-contracts. A migration must:
+- V1 does not provide a workspace-wide artifact database.
+- A brand-new Chat cannot reconstruct detailed state.
+- Marketing OS deletion does not delete Guild's platform-owned session logs.
+- Marketing OS export covers structured cockpit state, not every Guild event or
+  attachment.
 
-1. quiesce writes per tenant;
-2. export and verify hashes and record counts;
-3. import into the replacement;
-4. compare context/artifact revisions and the audit head;
-5. change the tenant routing record;
-6. retain the prior encrypted copy for the agreed rollback window; and
-7. delete it only after customer-confirmed cutover.
+These limits must remain visible in onboarding, cockpit status, export, and
+deletion receipts.
 
-Context publication itself uses the expected-current-revision check and keeps
-the prior published context identifier as its rollback reference.
+## External contingency
+
+`services/guild-marketing-os-state` and its Cloud Run/Cloud SQL deployment
+source remain as non-runtime contingency work. Reintroducing that boundary
+requires a new ADR, a verified Guild-issued tenant identity, a new security
+review, and explicit product approval that the external operational burden is
+worth the cross-Chat persistence it provides.
 
 ## Release consequence
 
-The private alpha and browser acceptance may continue. Public visibility,
-self-install onboarding, durable multi-session cockpit use, and public context
-publication remain blocked until Guild supplies a verifiable workspace-scoped
-service identity (or ships an equivalent native contract), and a production
-Cloud SQL deployment passes the release matrix.
+The private alpha can now advance without provisioning external
+infrastructure. Public release remains blocked until:
+
+- Guild-native context publication passes live private browser testing;
+- canonical-Chat resume, approval, export, and deletion pass in the browser;
+- all specialist versions pass claim-safety and context-quality gates;
+- clean-organization onboarding passes without CLI intervention;
+- an unaffiliated design partner accepts the canonical-Chat model; and
+- the public package visibility and installation gates pass.
 
 ## Evidence
 
-- Guild SDK package tested locally at version 0.4.2.
-- Guild SDK Task documentation:
-  <https://docs.guild.ai/sdk/task-object>
-- Guild custom integration documentation:
-  <https://docs.guild.ai/services/create-an-integration>
-- Guild workspace-context documentation:
-  <https://docs.guild.ai/platform/context>
-- Guild live sessions and complete task/event evidence are stored under the
-  ignored `_private/evidence` directory.
-- Blaxel API authentication documentation:
-  <https://docs.blaxel.ai/api-reference/introduction>
-- Blaxel workspace tenancy documentation:
-  <https://docs.blaxel.ai/api-reference/workspaces/create-workspace-tenant>
-- Blaxel access-token and service-account guidance:
-  <https://docs.blaxel.ai/Security/Access-tokens>
+- Guild State documentation: <https://docs.guild.ai/guide/state>
+- Guild execution limits: <https://docs.guild.ai/reference/limits>
+- Guild Workspace Context documentation: <https://docs.guild.ai/platform/context>
+- Guild Task documentation: <https://docs.guild.ai/sdk/task-object>
+- Guild-only Launcher tests: `scripts/test-launcher-cockpit.mjs`
+- Company Context state tests: `scripts/test-foundation-state.mjs`
+- Browser evidence: `docs/validation/2026-07-28-browser-ux.md`

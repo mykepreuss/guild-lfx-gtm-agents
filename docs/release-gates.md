@@ -1,6 +1,6 @@
 # Public V1 Release Gates
 
-Status on 2026-07-28: **blocked — private alpha only**
+Status on 2026-07-28: **blocked, Guild-only private alpha**
 
 Public visibility is treated as permanent. No Launcher or capability package
 may be made public while any blocking row below remains open.
@@ -8,56 +8,55 @@ may be made public while any blocking row below remains open.
 | Gate | Current evidence | Status |
 | --- | --- | --- |
 | Baseline preserved | Default-routing failure `019fa97a-b109-351a-0000-5168d89d276b`; direct Messaging success `019fa97b-db59-351a-0000-d76602123c7e` | Pass |
-| Minimal Launcher → Messaging proof | Complete coded-Launcher result returned in normal Chat `019faa08-43e5-351a-0000-9235d92b0dff` | Pass in private alpha |
-| Coded allowlist / hostile request | Launcher 0.2.5 blocked self-delegation and publication, then recovered to Messaging in the same Chat `019faa23-8838-351a-0000-b674324cbf8e` | Pass in private alpha |
-| Coded clear-intent routing | Builder plus all seven specialist routes passed in fresh normal Chats; failures and fixes are retained in browser evidence | Pass in private alpha |
-| Coded child result return | Complete specialist output returned to the originating Launcher Chat for every route | Pass in private alpha |
-| Public task-local agent binding | SDK 0.4.2 dynamic helper adds every workspace agent to a mutable toolset and has no allowlist; private Launcher remains statically allowlisted | **Blocked on targeted SDK/self-managed proof; Guide fallback selected if unreliable** |
+| Minimal Launcher to Messaging proof | Complete coded-Launcher result returned in normal Chat `019faa08-43e5-351a-0000-9235d92b0dff` | Pass in private alpha |
+| Explicit suite allowlist | Launcher declares exactly eight static suite tools and never uses the unfiltered workspace-agent helper | Pass locally and in private browser; clean-org proof pending |
+| Hostile request and recovery | Launcher 0.2.5 blocked self-delegation and publication, then recovered to Messaging in the same Chat `019faa23-8838-351a-0000-92e3d5c2ba7a` | Pass in private alpha |
+| Clear-intent routing and child return | Builder plus all seven specialist routes returned complete results in normal Chat; failures and fixes are retained | Pass in private alpha |
 | Guide fallback | Ambiguous request returned Marketing OS Guide with no specialist task in `019faa25-d311-351a-0000-92e3d5c2ba7a` | Pass in private alpha |
-| Browser normal-Chat UX | Launcher 0.2.5 is the private workspace default; onboarding, Builder, seven specialists, safety recovery, and ambiguity pass | Pass in private alpha |
-| Browser specialist selection | Automatic Launcher delegation removes the prior `@mention` dependency | Pass in private alpha |
-| Cross-session cockpit persistence | Launcher 0.3.0 source now creates durable runs before delegation, preserves both attempts, finalizes artifact/workstream/handoff state, resumes an incomplete route across sessions, renders cockpit status, and durably approves one unambiguous artifact revision with exact approval text and partial-sync recovery; memory and PostgreSQL/JWT/HTTP rehearsals pass locally | **Blocked on authenticated managed deployment and private browser acceptance of 0.3.0** |
-| Durable Company Context lifecycle | Builder 1.2.0 source stores the exact encrypted raw source and review-ready artifact, requires a durable exact-text artifact approval, compacts only evidence-labeled reusable artifact content, deterministically withholds unapproved sensitive source claims, publishes only through the tenant-bound state service, and records source/artifact/context provenance | **Blocked on authenticated managed deployment and private browser acceptance of 1.2.0** |
-| Shared specialist contract and claim safety | Follow-up live Messaging 1.1.1 session `019faaa8-aaf4-351a-0000-d1474c524193` failed claim quality. All seven specialist 1.2.0 sources now use one typed coded validator; Launcher 0.3.0 independently enforces it; format-only repair and no-retry safety behavior pass locally | **Blocked on managed deployment and normal-Chat browser acceptance of 1.2.0** |
-| Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; the live integration creator offers API key/OAuth/OAuth M2M/no auth, not a Guild-signed tenant caller identity; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
-| Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
-| No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
-| Tenant isolation | Forced PostgreSQL RLS, production-adapter cross-tenant rehearsal, and full HTTP/JWKS tenant-spoof test pass locally | **Blocked on deployed Guild-issued identity spoof test** |
-| Backup/restore, export, deletion | Encrypted export, confirmed purge, retained minimal deletion receipt, and audit-retention tests pass locally | **Blocked on Cloud SQL backup/restore rehearsal** |
-| Context-size benchmark | Isolated live 21-session run completed: current 2/7, compressed 2/7 with all golden facts, pointer minimum 6/7 while losing pricing/funding/proof/HIPAA facts. A strengthened compressed-only rerun improved to 5/7 but retained two genuine safety blocks and four unqualified sensitive lines. Original, corrected, and remediation evidence are all retained. | **Blocked — no eligible variant selected** |
-| Clean separate-organization rehearsal | `developers-at-guild/developer-sandbox` is visible but Guild reports `is_viewer_member: false`; no mutation was attempted | **Blocked on owner authorization** |
+| Guild-only canonical cockpit | Launcher source retains runs, attempts, artifacts, approvals, workstreams, handoffs, and audit entries in Guild task state, with a 6 MiB safety ceiling | Pass locally; private browser proof of the new version pending |
+| Same-Chat resume | Canonical-Chat tests resume work without repasting or duplicating the run | Pass locally; private browser proof pending |
+| New-Chat boundary is honest | A brand-new Chat renders a fresh cockpit and does not claim to reconstruct detailed state | Pass locally |
+| Artifact approval | Exact artifact revision and exact user approval text transition artifact, run, handoff, and latest workstream idempotently | Pass locally; private browser proof pending |
+| Cockpit export | Launcher returns the complete structured cockpit as a JSON Chat artifact | Pass locally; private browser proof pending |
+| Confirmed cockpit deletion | Two-step exact phrase deletes runs, attempts, artifact bodies, approvals, workstreams, handoffs, and their local index; receipt discloses that Guild history and published context are not deleted | Pass locally; private browser proof pending |
+| Company Context lifecycle | Builder retains supplied source and draft in Guild Chat state; Launcher imports the validated artifact and owns approval and publication | Pass locally; private browser proof pending |
+| Guild Workspace Context publication | Launcher uses authenticated Guild context list/create endpoints, preserves unmanaged context, detects an already-published artifact, and records the context version | Pass in fake-endpoint integration tests; **blocked on live private Guild proof** |
+| Shared specialist contract and claim safety | All seven specialist 1.2.0 sources use one coded validator; Launcher independently validates; safety failures are never silently repaired | Pass locally; **blocked on live normal-Chat acceptance** |
+| Evidence mode | Market Signal and Social Monitoring disclose `source_supplied`, `connected_read_only`, or `live_monitoring`, coverage, observation time, and limitations | Pass locally and in prior private browser runs |
+| Draft-only safety | No publishing, scheduling, spend, CRM mutation, credentials, or legal approval; Workspace Context publication is the only supported Guild product mutation and needs the exact second phrase | Pass locally and in prior private browser runs |
+| Self-install onboarding | One-at-a-time installation request and installed-suite verification are implemented | **Blocked on public versions and clean-org test** |
+| Default Launcher | Private workspace already uses Launcher as default; customer UI instruction remains required because SDK exposes only default reads | Pass privately; clean-org UI proof pending |
+| No private Skills dependency | Capability packages are self-contained; private skills remain maintainer assets only | Pass |
+| No external runtime service | Launcher and Builder declare no Cloud, database, bridge, or Marketing OS integration tools; `npm run verify` excludes contingency-service tests | Pass locally |
+| Context-size benchmark | Current 2/7, compressed 2/7, pointer minimum 6/7 while losing required facts; strengthened compressed run improved to 5/7 but retained safety and claim-quality failures | **Blocked, no eligible context selected** |
+| Clean separate-organization rehearsal | `developers-at-guild/developer-sandbox` is visible but current viewer is not a member; no mutation was attempted | **Blocked on owner authorization or a new team-controlled organization** |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
-| External execution | No publishing, scheduling, spend, CRM mutation, credential setup, or legal approval performed | Pass |
+| Public Agent Hub visibility | All packages remain private | **Blocked until every prior gate passes** |
 
-Local production-service evidence is recorded in
-[`docs/validation/2026-07-28-state-service.md`](validation/2026-07-28-state-service.md).
-The public Launcher binding decision is recorded in
+The Guild-only persistence decision is recorded in
+[`docs/adr/0001-public-v1-persistence-boundary.md`](adr/0001-public-v1-persistence-boundary.md).
+The explicit suite-binding decision is recorded in
 [`docs/adr/0002-launcher-runtime-agent-binding.md`](adr/0002-launcher-runtime-agent-binding.md).
-The isolated context-size evidence and blocked decision are recorded in
-[`docs/validation/2026-07-28-context-benchmark.md`](validation/2026-07-28-context-benchmark.md).
 
 ## Required rollout order
 
 1. Keep Launcher and all eight capability packages private.
-2. Publish private 1.1.x package versions only through the guarded release
-   helper after repository commit/push approval.
-3. The maintainer private-alpha installation and browser verification are
-   complete; retain the evidence and all failed attempts.
-4. Obtain and live-prove a Guild-signed service identity carrying organization,
-   workspace, actor, session, and task claims, or a native Guild contract with
-   equivalent isolation. The currently published SDK and custom-integration
-   contract do not provide this.
-5. Deploy the Cloud Run/Cloud SQL state service and pass tenant spoofing,
-   concurrency, idempotency, workflow-resume, audit, backup/restore, export,
-   and deletion tests. Then wire the private Launcher to the run/attempt API
-   and repeat every route in normal Chat. No GCP project, Cloud SQL database,
-   KMS key, or deploy identity is configured in the current workspace.
-6. Run a clean organization rehearsal in
-   `developers-at-guild/developer-sandbox` only with the workspace owner’s
+2. Publish new private test versions through the guarded release helper.
+3. Run the canonical-cockpit browser suite in
+   `michaelpreuss/guild-marketing-os`: onboarding, context setup, artifact
+   approval, exact context publication, each specialist, status, same-Chat
+   resume, handoff, export, confirmed deletion in a disposable Chat, missing
+   package, timeout, malformed output, stale context, hostile request, and
+   ambiguity.
+4. Re-run the isolated context benchmark and select the smallest variant that
+   achieves 7/7 complete artifacts, zero lost golden facts, and zero
+   unqualified sensitive claims.
+5. Run a clean organization rehearsal in
+   `developers-at-guild/developer-sandbox` only with the workspace owner's
    authorization, or use a newly created team-controlled organization.
-7. Run unaffiliated design-partner acceptance with no maintainer CLI or
+6. Run unaffiliated design-partner acceptance with no maintainer CLI or
    infrastructure credentials.
-8. Only then consider public Agent Hub visibility.
+7. Only then consider public Agent Hub visibility.
 
 ## Evidence handling
 
@@ -69,6 +68,7 @@ runs. A successful rerun never replaces failed evidence.
 ## Release command boundary
 
 `npm run verify` is non-mutating. Live Guild tests create remote ephemeral
-versions and sessions and must remain explicit. Saving, publishing, installing,
-changing the default agent, configuring credentials, or changing visibility
-requires separate lifecycle authorization.
+versions and sessions and remain explicit. Saving, publishing, installing,
+changing the default agent, or changing visibility is a separate lifecycle
+step. Workspace Context publication is exercised only in the dedicated private
+acceptance flow with an approved disposable test artifact.

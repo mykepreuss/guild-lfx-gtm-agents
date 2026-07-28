@@ -27,6 +27,6 @@
     "test:guild-smoke:full": "node scripts/run-guild-e2e.mjs --smoke --full",
     "test:guild-smoke:no-cache": "node scripts/run-guild-e2e.mjs --smoke --no-cache",
     "test:guild-smoke:full:no-cache": "node scripts/run-guild-e2e.mjs --smoke --full --no-cache",
-    "verify": "npm run test:workspace-context-bridge && npm run test:contracts && npm run test:context-benchmark-scoring && npm run check:specialist-runtime-sync && npm run test:specialist-runtime && npm run test:launcher-routing && npm run test:launcher-cockpit && npm run test:state-adapter && npm run test:state-postgres && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
+    "verify": "npm run test:contracts && npm run test:context-benchmark-scoring && npm run check:specialist-runtime-sync && npm run test:specialist-runtime && npm run test:launcher-routing && npm run test:launcher-cockpit && npm run test:foundation-state && npm run test:agent-builds && npm run check:guild-native"
   }
 }

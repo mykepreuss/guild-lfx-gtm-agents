@@ -1,5 +1,9 @@
 # Marketing OS State Service Validation — 2026-07-28
 
+> Historical contingency evidence. ADR 0001 now selects a Guild-only canonical
+> Launcher Chat for public V1. This service is not in the active public runtime
+> or the standard verification path.
+
 ## Scope
 
 This record covers the production PostgreSQL adapter, authenticated HTTP

@@ -11,10 +11,10 @@
     "id": "launcher",
     "guildName": "guild-marketing-os-launcher",
     "displayName": "Marketing OS Launcher",
-    "status": "durable_cockpit_source_ready_private_alpha",
+    "status": "guild_native_canonical_cockpit_ready_private_alpha",
     "packageDir": "agents/launcher",
     "primaryUser": "Project Leader",
-    "description": "Default Guild Marketing OS front door that checks context readiness, routes approved review-only work to an allowlisted specialist, returns delegated results, and maintains cockpit status without external execution.",
+    "description": "Default Guild Marketing OS front door that keeps the canonical cockpit in one continuing Guild Chat, checks context readiness, routes review-only work to an allowlisted specialist, returns complete results, and maintains artifacts, approvals, workstreams, handoffs, export, and confirmed deletion without an external state service.",
     "defaultWorkspaceAgent": true,
     "contextHub": {
       "requiredArtifacts": [
@@ -35,10 +35,10 @@
       "id": "launcher",
       "guildName": "guild-marketing-os-launcher",
       "displayName": "Marketing OS Launcher",
-      "status": "durable_cockpit_source_ready_private_alpha",
+      "status": "guild_native_canonical_cockpit_ready_private_alpha",
       "packageDir": "agents/launcher",
       "primaryUser": "Project Leader",
-      "description": "Default Guild Marketing OS front door that checks context readiness, routes approved review-only work to an allowlisted specialist, returns delegated results, and maintains cockpit status without external execution.",
+      "description": "Default Guild Marketing OS front door that keeps the canonical cockpit in one continuing Guild Chat, checks context readiness, routes review-only work to an allowlisted specialist, returns complete results, and maintains artifacts, approvals, workstreams, handoffs, export, and confirmed deletion without an external state service.",
       "defaultWorkspaceAgent": true,
       "contextHub": {
         "requiredArtifacts": [
@@ -61,7 +61,7 @@
       "phaseOrder": 1,
       "guildName": "guild-marketing-os-company-context-builder",
       "displayName": "Knowledge Graph / Company Context Builder",
-      "status": "durable_context_source_ready_private_alpha",
+      "status": "guild_chat_context_lifecycle_ready_private_alpha",
       "packageDir": "agents/foundation-setup",
       "primaryUser": "Project Leader",
       "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company context.",

@@ -99,21 +99,32 @@ const requiredLauncherSnippets = [
   "guildServiceTool",
   "routeConfig",
   "invokeSpecialist",
+  "createSessionCockpit",
+  "launcherAgentStateSchema",
   "renderCockpitStatus",
   "renderOnboardingStatus",
   "guild_agent_install_request",
-  "marketing_os_run_create",
-  "marketing_os_attempt_record",
-  "marketing_os_artifact_approve",
+  "guild_workspace_contexts_list",
+  "guild_workspace_context_create",
+  "guild_workspace_context_publish",
+  "cockpit.attemptRecord",
+  "cockpit.artifactApprove",
+  "cockpit.handoffCreate",
+  "cockpit.workstreamUpdate",
+  "Marketing OS Cockpit Export",
+  "delete marketing os cockpit state from this chat",
+  "publish approved context to workspace context",
   "guild_get_task_workspace_agents",
   "FORMAT REPAIR ONLY.",
   "action_mode",
   "external_mutation_requested",
 ];
 const forbiddenLauncherSnippets = [
-  "guild_get_session",
   "guild_get_workspace_default_chat_agent",
-  "guild_get_workspace",
+  "guild-marketing-os-state",
+  "marketing_os_run_create",
+  "marketing_os_attempt_record",
+  "marketing_os_artifact_store",
 ];
 const requiredStructuredFoundationSnippets = [
   "agent({",
@@ -125,11 +136,10 @@ const requiredStructuredFoundationSnippets = [
   "renderMarkdownPacket",
   "renderPacketSummary",
   "forbiddenLiveActionClaims",
-  "marketing_os_source_store",
-  "marketing_os_context_artifact_store",
-  "marketing_os_context_artifact_approve",
-  "marketing_os_context_publish",
-  "guild-marketing-os-state",
+  "lastSourceText: sourceText",
+  "approved in this Guild Chat",
+  "canonical Marketing OS Launcher Chat",
+  "approved_pending_publish",
   "markdownPacket",
   "## Consumed Context",
   "## Produced Artifact",
@@ -427,6 +437,16 @@ function validateAgentPackage(agent) {
     ) {
       fail(
         `${packageDir}/agent.ts must not depend on the maintainer workspace-context bridge.`,
+      );
+    }
+    if (
+      agent.id === "foundation-setup" &&
+      /guild-marketing-os-state|marketing_os_source_store|marketing_os_context_publish/.test(
+        source,
+      )
+    ) {
+      fail(
+        `${packageDir}/agent.ts must retain Builder state in Guild and must not depend on the external state service.`,
       );
     }
     if (agent.id !== "launcher" && /skillsTools|SkillsTools|guildai~skills|local-agent-lab|agent-hub-exemplars|local-demo-packets/.test(source)) {

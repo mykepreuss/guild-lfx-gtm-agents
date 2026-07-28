@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 import {
   classifyRoute,
+  deterministicRoute,
   extractSpecialistText,
   inputSchema,
   installedSuiteAgents,
@@ -35,33 +36,21 @@ import {
 } from "./launcher-core.js";
 import {
   allocateRunIdentity,
-  approveArtifactRequestSchema,
   artifactResponseSchema,
   completeRunState,
-  createHandoffRequestSchema,
-  createWorkflowRunRequestSchema,
+  createSessionCockpit,
   evidenceModeFromArtifact,
   handoffRationale,
   handoffResponseSchema,
-  listWorkflowRunsRequestSchema,
-  readArtifactRequestSchema,
+  launcherAgentStateSchema,
   readLauncherAgentState,
-  readWorkflowRunRequestSchema,
-  readWorkstreamRequestSchema,
-  recordWorkflowAttemptRequestSchema,
   renderArtifactApprovalReceipt,
   renderCockpitReceipt,
   renderCockpitStatus,
   resumeRequested,
-  storeArtifactRequestSchema,
-  updateWorkflowRunRequestSchema,
-  updateHandoffRequestSchema,
-  updateWorkstreamRequestSchema,
-  workflowAttemptResponseSchema,
   workflowRunResponseSchema,
-  workflowRunsResponseSchema,
   workstreamResponseSchema,
-  type LauncherAgentState,
+  type SessionCockpit,
   type WorkflowRun,
   type WorkstreamRecord,
 } from "./launcher-state.js";
@@ -75,11 +64,46 @@ export {
   validateSpecialistOutput,
 } from "./launcher-core.js";
 
+const workspaceContextStatusSchema = z.enum(["DRAFT", "PUBLISHED"]);
+const workspaceContextSchema = z
+  .object({
+    id: z.string(),
+    status: workspaceContextStatusSchema,
+    manual_context: z.string().default(""),
+    summary: z.string().nullable().optional(),
+    created_at: z.string().optional(),
+    updated_at: z.string().optional(),
+  })
+  .passthrough();
+
+const workspaceContextsListInputSchema = z.object({
+  workspace_id: z.string(),
+  limit: z.number().int().positive().max(100).default(100),
+  offset: z.number().int().nonnegative().default(0),
+});
+const workspaceContextsListOutputSchema = z
+  .object({
+    items: z.array(workspaceContextSchema),
+  })
+  .passthrough();
+const workspaceContextCreateInputSchema = z.object({
+  workspace_id: z.string(),
+  status: z.literal("DRAFT"),
+  context: z.string().min(1),
+  summary: z.string().nullable(),
+});
+const workspaceContextPublishInputSchema = z.object({
+  context_id: z.string(),
+  status: z.literal("PUBLISHED"),
+});
+
 const tools = {
   ...pick(guildTools, [
     "guild_agent_install_request",
     "guild_get_agent_version",
+    "guild_get_session",
     "guild_get_task_workspace_agents",
+    "guild_get_workspace",
   ]),
   marketing_os_company_context_builder: guildAgentTool({
     inputSchema: specialistInputSchema,
@@ -121,302 +145,111 @@ const tools = {
     outputSchema: specialistOutputSchema,
     calls: "michaelpreuss~guild-marketing-os-campaigns-paid-media",
   }),
-  marketing_os_run_create: guildServiceTool("guild-marketing-os-state", {
+  guild_workspace_contexts_list: guildServiceTool("guild", {
     description:
-      "Create a tenant-bound durable Marketing OS Launcher workflow run before invoking a specialist.",
-    inputSchema: createWorkflowRunRequestSchema,
-    outputSchema: workflowRunResponseSchema,
-    endpoint: {
-      method: "POST",
-      path: "/v1/runs",
-      description: "Create a Marketing OS workflow run",
-      format: "application/json",
-      parameters: Object.entries(createWorkflowRunRequestSchema.shape).map(
-        ([name, schema]) => ({ name, type: "body" as const, schema }),
-      ),
-      parameterSchema: createWorkflowRunRequestSchema,
-      responseSchema: workflowRunResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_run_get: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Read one tenant-bound Marketing OS workflow run and all immutable attempts.",
-    inputSchema: readWorkflowRunRequestSchema,
-    outputSchema: workflowRunResponseSchema,
+      "Read versioned Guild workspace context so Marketing OS can preserve unmanaged text and detect idempotent publication.",
+    inputSchema: workspaceContextsListInputSchema,
+    outputSchema: workspaceContextsListOutputSchema,
     endpoint: {
       method: "GET",
-      path: "/v1/runs/{runId}",
-      description: "Read a Marketing OS workflow run",
+      path: "/api/workspaces/{workspace_id}/contexts",
+      description: "List Guild workspace context versions",
       format: "application/json",
       parameters: [
         {
-          name: "runId",
+          name: "workspace_id",
           type: "path",
-          schema: readWorkflowRunRequestSchema.shape.runId,
-        },
-      ],
-      parameterSchema: readWorkflowRunRequestSchema,
-      responseSchema: workflowRunResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_runs_list: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "List tenant-bound Marketing OS workflow runs for cockpit status and cross-session resume.",
-    inputSchema: listWorkflowRunsRequestSchema,
-    outputSchema: workflowRunsResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/v1/runs",
-      description: "List Marketing OS workflow runs",
-      format: "application/json",
-      parameters: [],
-      parameterSchema: listWorkflowRunsRequestSchema,
-      responseSchema: workflowRunsResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_attempt_record: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Append one immutable initial or format-repair specialist attempt to a durable workflow run.",
-    inputSchema: recordWorkflowAttemptRequestSchema,
-    outputSchema: workflowAttemptResponseSchema,
-    endpoint: {
-      method: "POST",
-      path: "/v1/runs/{runId}/attempts",
-      description: "Record a Marketing OS specialist attempt",
-      format: "application/json",
-      parameters: [
-        {
-          name: "runId",
-          type: "path",
-          schema: recordWorkflowAttemptRequestSchema.shape.runId,
-        },
-        ...Object.entries(recordWorkflowAttemptRequestSchema.shape)
-          .filter(([name]) => name !== "runId")
-          .map(([name, schema]) => ({
-            name,
-            type: "body" as const,
-            schema,
-          })),
-      ],
-      parameterSchema: recordWorkflowAttemptRequestSchema,
-      responseSchema: workflowAttemptResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_artifact_store: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Store a validated draft-only specialist artifact as an immutable Marketing OS artifact revision.",
-    inputSchema: storeArtifactRequestSchema,
-    outputSchema: artifactResponseSchema,
-    endpoint: {
-      method: "POST",
-      path: "/v1/artifacts",
-      description: "Store a Marketing OS artifact",
-      format: "application/json",
-      parameters: Object.entries(storeArtifactRequestSchema.shape).map(
-        ([name, schema]) => ({ name, type: "body" as const, schema }),
-      ),
-      parameterSchema: storeArtifactRequestSchema,
-      responseSchema: artifactResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_artifact_get: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Read one tenant-bound Marketing OS artifact revision before an explicit approval transition.",
-    inputSchema: readArtifactRequestSchema,
-    outputSchema: artifactResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/v1/artifacts/{artifactId}",
-      description: "Read a Marketing OS artifact revision",
-      format: "application/json",
-      parameters: [
-        {
-          name: "artifactId",
-          type: "path",
-          schema: readArtifactRequestSchema.shape.artifactId,
+          schema: workspaceContextsListInputSchema.shape.workspace_id,
         },
         {
-          name: "revision",
+          name: "limit",
           type: "query",
-          schema: readArtifactRequestSchema.shape.revision,
+          schema: workspaceContextsListInputSchema.shape.limit,
+        },
+        {
+          name: "offset",
+          type: "query",
+          schema: workspaceContextsListInputSchema.shape.offset,
         },
       ],
-      parameterSchema: readArtifactRequestSchema,
-      responseSchema: artifactResponseSchema,
+      parameterSchema: workspaceContextsListInputSchema,
+      responseSchema: workspaceContextsListOutputSchema,
       errors: [],
     },
   }),
-  marketing_os_artifact_approve: guildServiceTool(
-    "guild-marketing-os-state",
-    {
-      description:
-        "Approve one exact tenant-bound Marketing OS artifact revision while preserving the user's exact approval text.",
-      inputSchema: approveArtifactRequestSchema,
-      outputSchema: artifactResponseSchema,
-      endpoint: {
-        method: "POST",
-        path: "/v1/artifacts/{artifactId}/approve",
-        description: "Approve a Marketing OS artifact revision",
-        format: "application/json",
-        parameters: [
-          {
-            name: "artifactId",
-            type: "path",
-            schema: approveArtifactRequestSchema.shape.artifactId,
-          },
-          ...Object.entries(approveArtifactRequestSchema.shape)
-            .filter(([name]) => name !== "artifactId")
-            .map(([name, schema]) => ({
-              name,
-              type: "body" as const,
-              schema,
-            })),
-        ],
-        parameterSchema: approveArtifactRequestSchema,
-        responseSchema: artifactResponseSchema,
-        errors: [],
-      },
-    },
-  ),
-  marketing_os_handoff_create: guildServiceTool("guild-marketing-os-state", {
+  guild_workspace_context_create: guildServiceTool("guild", {
     description:
-      "Create a durable handoff from a specialist artifact back to the Marketing OS Launcher cockpit.",
-    inputSchema: createHandoffRequestSchema,
-    outputSchema: handoffResponseSchema,
+      "Create a draft Guild workspace context version after the exact Marketing OS publication confirmation.",
+    inputSchema: workspaceContextCreateInputSchema,
+    outputSchema: workspaceContextSchema,
     endpoint: {
       method: "POST",
-      path: "/v1/handoffs",
-      description: "Create a Marketing OS handoff",
-      format: "application/json",
-      parameters: Object.entries(createHandoffRequestSchema.shape).map(
-        ([name, schema]) => ({ name, type: "body" as const, schema }),
-      ),
-      parameterSchema: createHandoffRequestSchema,
-      responseSchema: handoffResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_handoff_update: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Complete the durable specialist-to-Launcher handoff after its exact artifact revision is approved.",
-    inputSchema: updateHandoffRequestSchema,
-    outputSchema: handoffResponseSchema,
-    endpoint: {
-      method: "PUT",
-      path: "/v1/handoffs/{handoffId}",
-      description: "Update a Marketing OS handoff",
+      path: "/api/workspaces/{workspace_id}/contexts",
+      description: "Create a Guild workspace context version",
       format: "application/json",
       parameters: [
         {
-          name: "handoffId",
+          name: "workspace_id",
           type: "path",
-          schema: updateHandoffRequestSchema.shape.handoffId,
+          schema: workspaceContextCreateInputSchema.shape.workspace_id,
         },
-        ...Object.entries(updateHandoffRequestSchema.shape)
-          .filter(([name]) => name !== "handoffId")
-          .map(([name, schema]) => ({
-            name,
-            type: "body" as const,
-            schema,
-          })),
+        {
+          name: "status",
+          type: "body",
+          schema: workspaceContextCreateInputSchema.shape.status,
+        },
+        {
+          name: "context",
+          type: "body",
+          schema: workspaceContextCreateInputSchema.shape.context,
+        },
+        {
+          name: "summary",
+          type: "body",
+          schema: workspaceContextCreateInputSchema.shape.summary,
+        },
       ],
-      parameterSchema: updateHandoffRequestSchema,
-      responseSchema: handoffResponseSchema,
+      parameterSchema: workspaceContextCreateInputSchema,
+      responseSchema: workspaceContextSchema,
       errors: [],
     },
   }),
-  marketing_os_run_update: guildServiceTool("guild-marketing-os-state", {
+  guild_workspace_context_publish: guildServiceTool("guild", {
     description:
-      "Update durable Marketing OS workflow status with its artifact, blocker, error, and handoff.",
-    inputSchema: updateWorkflowRunRequestSchema,
-    outputSchema: workflowRunResponseSchema,
+      "Publish the exact prepared Guild workspace context draft after the Marketing OS publication confirmation.",
+    inputSchema: workspaceContextPublishInputSchema,
+    outputSchema: workspaceContextSchema,
     endpoint: {
-      method: "PUT",
-      path: "/v1/runs/{runId}",
-      description: "Update a Marketing OS workflow run",
+      method: "PATCH",
+      path: "/api/contexts/{context_id}",
+      description: "Publish a Guild workspace context draft",
       format: "application/json",
       parameters: [
         {
-          name: "runId",
+          name: "context_id",
           type: "path",
-          schema: updateWorkflowRunRequestSchema.shape.runId,
+          schema: workspaceContextPublishInputSchema.shape.context_id,
         },
-        ...Object.entries(updateWorkflowRunRequestSchema.shape)
-          .filter(([name]) => name !== "runId")
-          .map(([name, schema]) => ({
-            name,
-            type: "body" as const,
-            schema,
-          })),
-      ],
-      parameterSchema: updateWorkflowRunRequestSchema,
-      responseSchema: workflowRunResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_workstream_read: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Read one durable Marketing OS specialist workstream for cockpit rendering and optimistic updates.",
-    inputSchema: readWorkstreamRequestSchema,
-    outputSchema: workstreamResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/v1/workstreams/{specialist}",
-      description: "Read a Marketing OS workstream",
-      format: "application/json",
-      parameters: [
         {
-          name: "specialist",
-          type: "path",
-          schema: readWorkstreamRequestSchema.shape.specialist,
+          name: "status",
+          type: "body",
+          schema: workspaceContextPublishInputSchema.shape.status,
         },
       ],
-      parameterSchema: readWorkstreamRequestSchema,
-      responseSchema: workstreamResponseSchema,
+      parameterSchema: workspaceContextPublishInputSchema,
+      responseSchema: workspaceContextSchema,
       errors: [],
     },
   }),
-  marketing_os_workstream_update: guildServiceTool(
-    "guild-marketing-os-state",
-    {
-      description:
-        "Update one durable Marketing OS workstream with status, artifact, blocker, and next action.",
-      inputSchema: updateWorkstreamRequestSchema,
-      outputSchema: workstreamResponseSchema,
-      endpoint: {
-        method: "PUT",
-        path: "/v1/workstreams/{specialist}",
-        description: "Update a Marketing OS workstream",
-        format: "application/json",
-        parameters: [
-          {
-            name: "specialist",
-            type: "path",
-            schema: updateWorkstreamRequestSchema.shape.specialist,
-          },
-          ...Object.entries(updateWorkstreamRequestSchema.shape)
-            .filter(([name]) => name !== "specialist")
-            .map(([name, schema]) => ({
-              name,
-              type: "body" as const,
-              schema,
-            })),
-        ],
-        parameterSchema: updateWorkstreamRequestSchema,
-        responseSchema: workstreamResponseSchema,
-        errors: [],
-      },
-    },
-  ),
 };
 
 type Tools = typeof tools;
-type LauncherTask = Task<Tools, LauncherAgentState>;
+type LauncherTask = Task<Tools, z.infer<typeof launcherAgentStateSchema>>;
+
+const exactContextPublishPhrase =
+  "publish approved context to workspace context";
+const exactCockpitDeletePhrase =
+  "delete marketing os cockpit state from this chat";
 
 async function run(
   input: z.infer<typeof inputSchema>,
@@ -424,22 +257,62 @@ async function run(
 ): Promise<z.infer<typeof outputSchema>> {
   const context = readContextSnapshot(input.text);
   const userText = removeCompiledWorkspaceContext(input.text, context.compiled);
-  const classification = await classifyRoute(userText, task);
+  const initialState = readLauncherAgentState(await task.restore(), task.sessionId);
+  const cockpit = createSessionCockpit(initialState, task);
 
-  if (classification.route === "blocked") {
+  if (isExactContextPublishConfirmation(userText)) {
+    return publishApprovedCompanyContext(userText, task, cockpit);
+  }
+  if (isCockpitExportRequest(userText)) {
     return {
       type: "text",
-      text: renderBlocked(
-        "V1 is draft-only. Publishing, scheduling, spend, CRM mutation, credential setup, legal approval, recursive delegation, and arbitrary-agent invocation are not supported.",
+      text: renderCockpitExport(cockpit),
+    };
+  }
+  if (isExactCockpitDeleteConfirmation(userText)) {
+    const deletedSessionId =
+      cockpit.current().canonical_session_id ?? task.sessionId;
+    await cockpit.deleteCockpit();
+    return {
+      type: "text",
+      text: [
+        "# Marketing OS Cockpit Deleted",
+        "",
+        `Structured Marketing OS state was deleted from canonical Chat ${deletedSessionId}.`,
+        "The deletion removed workflow runs, specialist attempts, artifact bodies, approvals, handoffs, workstreams, and their local index from this Chat state.",
+        "Guild workspace context and Guild session history were not deleted.",
+        "",
+        "Status: cockpit state deleted",
+        "No publishing, scheduling, spend, CRM mutation, or other external marketing action occurred.",
+      ].join("\n"),
+    };
+  }
+  if (isCockpitDeleteRequest(userText)) {
+    return {
+      type: "text",
+      text: renderGuide(
+        `This removes the structured cockpit state from this canonical Chat. It does not delete Guild session history or published Workspace Context. To confirm, reply exactly: \`${exactCockpitDeletePhrase}\`.`,
+        "deletion confirmation required",
       ),
     };
   }
 
-  if (classification.route === "guide") {
+  const classification = await classifyRoute(userText, task);
+
+  if (classification["route"] === "blocked") {
+    return {
+      type: "text",
+      text: renderBlocked(
+        "V1 is draft-only. Publishing, scheduling, spend, CRM mutation, credential setup, legal approval, recursive delegation, and arbitrary-agent invocation are not supported. The only supported Guild product mutation is approved Workspace Context publication after the exact confirmation phrase.",
+      ),
+    };
+  }
+
+  if (classification["route"] === "guide") {
     return {
       type: "text",
       text: renderGuide(
-        "I could not determine one safe specialist workflow. Name the desired outcome—company context, market signal, ICP, audience segmentation, messaging, brand/deck, social/content, or campaigns/paid media.",
+        "I could not determine one safe specialist workflow. Name the desired outcome: company context, market signal, ICP, audience segmentation, messaging, brand/deck, social/content, or campaigns/paid media.",
       ),
     };
   }
@@ -447,13 +320,16 @@ async function run(
   const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
   const installed = installedSuiteAgents(workspaceAgents);
 
-  if (classification.route === "onboarding") {
+  if (classification["route"] === "onboarding") {
     const missing = suiteInstallOrder.find(
-      (entry) => !installed.some((record) => record.packageName === entry.packageName),
+      (entry) =>
+        !installed.some((record) => record.packageName === entry.packageName),
     );
     if (missing) {
       try {
-        await task.tools.guild_agent_install_request({ agent_id: missing.agentId });
+        await task.tools.guild_agent_install_request({
+          agent_id: missing.agentId,
+        });
         return {
           type: "text",
           text: [
@@ -461,6 +337,7 @@ async function run(
             "",
             `${missing.displayName} installation was approved. Continue onboarding to verify it and request the next missing package.`,
             "",
+            "This Chat is your canonical Marketing OS cockpit. Keep using it to preserve workstreams, artifacts, approvals, and handoffs.",
             "No other installation request was made.",
           ].join("\n"),
         };
@@ -478,48 +355,31 @@ async function run(
       }
     }
 
-    return { type: "text", text: renderOnboardingStatus(installed) };
+    return {
+      type: "text",
+      text: [
+        renderOnboardingStatus(installed),
+        "",
+        "This Chat is your canonical Marketing OS cockpit. Resume this Chat for durable artifacts, approvals, workstreams, and handoffs.",
+      ].join("\n"),
+    };
   }
 
-  if (classification.route === "cockpit") {
+  if (classification["route"] === "cockpit") {
     const approval = parseArtifactApprovalRequest(userText);
     if (approval.requested) {
-      return await approveCockpitArtifact(userText, approval, task);
+      return approveCockpitArtifact(userText, approval, cockpit);
     }
-    try {
-      const runs = workflowRunsResponseSchema.parse(
-        await task.tools.marketing_os_runs_list({}),
-      ).data;
-      const workstreamResponses = await Promise.all(
-        suiteInstallOrder.map((entry) =>
-          task.tools.marketing_os_workstream_read({
-            specialist: entry.displayName,
-          }),
-        ),
-      );
-      const workstreams = workstreamResponses
-        .map(
-          (response) =>
-            workstreamResponseSchema.parse(response).data,
-        )
-        .filter(
-          (value): value is WorkstreamRecord => Boolean(value),
-        );
-      return {
-        type: "text",
-        text: renderCockpitStatus(workstreams, runs),
-      };
-    } catch (error) {
-      return {
-        type: "text",
-        text: renderBlocked(
-          `Durable Marketing OS cockpit state is unavailable: ${safeError(error)}. No specialist was started.`,
-        ),
-      };
-    }
+    return {
+      type: "text",
+      text: renderCockpitStatus(
+        cockpit.current().workstreams,
+        cockpit.current().runs,
+      ),
+    };
   }
 
-  const route = classification.route as DelegatedRoute;
+  const route = classification["route"] as DelegatedRoute;
   const config = routeConfig[route];
   const installedAgent = installed.find(
     (record) => record.packageName === config.packageName,
@@ -529,7 +389,7 @@ async function run(
     return {
       type: "text",
       text: renderGuide(
-        "Approved published Marketing OS context is not ready. Use Company Context Builder first; approve the context artifact, then confirm publication with the exact required phrase.",
+        "Approved published Marketing OS context is not ready. Use Company Context Builder first, approve its exact artifact revision in this Chat, then confirm publication with the exact required phrase.",
         "blocked on company context",
       ),
     };
@@ -558,73 +418,56 @@ async function run(
       packageVersion = version.version_number.trim();
     }
   } catch {
-    // The immutable installed version ID remains sufficient provenance when
-    // the friendly semantic version lookup is temporarily unavailable.
+    // The immutable installed version ID remains sufficient provenance.
   }
 
-  let sessionState = readLauncherAgentState(await task.restore());
   let currentRun: WorkflowRun | undefined;
   let idempotencyPrefix = "";
   let requestText = userText;
 
   if (resumeRequested(userText)) {
-    try {
-      const runs = workflowRunsResponseSchema.parse(
-        await task.tools.marketing_os_runs_list({}),
-      ).data;
-      currentRun = runs.find(
+    currentRun = cockpit
+      .current()
+      .runs.find(
         (candidate) =>
           candidate["route"] === route &&
           ["running", "needs_input", "ready_for_review"].includes(
             candidate.status,
           ),
       );
-      if (currentRun) {
-        idempotencyPrefix = `launcher-${currentRun.run_id}`;
-        const originalRequest = currentRun.input_envelope.user_request;
-        if (typeof originalRequest === "string" && originalRequest.trim()) {
-          requestText = originalRequest.trim();
-        }
-        sessionState = {
-          ...sessionState,
-          active_run: {
-            request_fingerprint: `adopted:${currentRun.run_id}`,
-            run_id: currentRun.run_id,
-            run_sequence: sessionState.next_run_sequence + 1,
-            route,
-          },
-          next_run_sequence: sessionState.next_run_sequence + 1,
-        };
-        await task.save(sessionState);
+    if (currentRun) {
+      idempotencyPrefix = `launcher-${currentRun.run_id}`;
+      const originalRequest = currentRun.input_envelope.user_request;
+      if (typeof originalRequest === "string" && originalRequest.trim()) {
+        requestText = originalRequest.trim();
       }
-    } catch (error) {
-      return {
-        type: "text",
-        text: renderBlocked(
-          `Could not inspect durable work before resuming: ${safeError(error)}. No specialist was started.`,
-        ),
-      };
     }
   }
 
   if (!currentRun) {
     const allocation = allocateRunIdentity(
-      sessionState,
+      cockpit.current(),
       task.sessionId,
       route,
       requestText,
       context.contextRevision,
     );
-    sessionState = allocation.state;
-    idempotencyPrefix = allocation.idempotencyPrefix;
-    await task.save(sessionState);
+    idempotencyPrefix = allocation["idempotencyPrefix"];
+    try {
+      await cockpit.setState(allocation.state);
+    } catch (error) {
+      return {
+        type: "text",
+        text: renderBlocked(
+          `Canonical cockpit initialization failed: ${safeError(error)}. No specialist was started.`,
+        ),
+      };
+    }
 
     if (allocation.reused) {
       try {
         currentRun = workflowRunResponseSchema.parse(
-          await task.tools.marketing_os_run_get({
-            runId: allocation.runId,
-          }),
+          await cockpit.runGet({ runId: allocation.runId }),
         ).data;
       } catch {
         currentRun = undefined;
@@ -634,7 +477,7 @@ async function run(
     if (!currentRun) {
       try {
         currentRun = workflowRunResponseSchema.parse(
-          await task.tools.marketing_os_run_create({
+          await cockpit.runCreate({
             idempotency_key: `${idempotencyPrefix}-create`,
             run_id: allocation.runId,
             route,
@@ -659,7 +502,7 @@ async function run(
         return {
           type: "text",
           text: renderBlocked(
-            `Durable cockpit initialization failed: ${safeError(error)}. No specialist was started.`,
+            `Canonical cockpit initialization failed: ${safeError(error)}. No specialist was started.`,
           ),
         };
       }
@@ -670,7 +513,7 @@ async function run(
     return {
       type: "text",
       text: renderBlocked(
-        "Durable cockpit initialization returned no workflow run. No specialist was started.",
+        "Canonical cockpit initialization returned no workflow run. No specialist was started.",
       ),
     };
   }
@@ -682,8 +525,12 @@ async function run(
     const completedText = completedAttempt
       ? completedAttempt.output_body
       : undefined;
-    if (completedText && currentRun.artifact_id && currentRun.artifact_revision) {
-      await task.save(completeRunState(sessionState, currentRun.run_id));
+    if (
+      completedText &&
+      currentRun.artifact_id &&
+      currentRun.artifact_revision
+    ) {
+      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: [
@@ -702,7 +549,7 @@ async function run(
   }
 
   if (["blocked", "failed", "approved"].includes(currentRun.status)) {
-    await task.save(completeRunState(sessionState, currentRun.run_id));
+    await completeCockpitRun(cockpit, currentRun.run_id);
     return {
       type: "text",
       text: renderSpecialistBlocked(
@@ -717,9 +564,9 @@ async function run(
   if (currentRun.status === "needs_input") {
     try {
       currentRun = workflowRunResponseSchema.parse(
-        await task.tools.marketing_os_run_update({
+        await cockpit.runUpdate({
           runId: currentRun.run_id,
-          idempotency_key: `${idempotencyPrefix}-resume`,
+          idempotency_key: `${idempotencyPrefix}-resume-r${currentRun.revision}`,
           expected_revision: currentRun.revision,
           status: "running",
           blockers: [],
@@ -730,7 +577,7 @@ async function run(
       return {
         type: "text",
         text: renderBlocked(
-          `Could not reopen the durable workflow: ${safeError(error)}. No new specialist attempt was started.`,
+          `Could not reopen the canonical workflow: ${safeError(error)}. No new specialist attempt was started.`,
         ),
       };
     }
@@ -740,12 +587,12 @@ async function run(
   try {
     workstream =
       workstreamResponseSchema.parse(
-        await task.tools.marketing_os_workstream_read({
+        await cockpit.workstreamRead({
           specialist: config.displayName,
         }),
       ).data ?? undefined;
     const updatedWorkstream = workstreamResponseSchema.parse(
-      await task.tools.marketing_os_workstream_update({
+      await cockpit.workstreamUpdate({
         specialist: config.displayName,
         idempotency_key: `${idempotencyPrefix}-workstream-running-${
           workstream ? workstream.revision : 0
@@ -756,23 +603,13 @@ async function run(
         next_action: `Complete ${config.displayName} artifact.`,
       }),
     ).data;
-    if (!updatedWorkstream) {
-      throw new Error("State service returned no workstream record.");
-    }
+    if (!updatedWorkstream) throw new Error("No workstream record was returned.");
     workstream = updatedWorkstream;
   } catch (error) {
     return {
       type: "text",
       text: renderBlocked(
-        `Durable workstream initialization failed: ${safeError(error)}. No new specialist attempt was started.`,
-      ),
-    };
-  }
-  if (!workstream) {
-    return {
-      type: "text",
-      text: renderBlocked(
-        "Durable workstream initialization returned no record. No new specialist attempt was started.",
+        `Canonical workstream initialization failed: ${safeError(error)}. No new specialist attempt was started.`,
       ),
     };
   }
@@ -783,7 +620,8 @@ async function run(
   let completedText = existingCompletedAttempt
     ? existingCompletedAttempt.output_body
     : undefined;
-  let nextAttemptNumber: 1 | 2 = currentRun.attempts.length === 0 ? 1 : 2;
+  let nextAttemptNumber: 1 | 2 =
+    currentRun.attempts.length === 0 ? 1 : 2;
   let nextAttemptKind: "initial" | "format_repair" =
     nextAttemptNumber === 1 ? "initial" : "format_repair";
   let finalAttemptCount = currentRun.attempts.length;
@@ -813,7 +651,7 @@ async function run(
           "The prior specialist attempt cannot be retried automatically.");
       if (previousAttempt.status === "safety_failed") {
         await finishBlockedRun(
-          task,
+          cockpit,
           currentRun,
           workstream,
           idempotencyPrefix,
@@ -821,14 +659,14 @@ async function run(
         );
       } else {
         await finishFailedRun(
-          task,
+          cockpit,
           currentRun,
           workstream,
           idempotencyPrefix,
           reason,
         );
       }
-      await task.save(completeRunState(sessionState, currentRun.run_id));
+      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -843,7 +681,7 @@ async function run(
     } catch (error) {
       const message = safeError(error);
       try {
-        await task.tools.marketing_os_attempt_record({
+        await cockpit.attemptRecord({
           runId: currentRun.run_id,
           idempotency_key: `${idempotencyPrefix}-attempt-${nextAttemptNumber}`,
           attempt_number: nextAttemptNumber,
@@ -857,12 +695,8 @@ async function run(
           error_code: "specialist_tool_failed",
           error_message: message,
         });
-        finalAttemptCount = Math.max(
-          finalAttemptCount,
-          nextAttemptNumber,
-        );
         await finishFailedRun(
-          task,
+          cockpit,
           currentRun,
           workstream,
           idempotencyPrefix,
@@ -872,13 +706,13 @@ async function run(
         return {
           type: "text",
           text: renderSpecialistBlocked(
-            `Specialist failed and durable failure recording also failed: ${safeError(stateError)}`,
+            `Specialist failed and Guild cockpit retention also failed: ${safeError(stateError)}`,
             currentRun.run_id,
             false,
           ),
         };
       }
-      await task.save(completeRunState(sessionState, currentRun.run_id));
+      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: renderSpecialistBlocked(
@@ -902,7 +736,7 @@ async function run(
           : "safety_failed";
 
     try {
-      await task.tools.marketing_os_attempt_record({
+      await cockpit.attemptRecord({
         runId: currentRun.run_id,
         idempotency_key: `${idempotencyPrefix}-attempt-${nextAttemptNumber}`,
         attempt_number: nextAttemptNumber,
@@ -920,7 +754,7 @@ async function run(
       return {
         type: "text",
         text: renderSpecialistBlocked(
-          `The specialist returned a result, but its durable attempt record failed: ${safeError(error)}. The result was not imported into the cockpit.`,
+          `The specialist returned a result, but its Guild cockpit attempt record failed: ${safeError(error)}. The result was not imported into the cockpit.`,
           currentRun.run_id,
           false,
         ),
@@ -935,13 +769,13 @@ async function run(
     if (attemptStatus === "safety_failed") {
       const reason = `Specialist output failed safety validation: ${errors.join("; ")}`;
       await finishBlockedRun(
-        task,
+        cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
-      await task.save(completeRunState(sessionState, currentRun.run_id));
+      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -951,13 +785,13 @@ async function run(
     if (nextAttemptNumber === 2) {
       const reason = `Specialist format repair failed validation: ${errors.join("; ")}`;
       await finishFailedRun(
-        task,
+        cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
-      await task.save(completeRunState(sessionState, currentRun.run_id));
+      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -978,7 +812,7 @@ async function run(
     return {
       type: "text",
       text: renderSpecialistBlocked(
-        "No validated specialist output was available for durable artifact storage.",
+        "No validated specialist output was available for Guild cockpit storage.",
         currentRun.run_id,
       ),
     };
@@ -986,7 +820,7 @@ async function run(
 
   try {
     const artifact = artifactResponseSchema.parse(
-      await task.tools.marketing_os_artifact_store({
+      await cockpit.artifactStore({
         idempotency_key: `${idempotencyPrefix}-artifact`,
         artifact_type: route,
         markdown_body: completedText,
@@ -1021,7 +855,7 @@ async function run(
       }),
     ).data;
     const handoff = handoffResponseSchema.parse(
-      await task.tools.marketing_os_handoff_create({
+      await cockpit.handoffCreate({
         idempotency_key: `${idempotencyPrefix}-handoff`,
         source_agent: config.displayName,
         target_agent: "Marketing OS Launcher",
@@ -1037,7 +871,7 @@ async function run(
       }),
     ).data;
     const readyRun = workflowRunResponseSchema.parse(
-      await task.tools.marketing_os_run_update({
+      await cockpit.runUpdate({
         runId: currentRun.run_id,
         idempotency_key: `${idempotencyPrefix}-ready`,
         expected_revision: currentRun.revision,
@@ -1049,7 +883,7 @@ async function run(
         next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
       }),
     ).data;
-    await task.tools.marketing_os_workstream_update({
+    await cockpit.workstreamUpdate({
       specialist: config.displayName,
       idempotency_key: `${idempotencyPrefix}-workstream-ready`,
       expected_revision: workstream.revision,
@@ -1060,7 +894,7 @@ async function run(
       next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
       handoff_id: handoff.handoff_id,
     });
-    await task.save(completeRunState(sessionState, currentRun.run_id));
+    await completeCockpitRun(cockpit, currentRun.run_id);
     return {
       type: "text",
       text: [
@@ -1076,17 +910,17 @@ async function run(
       ].join("\n"),
     };
   } catch (error) {
-    const reason = `Validated specialist output could not be finalized in the durable cockpit: ${safeError(error)}`;
+    const reason = `Validated specialist output could not be finalized in the Guild cockpit: ${safeError(error)}`;
     try {
       await finishFailedRun(
-        task,
+        cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
     } catch {
-      // Preserve the original persistence failure in the user-visible result.
+      // Preserve the original cockpit failure in the user-visible result.
     }
     return {
       type: "text",
@@ -1098,7 +932,7 @@ async function run(
 async function approveCockpitArtifact(
   exactApprovalText: string,
   approval: ReturnType<typeof parseArtifactApprovalRequest>,
-  task: LauncherTask,
+  cockpit: SessionCockpit,
 ): Promise<z.infer<typeof outputSchema>> {
   if (!approval.revision) {
     return {
@@ -1119,26 +953,12 @@ async function approveCockpitArtifact(
     };
   }
 
-  let runs: WorkflowRun[];
-  try {
-    runs = workflowRunsResponseSchema.parse(
-      await task.tools.marketing_os_runs_list({}),
-    ).data;
-  } catch (error) {
-    return {
-      type: "text",
-      text: renderBlocked(
-        `Durable Marketing OS approval state is unavailable: ${safeError(error)}. No approval was recorded.`,
-      ),
-    };
-  }
-
-  const candidates = runs.filter(
+  const candidates = cockpit.current().runs.filter(
     (candidate) =>
       ["ready_for_review", "approved"].includes(candidate.status) &&
       candidate.artifact_id &&
       candidate.artifact_revision === approval.revision &&
-      (!approval.route || candidate["route"] === approval.route) &&
+      (!approval.route || candidate.route === approval.route) &&
       (!approval["artifactId"] ||
         candidate.artifact_id === approval["artifactId"]),
   );
@@ -1146,7 +966,7 @@ async function approveCockpitArtifact(
     return {
       type: "text",
       text: renderGuide(
-        "No review-ready or approved durable workflow matches that exact artifact target. Open cockpit status and use the artifact ID and revision from its Launcher receipt.",
+        "No review-ready or approved workflow in this canonical Chat matches that exact artifact target. Open cockpit status and use the artifact ID and revision from its Launcher receipt.",
         "approval target not found",
       ),
     };
@@ -1155,7 +975,7 @@ async function approveCockpitArtifact(
     return {
       type: "text",
       text: renderGuide(
-        `That target matches more than one durable artifact (${candidates
+        `That target matches more than one artifact (${candidates
           .map((candidate) => candidate.artifact_id)
           .join(", ")}). Repeat the approval with one exact artifact ID and revision.`,
         "approval target is ambiguous",
@@ -1163,9 +983,8 @@ async function approveCockpitArtifact(
     };
   }
 
-  const target = candidates[0];
+  const target = candidates[0]!;
   if (
-    !target ||
     !target.artifact_id ||
     !target.artifact_revision ||
     !target.handoff_id
@@ -1173,30 +992,25 @@ async function approveCockpitArtifact(
     return {
       type: "text",
       text: renderBlocked(
-        "The durable workflow is missing its artifact or handoff reference. No approval was recorded.",
+        "The workflow is missing its artifact or handoff reference. No approval was recorded.",
       ),
     };
   }
 
   const artifactId = target.artifact_id;
   const artifactRevision = target.artifact_revision;
-  const idempotencyPrefix = `launcher-${target.run_id}-approval-r${artifactRevision}`;
+  const idempotencyPrefix =
+    `launcher-${target.run_id}-approval-r${artifactRevision}`;
   let artifactApproved = false;
   let recordedApprovalText = exactApprovalText;
 
   try {
     let artifact = artifactResponseSchema.parse(
-      await task.tools.marketing_os_artifact_get({
+      await cockpit.artifactGet({
         artifactId,
         revision: artifactRevision,
       }),
     ).data;
-    if (
-      artifact.artifact_id !== artifactId ||
-      artifact.revision !== artifactRevision
-    ) {
-      throw new Error("State service returned a different artifact revision.");
-    }
     if (!["ready_for_review", "approved"].includes(artifact.status)) {
       return {
         type: "text",
@@ -1207,15 +1021,16 @@ async function approveCockpitArtifact(
       };
     }
 
-    const workstream = workstreamResponseSchema.parse(
-      await task.tools.marketing_os_workstream_read({
-        specialist: target.specialist,
-      }),
-    ).data;
+    const workstream =
+      workstreamResponseSchema.parse(
+        await cockpit.workstreamRead({
+          specialist: target.specialist,
+        }),
+      ).data ?? undefined;
 
     if (artifact.status === "ready_for_review") {
       artifact = artifactResponseSchema.parse(
-        await task.tools.marketing_os_artifact_approve({
+        await cockpit.artifactApprove({
           artifactId,
           idempotency_key: `${idempotencyPrefix}-artifact`,
           revision: artifactRevision,
@@ -1229,34 +1044,40 @@ async function approveCockpitArtifact(
     }
     artifactApproved = true;
     const storedApproval = artifact.approvals.at(-1);
-    if (storedApproval) {
-      recordedApprovalText = storedApproval.exact_approval_text;
-    }
+    recordedApprovalText = storedApproval
+      ? storedApproval.exact_approval_text
+      : exactApprovalText;
 
     if (target.status !== "approved") {
-      workflowRunResponseSchema.parse(
-        await task.tools.marketing_os_run_update({
-          runId: target.run_id,
-          idempotency_key: `${idempotencyPrefix}-run`,
-          expected_revision: target.revision,
-          status: "approved",
-          artifact_id: artifactId,
-          artifact_revision: artifactRevision,
-          handoff_id: target.handoff_id,
-          blockers: [],
-          next_action: "Use the approved draft artifact in a later review-only workflow.",
-        }),
-      );
+      await cockpit.runUpdate({
+        runId: target.run_id,
+        idempotency_key: `${idempotencyPrefix}-run`,
+        expected_revision: target.revision,
+        status: "approved",
+        artifact_id: artifactId,
+        artifact_revision: artifactRevision,
+        handoff_id: target.handoff_id,
+        blockers: [],
+        next_action:
+          target.route === "company_context"
+            ? `Reply exactly \`${exactContextPublishPhrase}\` to publish the approved compact brief.`
+            : "Use the approved draft artifact in a later review-only workflow.",
+      });
     }
 
-    handoffResponseSchema.parse(
-      await task.tools.marketing_os_handoff_update({
+    const handoff = cockpit
+      .current()
+      .handoffs.find(
+        (candidate) => candidate.handoff_id === target.handoff_id,
+      );
+    if (handoff && handoff.completion_state !== "completed") {
+      await cockpit.handoffUpdate({
         handoffId: target.handoff_id,
         idempotency_key: `${idempotencyPrefix}-handoff`,
-        expected_revision: 1,
+        expected_revision: handoff.revision,
         completion_state: "completed",
-      }),
-    );
+      });
+    }
 
     if (
       workstream &&
@@ -1264,31 +1085,39 @@ async function approveCockpitArtifact(
       workstream.latest_artifact_revision === artifactRevision &&
       workstream.status !== "approved"
     ) {
-      workstreamResponseSchema.parse(
-        await task.tools.marketing_os_workstream_update({
-          specialist: target.specialist,
-          idempotency_key: `${idempotencyPrefix}-workstream`,
-          expected_revision: workstream.revision,
-          status: "approved",
-          latest_artifact_id: artifactId,
-          latest_artifact_revision: artifactRevision,
-          blockers: [],
-          next_action:
-            "Use the approved draft artifact in a later review-only workflow.",
-          handoff_id: target.handoff_id,
-        }),
-      );
+      await cockpit.workstreamUpdate({
+        specialist: target.specialist,
+        idempotency_key: `${idempotencyPrefix}-workstream`,
+        expected_revision: workstream.revision,
+        status: "approved",
+        latest_artifact_id: artifactId,
+        latest_artifact_revision: artifactRevision,
+        blockers: [],
+        next_action:
+          target.route === "company_context"
+            ? `Reply exactly \`${exactContextPublishPhrase}\` to publish the approved compact brief.`
+            : "Use the approved draft artifact in a later review-only workflow.",
+        handoff_id: target.handoff_id,
+      });
     }
 
     return {
       type: "text",
-      text: renderArtifactApprovalReceipt({
-        artifactId,
-        artifactRevision,
-        runId: target.run_id,
-        specialist: target.specialist,
-        approvalText: recordedApprovalText,
-      }),
+      text: [
+        renderArtifactApprovalReceipt({
+          artifactId,
+          artifactRevision,
+          runId: target.run_id,
+          specialist: target.specialist,
+          approvalText: recordedApprovalText,
+        }),
+        ...(target.route === "company_context"
+          ? [
+              "",
+              `Workspace Context is still unchanged. To publish the approved compact brief, reply exactly: \`${exactContextPublishPhrase}\`.`,
+            ]
+          : []),
+      ].join("\n"),
     };
   } catch (error) {
     return {
@@ -1298,7 +1127,7 @@ async function approveCockpitArtifact(
         "",
         artifactApproved
           ? `Artifact ${artifactId} revision ${artifactRevision} was approved, but the related cockpit records could not all be synchronized.`
-          : `Artifact ${artifactId} revision ${artifactRevision} was not approved because the durable transition failed.`,
+          : `Artifact ${artifactId} revision ${artifactRevision} was not approved because the Guild cockpit transition failed.`,
         "",
         `Workflow run: ${target.run_id}`,
         `Details: ${safeError(error)}`,
@@ -1309,6 +1138,298 @@ async function approveCockpitArtifact(
       ].join("\n"),
     };
   }
+}
+
+async function publishApprovedCompanyContext(
+  exactText: string,
+  task: LauncherTask,
+  cockpit: SessionCockpit,
+): Promise<z.infer<typeof outputSchema>> {
+  if (exactText.trim().toLowerCase() !== exactContextPublishPhrase) {
+    return {
+      type: "text",
+      text: renderGuide(
+        `Workspace Context publication requires this exact phrase: \`${exactContextPublishPhrase}\`.`,
+        "exact publication confirmation required",
+      ),
+    };
+  }
+
+  const target = cockpit
+    .current()
+    .runs.find(
+      (candidate) =>
+        candidate.route === "company_context" &&
+        candidate.status === "approved" &&
+        candidate.artifact_id &&
+        candidate.artifact_revision,
+    );
+  if (!target || !target.artifact_id || !target.artifact_revision) {
+    return {
+      type: "text",
+      text: renderGuide(
+        "No approved Company Context artifact revision exists in this canonical Chat. Build and approve Company Context first.",
+        "approved company context required",
+      ),
+    };
+  }
+
+  try {
+    const artifact = artifactResponseSchema.parse(
+      await cockpit.artifactGet({
+        artifactId: target.artifact_id,
+        revision: target.artifact_revision,
+      }),
+    ).data;
+    if (artifact.status !== "approved") {
+      throw new Error("The selected Company Context artifact is not approved.");
+    }
+
+    const session = await task.tools.guild_get_session({
+      session_id: task.sessionId,
+    });
+    const workspaceId = session.workspace.id;
+    const workspace = await task.tools.guild_get_workspace({
+      workspace_id: workspaceId,
+    });
+    const contexts = workspaceContextsListOutputSchema.parse(
+      await task.tools.guild_workspace_contexts_list({
+        workspace_id: workspaceId,
+        limit: 100,
+        offset: 0,
+      }),
+    ).items;
+    const currentPublished =
+      contexts.find((candidate) => candidate.status === "PUBLISHED") ??
+      contexts[0];
+    const managedBlock = renderManagedContextBlock({
+      artifactBody: artifact.markdown_body,
+      artifactId: artifact.artifact_id,
+      artifactRevision: artifact.revision,
+      canonicalSessionId:
+        cockpit.current().canonical_session_id ?? task.sessionId,
+    });
+    const alreadyPublished = contexts.find(
+      (candidate) =>
+        candidate.status === "PUBLISHED" &&
+        candidate.manual_context.includes(
+          `Artifact: ${artifact.artifact_id} revision ${artifact.revision}`,
+        ),
+    );
+    if (alreadyPublished) {
+      await cockpit.recordContextPublication({
+        contextId: alreadyPublished.id,
+        contextRevision: alreadyPublished.id,
+        artifactId: artifact.artifact_id,
+        artifactRevision: artifact.revision,
+      });
+      return renderContextPublicationReceipt({
+        contextId: alreadyPublished.id,
+        artifactId: artifact.artifact_id,
+        artifactRevision: artifact.revision,
+        previousContextId: currentPublished
+          ? currentPublished.id
+          : undefined,
+        alreadyPublished: true,
+      });
+    }
+
+    const currentManual = currentPublished
+      ? currentPublished.manual_context
+      : workspace.context && "manual" in workspace.context
+        ? String(workspace.context["manual"] ?? "")
+        : "";
+    const mergedContext = mergeManagedContext(currentManual, managedBlock);
+    const existingDraft = contexts.find(
+      (candidate) =>
+        candidate.status === "DRAFT" &&
+        candidate.manual_context.includes(
+          `Artifact: ${artifact.artifact_id} revision ${artifact.revision}`,
+        ),
+    );
+    const draft =
+      existingDraft ??
+      workspaceContextSchema.parse(
+        await task.tools.guild_workspace_context_create({
+          workspace_id: workspaceId,
+          status: "DRAFT",
+          context: mergedContext,
+          summary: `Guild Marketing OS compact company context from approved artifact ${artifact.artifact_id} revision ${artifact.revision}.`,
+        }),
+      );
+    const published = workspaceContextSchema.parse(
+      await task.tools.guild_workspace_context_publish({
+        context_id: draft.id,
+        status: "PUBLISHED",
+      }),
+    );
+    await cockpit.recordContextPublication({
+      contextId: published.id,
+      contextRevision: published.id,
+      artifactId: artifact.artifact_id,
+      artifactRevision: artifact.revision,
+    });
+    return renderContextPublicationReceipt({
+      contextId: published.id,
+      artifactId: artifact.artifact_id,
+      artifactRevision: artifact.revision,
+      previousContextId: currentPublished
+        ? currentPublished.id
+        : undefined,
+      alreadyPublished: false,
+    });
+  } catch (error) {
+    return {
+      type: "text",
+      text: [
+        "# Marketing OS Workspace Context",
+        "",
+        "The exact publication confirmation was received, but Guild did not confirm a published context version.",
+        `Details: ${safeError(error)}`,
+        "Status: publication blocked safely",
+        "The approved Company Context artifact remains in this canonical Chat for retry.",
+        "No publishing, scheduling, spend, CRM mutation, or other external marketing action occurred.",
+      ].join("\n"),
+    };
+  }
+}
+
+function renderContextPublicationReceipt({
+  contextId,
+  artifactId,
+  artifactRevision,
+  previousContextId,
+  alreadyPublished,
+}: {
+  contextId: string;
+  artifactId: string;
+  artifactRevision: number;
+  previousContextId?: string;
+  alreadyPublished: boolean;
+}): z.infer<typeof outputSchema> {
+  return {
+    type: "text",
+    text: [
+      "# Marketing OS Workspace Context",
+      "",
+      alreadyPublished
+        ? "The approved compact company context was already published in Guild."
+        : "The approved compact company context is now published in Guild.",
+      "",
+      `Guild context version: ${contextId}`,
+      `Approved artifact: ${artifactId} revision ${artifactRevision}`,
+      `Previous published context: ${previousContextId ?? "none"}`,
+      "Status: published",
+      "Unmanaged workspace context was preserved.",
+      "No publishing, scheduling, spend, CRM mutation, or other external marketing action occurred.",
+    ].join("\n"),
+  };
+}
+
+function renderManagedContextBlock({
+  artifactBody,
+  artifactId,
+  artifactRevision,
+  canonicalSessionId,
+}: {
+  artifactBody: string;
+  artifactId: string;
+  artifactRevision: number;
+  canonicalSessionId: string;
+}): string {
+  const readyBlock =
+    extractFencedSection(
+      artifactBody,
+      "### Ready-To-Publish Workspace Context",
+    ) ||
+    extractSection(artifactBody, "### Guild Workspace Context Draft") ||
+    "Approved company context is available in the canonical Marketing OS cockpit.";
+  const downstreamBlock =
+    extractFencedSection(artifactBody, "### Context For Downstream Agents") ||
+    extractSection(artifactBody, "## Downstream Handoff") ||
+    "Use only approved company context and keep all work draft-only.";
+  const companyMatch = readyBlock.match(/^\s*Company:\s*(.+)$/im);
+  const company =
+    companyMatch && companyMatch[1]
+      ? companyMatch[1].trim()
+      : "Approved company";
+
+  return [
+    "<!-- guild-marketing-os-context:start -->",
+    "# Guild Marketing OS Managed Company Context",
+    "",
+    "Status: published",
+    `Company: ${company}`,
+    `Artifact: ${artifactId} revision ${artifactRevision}`,
+    `Canonical cockpit session: ${canonicalSessionId}`,
+    "",
+    "## Workspace Context Brief",
+    readyBlock.trim(),
+    "",
+    "## Downstream Handoff Context",
+    downstreamBlock.trim(),
+    "",
+    "## Operating Rules",
+    "- Use only approved or user-supplied facts.",
+    "- Label missing evidence and conflicts.",
+    "- Keep all outputs draft-only.",
+    "- Do not publish, schedule, change spend, mutate CRM data, configure credentials, or grant legal approval.",
+    "<!-- guild-marketing-os-context:end -->",
+  ].join("\n");
+}
+
+function mergeManagedContext(
+  currentManualContext: string,
+  managedBlock: string,
+): string {
+  const withoutManaged = currentManualContext
+    .replace(
+      /<!-- guild-marketing-os-context:start -->[\s\S]*?<!-- guild-marketing-os-context:end -->/gi,
+      "",
+    )
+    .trim();
+  return [withoutManaged, managedBlock].filter(Boolean).join("\n\n").trim();
+}
+
+function extractFencedSection(text: string, heading: string): string {
+  const section = extractSection(text, heading);
+  const match = section.match(/```(?:text|markdown)?\s*([\s\S]*?)```/i);
+  return match && match[1] ? match[1].trim() : "";
+}
+
+function extractSection(text: string, heading: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(
+    new RegExp(`${escaped}\\s*([\\s\\S]*?)(?=\\n#{2,3}\\s|$)`, "i"),
+  );
+  return match && match[1] ? match[1].trim() : "";
+}
+
+function renderCockpitExport(cockpit: SessionCockpit): string {
+  const state = cockpit.current();
+  const exported = {
+    format: "guild-marketing-os-cockpit",
+    format_version: 1,
+    exported_at: new Date().toISOString(),
+    canonical_session_id: state.canonical_session_id,
+    published_context_id: state.published_context_id,
+    runs: state.runs,
+    artifacts: state.artifacts,
+    workstreams: state.workstreams,
+    handoffs: state.handoffs,
+    audit_trail: state.audit_trail,
+  };
+  return [
+    "# Marketing OS Cockpit Export",
+    "",
+    "This is the complete structured Marketing OS state retained by this canonical Chat.",
+    "",
+    "```json",
+    JSON.stringify(exported, null, 2),
+    "```",
+    "",
+    "No external action was performed.",
+  ].join("\n");
 }
 
 function formatRepairInput(
@@ -1333,58 +1454,61 @@ function formatRepairInput(
 }
 
 async function finishBlockedRun(
-  task: LauncherTask,
+  cockpit: SessionCockpit,
   run: WorkflowRun,
   workstream: WorkstreamRecord,
   idempotencyPrefix: string,
   reason: string,
 ): Promise<void> {
-  await task.tools.marketing_os_run_update({
+  await cockpit.runUpdate({
     runId: run.run_id,
     idempotency_key: `${idempotencyPrefix}-blocked`,
     expected_revision: run.revision,
     status: "blocked",
     blockers: [reason],
-    next_action:
-      "Review the retained specialist attempt and resolve the blocker.",
+    next_action: "Review the retained specialist attempt and resolve the blocker.",
   });
-  await task.tools.marketing_os_workstream_update({
+  await cockpit.workstreamUpdate({
     specialist: run.specialist,
     idempotency_key: `${idempotencyPrefix}-workstream-blocked`,
     expected_revision: workstream.revision,
     status: "blocked",
     blockers: [reason],
-    next_action:
-      "Review the retained specialist attempt and resolve the blocker.",
+    next_action: "Review the retained specialist attempt and resolve the blocker.",
   });
 }
 
 async function finishFailedRun(
-  task: LauncherTask,
+  cockpit: SessionCockpit,
   run: WorkflowRun,
   workstream: WorkstreamRecord,
   idempotencyPrefix: string,
   reason: string,
 ): Promise<void> {
-  await task.tools.marketing_os_run_update({
+  await cockpit.runUpdate({
     runId: run.run_id,
     idempotency_key: `${idempotencyPrefix}-failed`,
     expected_revision: run.revision,
     status: "failed",
     blockers: [reason],
-    next_action:
-      "Inspect the retained attempt and start a new run after correction.",
+    next_action: "Inspect the retained attempt and start a new run after correction.",
     error_summary: reason,
   });
-  await task.tools.marketing_os_workstream_update({
+  await cockpit.workstreamUpdate({
     specialist: run.specialist,
     idempotency_key: `${idempotencyPrefix}-workstream-failed`,
     expected_revision: workstream.revision,
     status: "failed",
     blockers: [reason],
-    next_action:
-      "Inspect the retained attempt and start a new run after correction.",
+    next_action: "Inspect the retained attempt and start a new run after correction.",
   });
+}
+
+async function completeCockpitRun(
+  cockpit: SessionCockpit,
+  runId: string,
+): Promise<void> {
+  await cockpit.setState(completeRunState(cockpit.current(), runId));
 }
 
 async function invokeSpecialist(
@@ -1394,28 +1518,48 @@ async function invokeSpecialist(
 ): Promise<z.infer<typeof specialistOutputSchema>> {
   switch (route) {
     case "company_context":
-      return await task.tools.marketing_os_company_context_builder(input);
+      return task.tools.marketing_os_company_context_builder(input);
     case "market_signal":
-      return await task.tools.marketing_os_market_signal(input);
+      return task.tools.marketing_os_market_signal(input);
     case "icp":
-      return await task.tools.marketing_os_icp(input);
+      return task.tools.marketing_os_icp(input);
     case "audience_segmentation":
-      return await task.tools.marketing_os_audience_segmentation(input);
+      return task.tools.marketing_os_audience_segmentation(input);
     case "messaging":
-      return await task.tools.marketing_os_messaging(input);
+      return task.tools.marketing_os_messaging(input);
     case "branding_pitch_deck":
-      return await task.tools.marketing_os_branding_pitch_deck(input);
+      return task.tools.marketing_os_branding_pitch_deck(input);
     case "social_monitoring_content":
-      return await task.tools.marketing_os_social_monitoring_content(input);
+      return task.tools.marketing_os_social_monitoring_content(input);
     case "campaigns_paid_media":
-      return await task.tools.marketing_os_campaigns_paid_media(input);
+      return task.tools.marketing_os_campaigns_paid_media(input);
   }
+}
+
+function isExactContextPublishConfirmation(text: string): boolean {
+  return text.trim().toLowerCase() === exactContextPublishPhrase;
+}
+
+function isCockpitExportRequest(text: string): boolean {
+  return /\b(?:export|download|back up|backup)\b[\s\S]{0,80}\b(?:marketing os|cockpit|artifacts?|workstreams?)\b/i.test(
+    text,
+  );
+}
+
+function isCockpitDeleteRequest(text: string): boolean {
+  return /\b(?:delete|erase|clear|remove)\b[\s\S]{0,80}\b(?:marketing os|cockpit)\b/i.test(
+    text,
+  );
+}
+
+function isExactCockpitDeleteConfirmation(text: string): boolean {
+  return text.trim().toLowerCase() === exactCockpitDeletePhrase;
 }
 
 export default agent({
   identifier: "guild_marketing_os_launcher",
   description:
-    "Routes draft-only Marketing OS work to an explicit suite allowlist, returns complete specialist artifacts, and fails safely when context or a required package is unavailable.",
+    "Routes draft-only Marketing OS work to an explicit Guild suite allowlist and retains the canonical cockpit entirely in the continuing Launcher Chat.",
   inputSchema,
   outputSchema,
   tools,

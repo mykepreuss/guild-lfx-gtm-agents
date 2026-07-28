@@ -1,5 +1,9 @@
 # Durable Company Context Validation — 2026-07-28
 
+> Superseded architecture evidence. The active Guild-only validation is
+> `2026-07-28-guild-native-cockpit.md`; the external state-service references
+> below are retained to preserve the intermediate evidence trail.
+
 ## Result
 
 Company Context Builder 1.2.0 source now uses the same tenant-bound Marketing OS

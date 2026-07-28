@@ -1,5 +1,9 @@
 # Browser UX Validation — 2026-07-28
 
+> Historical browser evidence for the previously installed private versions.
+> The active Guild-only source still requires a fresh browser acceptance pass;
+> see `2026-07-28-guild-native-cockpit.md`.
+
 ## Scope
 
 The signed-in Guild experience was exercised through ordinary Chat in the

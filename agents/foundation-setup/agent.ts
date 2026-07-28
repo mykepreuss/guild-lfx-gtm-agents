@@ -1,6 +1,5 @@
 import {
   agent,
-  guildServiceTool,
   guildTools,
   output as agentOutput,
   pick,
@@ -55,7 +54,7 @@ const defaultConstraints = [
   "No credential setup.",
   "No workspace install.",
   "No workspace context publish except through the exact approved Company Context Builder publish confirmation.",
-  "No context artifact persistence outside the tenant-bound Marketing OS state service.",
+  "No context artifact persistence outside the canonical Launcher Chat or this direct Builder session.",
   "No trigger setup.",
   "No visibility changes.",
   "No legal, compliance, pricing, security, performance, or production-readiness approval is implied.",
@@ -387,168 +386,6 @@ const workspaceContextAuditSchema = z.object({
 
 const tools = {
   ...pick(guildTools, ["guild_get_session", "guild_get_workspace"]),
-  marketing_os_source_store: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Store one encrypted, tenant-bound raw company-context source revision.",
-    inputSchema: sourceStoreRequestSchema,
-    outputSchema: sourceResponseSchema,
-    endpoint: {
-      method: "POST",
-      path: "/v1/sources",
-      description: "Store encrypted Marketing OS source",
-      format: "application/json",
-      parameters: Object.entries(sourceStoreRequestSchema.shape).map(
-        ([name, schema]) => ({ name, type: "body" as const, schema }),
-      ),
-      parameterSchema: sourceStoreRequestSchema,
-      responseSchema: sourceResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_source_get: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Read one exact encrypted source revision only when building the approved compact workspace context.",
-    inputSchema: sourceReadRequestSchema,
-    outputSchema: sourceResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/v1/sources/{sourceId}",
-      description: "Read exact Marketing OS source revision",
-      format: "application/json",
-      parameters: [
-        {
-          name: "sourceId",
-          type: "path",
-          schema: sourceReadRequestSchema.shape.sourceId,
-        },
-        {
-          name: "revision",
-          type: "query",
-          schema: sourceReadRequestSchema.shape.revision,
-        },
-      ],
-      parameterSchema: sourceReadRequestSchema,
-      responseSchema: sourceResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_context_artifact_store: guildServiceTool(
-    "guild-marketing-os-state",
-    {
-      description:
-        "Store the review-ready Company Context Approval Packet as one tenant-bound artifact revision.",
-      inputSchema: contextArtifactStoreRequestSchema,
-      outputSchema: contextArtifactResponseSchema,
-      endpoint: {
-        method: "POST",
-        path: "/v1/artifacts",
-        description: "Store company-context artifact",
-        format: "application/json",
-        parameters: Object.entries(contextArtifactStoreRequestSchema.shape).map(
-          ([name, schema]) => ({ name, type: "body" as const, schema }),
-        ),
-        parameterSchema: contextArtifactStoreRequestSchema,
-        responseSchema: contextArtifactResponseSchema,
-        errors: [],
-      },
-    },
-  ),
-  marketing_os_context_artifact_get: guildServiceTool(
-    "guild-marketing-os-state",
-    {
-      description:
-        "Read the exact Company Context artifact revision before approval or publication.",
-      inputSchema: contextArtifactReadRequestSchema,
-      outputSchema: contextArtifactResponseSchema,
-      endpoint: {
-        method: "GET",
-        path: "/v1/artifacts/{artifactId}",
-        description: "Read company-context artifact",
-        format: "application/json",
-        parameters: [
-          {
-            name: "artifactId",
-            type: "path",
-            schema: contextArtifactReadRequestSchema.shape.artifactId,
-          },
-          {
-            name: "revision",
-            type: "query",
-            schema: contextArtifactReadRequestSchema.shape.revision,
-          },
-        ],
-        parameterSchema: contextArtifactReadRequestSchema,
-        responseSchema: contextArtifactResponseSchema,
-        errors: [],
-      },
-    },
-  ),
-  marketing_os_context_artifact_approve: guildServiceTool(
-    "guild-marketing-os-state",
-    {
-      description:
-        "Approve the exact Company Context artifact revision and preserve the user's exact approval text.",
-      inputSchema: contextArtifactApproveRequestSchema,
-      outputSchema: contextArtifactResponseSchema,
-      endpoint: {
-        method: "POST",
-        path: "/v1/artifacts/{artifactId}/approve",
-        description: "Approve company-context artifact",
-        format: "application/json",
-        parameters: [
-          {
-            name: "artifactId",
-            type: "path",
-            schema: contextArtifactApproveRequestSchema.shape.artifactId,
-          },
-          ...Object.entries(contextArtifactApproveRequestSchema.shape)
-            .filter(([name]) => name !== "artifactId")
-            .map(([name, schema]) => ({
-              name,
-              type: "body" as const,
-              schema,
-            })),
-        ],
-        parameterSchema: contextArtifactApproveRequestSchema,
-        responseSchema: contextArtifactResponseSchema,
-        errors: [],
-      },
-    },
-  ),
-  marketing_os_context_read: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Read the current tenant-bound published Marketing OS context revision for optimistic publication.",
-    inputSchema: z.object({}),
-    outputSchema: contextSnapshotResponseSchema,
-    endpoint: {
-      method: "GET",
-      path: "/v1/context",
-      description: "Read published Marketing OS context",
-      format: "application/json",
-      parameters: [],
-      parameterSchema: z.object({}),
-      responseSchema: contextSnapshotResponseSchema,
-      errors: [],
-    },
-  }),
-  marketing_os_context_publish: guildServiceTool("guild-marketing-os-state", {
-    description:
-      "Publish one approved compact Marketing OS context revision through delegated, workspace-scoped authorization.",
-    inputSchema: contextPublishRequestSchema,
-    outputSchema: contextSnapshotResponseSchema,
-    endpoint: {
-      method: "POST",
-      path: "/v1/context/publish",
-      description: "Publish approved Marketing OS context",
-      format: "application/json",
-      parameters: Object.entries(contextPublishRequestSchema.shape).map(
-        ([name, schema]) => ({ name, type: "body" as const, schema }),
-      ),
-      parameterSchema: contextPublishRequestSchema,
-      responseSchema: contextSnapshotResponseSchema,
-      errors: [],
-    },
-  }),
 };
 type Tools = typeof tools;
 type AgentTask = Task<Tools, AgentState>;
@@ -775,128 +612,33 @@ async function persistContextDraft(
       source_references: [sourceReference],
       context_artifact_references: [artifactReference],
       persistence_note:
-        "Encrypted raw source and the review-ready Company Context artifact revision are stored in the tenant-bound Marketing OS cockpit. Workspace context is still unchanged.",
+        "The supplied source and review-ready Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the completed artifact into the canonical cockpit. Workspace Context is still unchanged.",
     },
   });
 
-  let sourceStored = false;
-  try {
-    const source = sourceResponseSchema.parse(
-      await task.tools.marketing_os_source_store({
-        idempotency_key: `foundation-${sourceId}-store`,
-        source_id: sourceId,
-        raw_source: sourceText,
-        evidence: {
-          mode: "source_supplied",
-          source_coverage: output.consumedContext.sourceLabels,
-          limitations: output.statusPayload.coverage_limitations,
-        },
-        provenance: {
-          agent: "Company Context Builder",
-          session_id: task.sessionId,
-          company_name: output.statusPayload.companyName,
-        },
-      }),
-    ).data;
-    sourceStored = true;
-    if (source.source_id !== sourceId || source.revision !== 1) {
-      throw new Error("State service returned a different source revision.");
-    }
-
-    const artifact = contextArtifactResponseSchema.parse(
-      await task.tools.marketing_os_context_artifact_store({
-        idempotency_key: `foundation-${artifactId}-store`,
-        artifact_id: artifactId,
-        artifact_type: "company-context",
-        markdown_body: renderMarkdownPacket(persistedOutput),
-        consumed_source_revisions: [sourceReference],
-        evidence: [
-          {
-            mode: "source_supplied",
-            source_coverage: output.statusPayload.source_coverage,
-            limitations: output.statusPayload.coverage_limitations,
-            source_revision_ids: [sourceReference],
-          },
-        ],
-        status: output.status === "blocked" ? "blocked" : "ready_for_review",
-        safety: output.statusPayload.safety,
-        metadata: {
-          agent: "Company Context Builder",
-          session_id: task.sessionId,
-          company_name: output.statusPayload.companyName,
-          required_artifacts: output.statusPayload.requiredArtifacts,
-        },
-      }),
-    ).data;
-    if (artifact.artifact_id !== artifactId || artifact.revision !== 1) {
-      throw new Error("State service returned a different artifact revision.");
-    }
-
-    return {
-      output: persistedOutput,
-      state: {
-        ...state,
-        lastOutput: persistedOutput,
-        lastSourceText: undefined,
-        approvedSourceText: undefined,
-        durableSourceId: sourceId,
-        durableSourceRevision: source.revision,
-        durableContextArtifactId: artifactId,
-        durableContextArtifactRevision: artifact.revision,
-        durableContextArtifactStatus:
-          artifact.status === "blocked" ? "blocked" : "ready_for_review",
-        durableContextFingerprint: fingerprint,
-      },
-    };
-  } catch (error) {
-    const message = safeFoundationError(error);
-    const blockedOutput = structuredOutputSchema.parse({
-      ...output,
-      status: "needs_input",
-      persistenceState: {
-        ...output.persistenceState,
-        saved_to_context_artifacts: false,
-        source_references: sourceStored ? [sourceReference] : [],
-        context_artifact_references: [],
-        persistence_note: sourceStored
-          ? `The encrypted raw source was retained, but the durable Company Context artifact could not be stored. Approval is blocked until persistence is reconciled. Error: ${message}`
-          : `Durable source and artifact storage failed, so this draft cannot be approved through the cockpit. Error: ${message}`,
-      },
-      statusPayload: {
-        ...output.statusPayload,
-        blockers: [
-          ...new Set([
-            ...output.statusPayload.blockers,
-            "Durable Company Context persistence did not complete.",
-          ]),
-        ],
-      },
-    });
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        lastSourceText: undefined,
-        approvedSourceText: undefined,
-        durableSourceId: sourceStored ? sourceId : state.durableSourceId,
-        durableSourceRevision: sourceStored
-          ? 1
-          : state.durableSourceRevision,
-        durableContextArtifactId: undefined,
-        durableContextArtifactRevision: undefined,
-        durableContextArtifactStatus: undefined,
-        durableContextFingerprint: fingerprint,
-      },
-    };
-  }
+  return {
+    output: persistedOutput,
+    state: {
+      ...state,
+      lastOutput: persistedOutput,
+      lastSourceText: sourceText,
+      approvedSourceText: undefined,
+      durableSourceId: sourceId,
+      durableSourceRevision: 1,
+      durableContextArtifactId: artifactId,
+      durableContextArtifactRevision: 1,
+      durableContextArtifactStatus:
+        output.status === "blocked" ? "blocked" : "ready_for_review",
+      durableContextFingerprint: fingerprint,
+    },
+  };
 }
 
 async function persistContextApproval(
   output: Output,
   state: AgentState,
   exactApprovalText: string,
-  task: AgentTask,
+  _task: AgentTask,
 ): Promise<{ output: Output; state: AgentState }> {
   if (!output.persistenceState.approved_in_session) {
     return { output, state };
@@ -918,74 +660,10 @@ async function persistContextApproval(
     };
   }
 
-  try {
-    let artifact = contextArtifactResponseSchema.parse(
-      await task.tools.marketing_os_context_artifact_get({
-        artifactId,
-        revision: artifactRevision,
-      }),
-    ).data;
-    if (
-      artifact.artifact_id !== artifactId ||
-      artifact.revision !== artifactRevision
-    ) {
-      throw new Error("State service returned a different artifact revision.");
-    }
-    if (artifact.status === "ready_for_review") {
-      artifact = contextArtifactResponseSchema.parse(
-        await task.tools.marketing_os_context_artifact_approve({
-          artifactId,
-          idempotency_key: `foundation-${artifactId}-approve-r${artifactRevision}`,
-          revision: artifactRevision,
-          expected_revision: artifactRevision,
-          approval_text: exactApprovalText.trim(),
-        }),
-      ).data;
-    }
-    if (artifact.status !== "approved") {
-      throw new Error(
-        `Company Context artifact is ${artifact.status}, not approved.`,
-      );
-    }
-    const storedApprovalText =
-      artifact.approvals.at(-1)?.exact_approval_text ??
-      exactApprovalText.trim();
-    const approvedOutput = structuredOutputSchema.parse({
-      ...output,
-      persistenceState: {
-        ...output.persistenceState,
-        saved_to_context_artifacts: true,
-        source_references:
-          output.persistenceState.source_references ??
-          (state.durableSourceId && state.durableSourceRevision
-            ? [`${state.durableSourceId}:${state.durableSourceRevision}`]
-            : []),
-        context_artifact_references: [
-          `${artifact.artifact_id}:${artifact.revision}`,
-        ],
-        persistence_note: `Company Context artifact ${artifact.artifact_id} revision ${artifact.revision} is durably approved. Exact approval text retained: ${storedApprovalText}. Workspace context remains unchanged until the exact publication phrase is supplied.`,
-      },
-      statusPayload: {
-        ...output.statusPayload,
-        blockers: output.statusPayload.blockers.filter(
-          (blocker) => !/not saved to Context Hub|artifacts were not persisted/i.test(blocker),
-        ),
-      },
-    });
-    return {
-      output: approvedOutput,
-      state: {
-        ...state,
-        lastOutput: approvedOutput,
-        approvedOutput,
-        approvedSourceText: undefined,
-        durableContextArtifactStatus: "approved",
-      },
-    };
-  } catch (error) {
+  if (state.durableContextArtifactStatus === "blocked") {
     const blockedOutput = markDurableContextApprovalBlocked(
       output,
-      `Durable artifact approval failed: ${safeFoundationError(error)}`,
+      "The Company Context artifact is blocked and cannot be approved until its evidence gaps are resolved.",
     );
     return {
       output: blockedOutput,
@@ -993,12 +671,44 @@ async function persistContextApproval(
         ...state,
         lastOutput: blockedOutput,
         approvedOutput: undefined,
-        approvedSourceText: undefined,
-        durableContextArtifactStatus:
-          state.durableContextArtifactStatus ?? "ready_for_review",
       },
     };
   }
+
+  const storedApprovalText = exactApprovalText.trim();
+  const approvedOutput = structuredOutputSchema.parse({
+    ...output,
+    persistenceState: {
+      ...output.persistenceState,
+      saved_to_context_artifacts: true,
+      source_references:
+        output.persistenceState.source_references ??
+        (state.durableSourceId && state.durableSourceRevision
+          ? [`${state.durableSourceId}:${state.durableSourceRevision}`]
+          : []),
+      context_artifact_references: [`${artifactId}:${artifactRevision}`],
+      persistence_note: `Company Context artifact ${artifactId} revision ${artifactRevision} is approved in this Guild Chat. Exact approval text retained: ${storedApprovalText}. Workspace Context remains unchanged until Launcher receives the exact publication phrase.`,
+    },
+    statusPayload: {
+      ...output.statusPayload,
+      blockers: output.statusPayload.blockers.filter(
+        (blocker) =>
+          !/not saved to Context Hub|artifacts were not persisted/i.test(
+            blocker,
+          ),
+      ),
+    },
+  });
+  return {
+    output: approvedOutput,
+    state: {
+      ...state,
+      lastOutput: approvedOutput,
+      approvedOutput,
+      approvedSourceText: state.lastSourceText,
+      durableContextArtifactStatus: "approved",
+    },
+  };
 }
 
 function markDurableContextApprovalBlocked(
@@ -1404,7 +1114,7 @@ Rules:
 - Do not invent customer-specific facts, metrics, audience counts, connected systems, legal constraints, or performance results.
 - Use only the Raw context below as company evidence. Do not use workspace metadata, connected integration names, user profile data, attachment filenames, or attachment metadata as company context.
 - Classify this turn as ${conversationIntent}; preserve that exact conversationIntent in JSON.
-- Always set saved_to_workspace_context and saved_to_context_artifacts to false in the model-generated JSON. The deterministic agent layer changes those flags only after the tenant-bound service confirms persistence.
+- Always set saved_to_workspace_context and saved_to_context_artifacts to false in the model-generated JSON. The deterministic agent layer changes saved_to_context_artifacts only after it has retained the draft in Guild Chat state.
 - Set drafted_in_session true when a draft artifact block is produced. Set approved_in_session true only when the user explicitly approves the draft in the current turn.
 - If the Raw context only says a file or context is attached/provided but does not include readable source text, return status "blocked" and ask the user to paste the source text.
 - If context is sparse, return status "blocked" or "needs_input" and mark unsupported artifacts as "blocked" or "needs_input".
@@ -2190,7 +1900,7 @@ function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Out
       ? `Re-publish previous workspace context ${state.workspaceContextPreviousId} to roll back.`
       : undefined,
     persistence_note: savedToWorkspace
-      ? `Yes. The approved Company Context artifact is retained in the tenant-bound cockpit, and its compact brief has been published to Guild workspace context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}.`
+      ? `Yes. The approved Company Context artifact is retained in Guild Chat state, and its compact brief has been published to Guild Workspace Context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}.`
       : approvedOnly
         ? "The latest Company Context artifact is durably approved and waiting for the exact workspace-context publish confirmation. Guild workspace context has not changed."
         : draftedOnly
@@ -2412,7 +2122,7 @@ function approveStoredDraft(draft: Output, isPersistenceRequest: boolean): Outpu
 
 async function buildWorkspaceContextPublishOutput(
   input: Input,
-  task: AgentTask,
+  _task: AgentTask,
   state: AgentState,
 ): Promise<{ output: Output; state: AgentState }> {
   if (!state.approvedOutput) {
@@ -2452,145 +2162,50 @@ async function buildWorkspaceContextPublishOutput(
       },
     };
   }
-  if (!state.durableSourceId || !state.durableSourceRevision) {
-    const blockedOutput = markWorkspaceContextPublishBlocked(
-      approvedOutput,
-      new Error("The approved artifact has no retained durable source revision."),
-    );
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        workspaceContextStatus: "blocked",
-      },
-    };
-  }
 
-  try {
-    const source = sourceResponseSchema.parse(
-      await task.tools.marketing_os_source_get({
-        sourceId: state.durableSourceId,
-        revision: state.durableSourceRevision,
-      }),
-    ).data;
-    if (
-      source.source_id !== state.durableSourceId ||
-      source.revision !== state.durableSourceRevision ||
-      source.deletion_state !== "retained" ||
-      !source.raw_source
-    ) {
-      throw new Error(
-        "The exact approved source revision is unavailable or deleted.",
-      );
-    }
-  } catch (error) {
-    const blockedOutput = markWorkspaceContextPublishBlocked(
-      approvedOutput,
-      new Error(
-        `The encrypted approved source could not be retrieved: ${safeFoundationError(error)}`,
-      ),
-    );
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        workspaceContextStatus: "blocked",
-      },
-    };
-  }
-
-  const compactionResult = await buildCompactedWorkspaceContext(
-    approvedOutput,
-    task,
-  );
-
-  if (compactionResult.status === "blocked") {
-    const blockedOutput = markWorkspaceContextCompactionBlocked(approvedOutput, compactionResult);
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        approvedOutput,
-        workspaceContextStatus: "blocked",
-        workspaceContextSummary: publishSummaryForOutput(approvedOutput),
-      },
-    };
-  }
-
-  const summary = publishSummaryForOutput(approvedOutput, compactionResult.context);
-
-  try {
-    const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, compactionResult.context);
-    const currentContext = contextSnapshotResponseSchema.parse(
-      await task.tools.marketing_os_context_read({}),
-    ).data;
-    const publishResult = contextSnapshotResponseSchema.parse(
-      await task.tools.marketing_os_context_publish({
-        idempotency_key: `foundation-${state.durableContextArtifactId}-context-publish-r${state.durableContextArtifactRevision}`,
-        artifact_id: state.durableContextArtifactId,
-        artifact_revision: state.durableContextArtifactRevision,
-        expected_current_revision:
-          currentContext?.published_context_revision ?? null,
-        approval_text: "publish approved context to workspace context",
-        compiled_brief: managedBlock,
-        readiness: "ready",
-        source_references:
-          approvedOutput.persistenceState.source_references ?? [],
-        freshness: {
-          observed_at: approvedOutput.statusPayload.observed_at,
-          source_coverage: approvedOutput.statusPayload.source_coverage,
-        },
-      }),
-    ).data;
-    if (!publishResult) {
-      throw new Error("State service returned no published context snapshot.");
-    }
-    const publishedContextId =
-      publishResult.guild_context_id ??
-      `guild-marketing-os-context-r${publishResult.published_context_revision}`;
-    const publishedOutput = markWorkspaceContextPublished(approvedOutput, {
-      contextId: publishedContextId,
-      draftContextId: publishedContextId,
-      previousContextId: publishResult.rollback_context_id ?? undefined,
-      summary,
-      publishPath: "official_guild_tools",
-      rollbackReference: publishResult.rollback_context_id
-        ? `Restore Guild context ${publishResult.rollback_context_id} to roll back.`
-        : `Published Marketing OS context revision ${publishResult.published_context_revision}; no prior Guild context ID was returned.`,
-    });
-
-    return {
-      output: publishedOutput,
-      state: {
-        ...state,
-        lastOutput: publishedOutput,
-        approvedOutput: publishedOutput,
-        workspaceContextId: publishedContextId,
-        workspaceContextDraftId: publishedContextId,
-        workspaceContextPreviousId: publishResult.rollback_context_id,
-        workspaceContextPublishPath: "official_guild_tools",
-        workspaceContextStatus: "published",
-        workspaceContextSummary: summary,
-        durablePublishedContextRevision:
-          publishResult.published_context_revision,
-      },
-    };
-  } catch (error) {
-    const blockedOutput = markWorkspaceContextPublishBlocked(approvedOutput, error);
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        approvedOutput,
-        workspaceContextStatus: "blocked",
-        workspaceContextSummary: summary,
-      },
-    };
-  }
+  const routedOutput = structuredOutputSchema.parse({
+    ...approvedOutput,
+    conversationIntent: "approval_or_edit",
+    status: "ready_for_review",
+    persistenceState: {
+      ...approvedOutput.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: false,
+      saved_to_context_artifacts: true,
+      workspace_context_status: "approved_pending_publish",
+      workspace_context_summary: publishSummaryForOutput(approvedOutput),
+      persistence_note:
+        "The Company Context artifact is approved in this direct Builder session, but Workspace Context publication belongs to the canonical Marketing OS Launcher Chat. Return to Launcher and send the exact phrase there. Nothing was published from this direct specialist session.",
+    },
+    statusPayload: {
+      ...approvedOutput.statusPayload,
+      blockers: [
+        ...new Set([
+          ...approvedOutput.statusPayload.blockers.filter(
+            (blocker) => !/publish confirmation/i.test(blocker),
+          ),
+          "Return to the canonical Marketing OS Launcher Chat for Workspace Context publication.",
+        ]),
+      ],
+    },
+    openQuestions: [
+      ...new Set([
+        ...approvedOutput.openQuestions,
+        "Open the canonical Marketing OS Launcher Chat and repeat the exact publication phrase.",
+      ]),
+    ],
+  });
+  return {
+    output: routedOutput,
+    state: {
+      ...state,
+      lastOutput: routedOutput,
+      approvedOutput: routedOutput,
+      workspaceContextStatus: "approved_pending_publish",
+      workspaceContextSummary: publishSummaryForOutput(approvedOutput),
+    },
+  };
 }
 
 function markWorkspaceContextPublished(
@@ -2628,7 +2243,7 @@ function markWorkspaceContextPublished(
       workspace_context_summary: publishResult.summary,
       workspace_context_publish_path: publishResult.publishPath,
       workspace_context_rollback_note: rollbackNote,
-      persistence_note: `Published compacted workspace context brief to Guild workspace context as ${publishResult.contextId} through the ${publishPathLabel}. Previous published context: ${previousContext}. The encrypted approved source and Company Context artifact revision remain in the tenant-bound Marketing OS cockpit.`,
+      persistence_note: `Published compacted Workspace Context brief to Guild as ${publishResult.contextId} through the ${publishPathLabel}. Previous published context: ${previousContext}. The approved Company Context artifact remains in Guild Chat state.`,
     },
     consumedContext: {
       ...approvedOutput.consumedContext,
@@ -2702,7 +2317,7 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
         approvedOutput.persistenceState.saved_to_context_artifacts,
       workspace_context_status: "blocked",
       workspace_context_summary: publishSummaryForOutput(approvedOutput),
-      persistence_note: `Workspace context publish was attempted after exact confirmation through the tenant-bound Marketing OS state service, but delegated Guild publication did not confirm the write. The approved context artifact remains staged for retry. Error: ${safeMessage}`,
+      persistence_note: `Workspace Context publication did not complete. The approved context artifact remains in Guild Chat state for retry from the canonical Launcher Chat. Error: ${safeMessage}`,
     },
     statusPayload: {
       ...approvedOutput.statusPayload,
@@ -2728,7 +2343,7 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
     openQuestions: [
       ...new Set([
         ...approvedOutput.openQuestions,
-        "Should I retry workspace context publishing after the host publish bridge is available?",
+        "Should I retry Workspace Context publication from the canonical Marketing OS Launcher Chat?",
       ]),
     ],
   });
@@ -3117,7 +2732,7 @@ Required JSON shape:
 The workspace_context_brief must use these exact Markdown section headings:
 ${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
 
-Only facts in the approved reusable context corpus may be restated as reusable facts. The encrypted raw source is intentionally absent.
+Only facts in the approved reusable context corpus may be restated as reusable facts. The complete raw source is intentionally absent from always-on Workspace Context.
 Any item labeled review-required, blocked, withheld, missing, assumption, or do-not-use must remain a limitation or category-level summary; never turn it into an approved public claim or reintroduce its underlying raw claim.
 Must preserve if approved and present: dates, named products, named audiences, named competitors, explicit constraints, and explicit unknowns.
 Do not infer appointment dates, causality, guarantees, compliance workarounds, or operational readiness unless the source states them directly.
@@ -3220,7 +2835,7 @@ function buildApprovedWorkspaceContextCorpus(output: Output): string {
   return [
     "# Approved Reusable Marketing OS Context Corpus",
     "",
-    "This corpus is derived from the exact durably approved Company Context artifact. The encrypted raw source is retained separately and is intentionally excluded from always-on workspace context.",
+    "This corpus is derived from the exact approved Company Context artifact. The complete raw source remains in Guild Chat state and is intentionally excluded from always-on Workspace Context.",
     "",
     "## Runtime Summary",
     renderReadyToPublishWorkspaceContext(output),
@@ -4556,7 +4171,7 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   }
   const companyName = output.statusPayload.companyName === "TBD" ? "this company" : output.statusPayload.companyName;
   return output.persistenceState.saved_to_context_artifacts
-    ? `I drafted initial company context for ${companyName} and stored the encrypted source plus review-ready Company Context artifact in the tenant-bound cockpit. Guild workspace context has not changed. Review and approve the exact artifact revision before publication.`
+    ? `I drafted initial company context for ${companyName} and retained the supplied source plus review-ready Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Review and approve the exact artifact revision in the canonical Launcher Chat before publication.`
     : `I drafted initial company context for ${companyName}, but durable source and artifact persistence did not complete. Approval and workspace-context publication remain blocked.`;
 }
 
