@@ -5,8 +5,9 @@
 This record covers the production PostgreSQL adapter, authenticated HTTP
 boundary, envelope encryption, Cloud Run container entrypoint, schema
 migration, local disposable-database rehearsal, production-shaped GCP
-Terraform, and the importable OpenAPI integration contract. It does not claim
-a managed GCP deployment or a shipped Guild delegated-identity contract.
+Terraform, importable OpenAPI integration contract, and the durable Launcher
+workflow-run ledger. It does not claim a managed GCP deployment, live Launcher
+wiring, or a shipped Guild delegated-identity contract.
 
 ## Automated result
 
@@ -34,6 +35,16 @@ validated `openapi.json` with its recommended rules and no warnings.
 - Concurrent replay of one idempotency key returns one result.
 - Concurrent artifact revisions permit one winner and return an explicit
   revision conflict for the stale attempt.
+- Workflow runs durably bind the route, specialist, context revision, package
+  name/version, input envelope, artifact, handoff, blocker, and next action.
+- Specialist attempts are immutable. A second attempt is accepted only as a
+  format repair after a `format_invalid` first attempt, and both complete
+  outputs remain in reads and export. Each append-only audit event contains a
+  stable hash of the corresponding complete attempt record.
+- Safety failures cannot receive a format-repair retry. No attempt can be
+  appended after the run leaves `running`.
+- Review-ready and approved run states require a successful final attempt and
+  a correspondingly review-ready or approved artifact revision.
 - Artifact approval cannot be created through a new revision or generic status
   change. PostgreSQL rejects an approved row without its matching approval
   record.
@@ -45,9 +56,9 @@ validated `openapi.json` with its recommended rules and no warnings.
 - Authenticated request rate limits are stored per tenant and actor in
   PostgreSQL, so they are shared across service instances.
 - Confirmed workspace deletion purges source ciphertext, artifacts, approvals,
-  workstreams, handoffs, idempotency records, and that tenant's rate-limit
-  buckets. It retains only minimal tombstone, audit, and deletion-receipt
-  metadata.
+  workstreams, handoffs, workflow runs and attempts, idempotency records, and
+  that tenant's rate-limit buckets. It retains only minimal tombstone, audit,
+  and deletion-receipt metadata.
 - The schema migration is idempotent and succeeds when applied twice.
 - The disposable PostgreSQL process and temporary data directory are removed
   after the run.
@@ -65,8 +76,12 @@ The rehearsal proves:
 - missing and wrong-audience bearer tokens fail closed;
 - body-supplied tenant spoofing is rejected before storage;
 - a second tenant cannot read the first tenant's source;
+- a second tenant cannot read the first tenant's workflow run;
 - raw source is not returned by the store operation and the database contains
   ciphertext plus a wrapped key rather than plaintext;
+- a malformed specialist output and its one successful formatting repair are
+  both returned through the authenticated run API;
+- an approved workflow run rejects a later attempt;
 - a body-supplied approval actor is replaced by the verified JWT actor;
 - context publication fails without its separate delegated scope;
 - valid publication invokes the publisher once, while a stale revision is
@@ -124,5 +139,6 @@ credentials, project, Cloud SQL URL, or KMS key configured. Therefore:
 - no Cloud Run/Cloud SQL/KMS deployment was attempted;
 - no managed backup/restore or failover rehearsal was claimed;
 - no public integration was created;
+- the private Launcher was not changed to call the local-only state service;
 - no customer or clean-organization data was written; and
 - public release remains blocked.

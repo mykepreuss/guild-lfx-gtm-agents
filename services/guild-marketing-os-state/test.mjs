@@ -228,8 +228,211 @@ await assert.rejects(
   (error) => isStateError(error, "revision_conflict", 409),
 );
 
+await adapter.setArtifactStatus(tenantA, {
+  idempotency_key: "artifact-review-2",
+  artifact_id: artifactDraft.artifact_id,
+  revision: 2,
+  expected_revision: 2,
+  status: "ready_for_review",
+});
+
+const run = await adapter.createWorkflowRun(tenantA, {
+  idempotency_key: "run-messaging-1",
+  route: "messaging",
+  specialist: "Messaging",
+  context_revision: "1",
+  package_name: "publisher~guild-marketing-os-messaging",
+  package_version: "1.1.1",
+  input_envelope: {
+    user_request: "Create answer-ready messaging.",
+    context_revision: "1",
+  },
+  status: "running",
+  actor: "launcher",
+});
+assert.equal(run.revision, 1);
+assert.deepEqual(run.attempts, []);
+await assert.rejects(
+  () => adapter.createWorkflowRun(tenantA, {
+    idempotency_key: "run-invalid-initial-status",
+    route: "messaging",
+    specialist: "Messaging",
+    package_name: run.package_name,
+    package_version: run.package_version,
+    input_envelope: { user_request: "Invalid initial status." },
+    status: "blocked",
+    actor: "launcher",
+  }),
+  (error) =>
+    isStateError(error, "invalid_initial_workflow_run_status", 400),
+);
+
+const malformedAttempt = await adapter.recordWorkflowAttempt(tenantA, {
+  idempotency_key: "run-messaging-1-attempt-1",
+  run_id: run.run_id,
+  attempt_number: 1,
+  attempt_kind: "initial",
+  package_name: run.package_name,
+  package_version: run.package_version,
+  context_revision: "1",
+  input_envelope: { prompt: "Create answer-ready messaging." },
+  output_body: "# Incomplete messaging",
+  validation_errors: ["Missing heading: ## Status Payload"],
+  status: "format_invalid",
+  actor: "launcher",
+});
+assert.equal(malformedAttempt.status, "format_invalid");
+
+const repairedAttempt = await adapter.recordWorkflowAttempt(tenantA, {
+  idempotency_key: "run-messaging-1-attempt-2",
+  run_id: run.run_id,
+  attempt_number: 2,
+  attempt_kind: "format_repair",
+  package_name: run.package_name,
+  package_version: run.package_version,
+  context_revision: "1",
+  input_envelope: {
+    prompt: "FORMAT REPAIR ONLY.",
+    prior_attempt: "# Incomplete messaging",
+  },
+  output_body: "# Complete messaging\n\n## Status Payload\nready",
+  validation_errors: [],
+  status: "succeeded",
+  actor: "launcher",
+});
+assert.equal(repairedAttempt.attempt_number, 2);
+
+const readyRun = await adapter.updateWorkflowRun(tenantA, {
+  idempotency_key: "run-messaging-1-ready",
+  run_id: run.run_id,
+  expected_revision: 1,
+  status: "ready_for_review",
+  artifact_id: artifactDraft.artifact_id,
+  artifact_revision: 2,
+  handoff_id: handoff.handoff_id,
+  blockers: [],
+  next_action: "Review messaging revision 2.",
+  actor: "launcher",
+});
+assert.equal(readyRun.revision, 2);
+assert.equal(readyRun.attempts.length, 2);
+assert.equal(readyRun.attempts[0].output_body, "# Incomplete messaging");
+assert.equal(readyRun.attempts[1].status, "succeeded");
+assert.equal(
+  (await adapter.getWorkflowRun(tenantA, run.run_id)).package_version,
+  "1.1.1",
+);
+assert.equal((await adapter.listWorkflowRuns(tenantA))[0].run_id, run.run_id);
+await assert.rejects(
+  () => adapter.getWorkflowRun(tenantB, run.run_id),
+  (error) => isStateError(error, "workflow_run_not_found", 404),
+);
+await adapter.approveArtifact(tenantA, {
+  idempotency_key: "run-artifact-approve-2",
+  artifact_id: artifactDraft.artifact_id,
+  revision: 2,
+  expected_revision: 2,
+  approval_text: "Approve messaging revision 2",
+  actor: "user-a",
+});
+const approvedRun = await adapter.updateWorkflowRun(tenantA, {
+  idempotency_key: "run-messaging-1-approved",
+  run_id: run.run_id,
+  expected_revision: 2,
+  status: "approved",
+  artifact_id: artifactDraft.artifact_id,
+  artifact_revision: 2,
+  handoff_id: handoff.handoff_id,
+  blockers: [],
+  next_action: "Continue to campaign planning.",
+  actor: "launcher",
+});
+assert.equal(approvedRun.status, "approved");
+await assert.rejects(
+  () => adapter.recordWorkflowAttempt(tenantA, {
+    idempotency_key: "run-messaging-1-attempt-after-approval",
+    run_id: run.run_id,
+    attempt_number: 1,
+    attempt_kind: "initial",
+    package_name: run.package_name,
+    package_version: run.package_version,
+    context_revision: "1",
+    input_envelope: { prompt: "Unexpected late attempt." },
+    output_body: "# Unexpected",
+    validation_errors: [],
+    status: "succeeded",
+    actor: "launcher",
+  }),
+  (error) => isStateError(error, "workflow_run_not_running", 409),
+);
+
+const safetyRun = await adapter.createWorkflowRun(tenantA, {
+  idempotency_key: "run-safety-1",
+  route: "campaigns_paid_media",
+  specialist: "Campaigns And Paid Media",
+  context_revision: "1",
+  package_name: "publisher~guild-marketing-os-campaigns-paid-media",
+  package_version: "1.1.1",
+  input_envelope: { user_request: "Draft a paid media plan." },
+  actor: "launcher",
+});
+await adapter.recordWorkflowAttempt(tenantA, {
+  idempotency_key: "run-safety-1-attempt-1",
+  run_id: safetyRun.run_id,
+  attempt_number: 1,
+  attempt_kind: "initial",
+  package_name: safetyRun.package_name,
+  package_version: safetyRun.package_version,
+  context_revision: "1",
+  input_envelope: { prompt: "Draft a paid media plan." },
+  output_body: "I automatically activated spend.",
+  validation_errors: ["Forbidden execution claim"],
+  status: "safety_failed",
+  actor: "launcher",
+});
+await assert.rejects(
+  () => adapter.recordWorkflowAttempt(tenantA, {
+    idempotency_key: "run-safety-1-attempt-2",
+    run_id: safetyRun.run_id,
+    attempt_number: 2,
+    attempt_kind: "format_repair",
+    package_name: safetyRun.package_name,
+    package_version: safetyRun.package_version,
+    context_revision: "1",
+    input_envelope: { prompt: "repair" },
+    output_body: "Changed claim",
+    status: "succeeded",
+    actor: "launcher",
+  }),
+  (error) =>
+    isStateError(error, "workflow_format_repair_not_allowed", 409),
+  "safety failures must never receive a silent format repair",
+);
+const blockedRun = await adapter.updateWorkflowRun(tenantA, {
+  idempotency_key: "run-safety-1-blocked",
+  run_id: safetyRun.run_id,
+  expected_revision: 1,
+  status: "blocked",
+  blockers: ["Specialist output made a forbidden execution claim."],
+  next_action: "Review the safety failure.",
+  actor: "launcher",
+});
+assert.equal(blockedRun.status, "blocked");
+
 const audit = await adapter.getAuditTrail(tenantA);
 assert.ok(audit.length >= 9);
+const runAttemptEvents = audit.filter(
+  (entry) =>
+    entry.event_type === "workflow_run.attempt_recorded" &&
+    entry.details.run_id === run.run_id,
+);
+assert.equal(runAttemptEvents.length, 2);
+for (const [index, entry] of runAttemptEvents.entries()) {
+  assert.equal(
+    entry.details.attempt_hash,
+    stableHash(approvedRun.attempts[index]),
+  );
+}
 for (let index = 0; index < audit.length; index += 1) {
   const entry = audit[index];
   assert.equal(entry.sequence, index + 1);
@@ -244,6 +447,12 @@ assert.equal(exported.sources[1].raw_source, "Confidential interview transcript,
 assert.equal(exported.context_snapshot.published_context_revision, 1);
 assert.ok(exported.artifacts.some((item) => item.revision === 1 && item.status === "superseded"));
 assert.ok(exported.artifacts.some((item) => item.revision === 2));
+assert.equal(exported.workflow_runs.length, 2);
+assert.equal(
+  exported.workflow_runs.find((item) => item.run_id === run.run_id)
+    .attempts.length,
+  2,
+);
 
 await assert.rejects(
   () => adapter.deleteSource(tenantA, {
@@ -271,6 +480,8 @@ await assert.rejects(
 );
 const deletionReceipt = await adapter.deleteWorkspace(tenantA, { confirmation_text: WORKSPACE_DELETE_PHRASE });
 assert.ok(deletionReceipt.record_counts.artifact_revisions >= 2);
+assert.equal(deletionReceipt.record_counts.workflow_runs, 2);
+assert.equal(deletionReceipt.record_counts.workflow_attempts, 3);
 assert.deepEqual(
   await adapter.deleteWorkspace(tenantA, {
     confirmation_text: WORKSPACE_DELETE_PHRASE,

@@ -3,7 +3,11 @@
 Status: provider-neutral contract, tested reference adapter, authenticated HTTP
 boundary, and production PostgreSQL schema foundation
 
-This package defines the durable state boundary for the Marketing OS cockpit. The interface covers encrypted source retention, immutable artifact revisions, artifact and context approvals, workstream status, handoffs, optimistic concurrency, idempotency, audit, export, and confirmed deletion.
+This package defines the durable state boundary for the Marketing OS cockpit.
+The interface covers encrypted source retention, immutable artifact revisions,
+artifact and context approvals, workstream status, handoffs, Launcher workflow
+runs and invocation attempts, optimistic concurrency, idempotency, audit,
+export, and confirmed deletion.
 
 `memory-adapter.mjs` is the executable contract reference and test double. It derives a tenant-specific AES-256-GCM key from a service master key and binds every operation to both organization and workspace. It is not the public production datastore.
 
@@ -48,17 +52,54 @@ encrypted storage, cross-tenant isolation, separate context-publication scope,
 stale-publication rejection, export, confirmed deletion, and preservation of
 the other tenant.
 
+## Launcher workflow ledger
+
+The workflow-run endpoints persist the evidence needed to resume and audit a
+Launcher-mediated specialist request:
+
+- the deterministic route, specialist, context revision, package name and
+  version, task input envelope, current status, blocker, and next action;
+- the complete initial specialist attempt, including output, validation
+  errors, and tool or safety failure details;
+- at most one second attempt, permitted only for formatting repair after a
+  `format_invalid` first attempt; and
+- the resulting artifact revision and handoff reference.
+
+Every run begins at revision 1 in `running`. Attempts are immutable and may be
+added only while the run remains `running`. A review-ready run requires a
+successful final attempt and a review-ready or approved artifact. An approved
+run requires the referenced artifact itself to be approved. Safety and tool
+failures cannot be silently rewritten as formatting repairs. Both attempts
+remain visible through run reads, workspace export, and the immutable audit
+trail. Each append-only attempt event stores a stable hash of the complete
+attempt record, so the audit chain attests the preserved input, output,
+validation result, error, package version, context revision, and timestamp
+without copying customer content into audit metadata.
+
+The HTTP surface is:
+
+- `POST /v1/runs`
+- `GET /v1/runs`
+- `GET /v1/runs/{runId}`
+- `POST /v1/runs/{runId}/attempts`
+- `PUT /v1/runs/{runId}`
+
+These endpoints are the persistence boundary only. The private Launcher is not
+yet calling them because no live Guild-signed tenant identity or managed state
+service is available. Public cockpit persistence remains blocked until that
+wiring is deployed and proven in normal Chat.
+
 Sources are immutable revisions: correcting a source creates a new encrypted
 revision and preserves the prior revision for audit until deletion. Confirmed
 source deletion removes ciphertext, authentication material, and wrapped data
 keys from every revision of that source.
 
 Confirmed workspace deletion purges source ciphertext, artifacts, approvals,
-workstreams, handoffs, idempotency records, and that tenant's rate-limit
-buckets. It retains only the tombstoned tenant row, hash-linked audit metadata
-(including the deletion event), and a minimal deletion receipt. Those retained
-records contain opaque identifiers, actors, timestamps, event types, hashes,
-and counts—not raw source or artifact bodies.
+workstreams, handoffs, workflow runs and attempts, idempotency records, and
+that tenant's rate-limit buckets. It retains only the tombstoned tenant row,
+hash-linked audit metadata (including the deletion event), and a minimal
+deletion receipt. Those retained records contain opaque identifiers, actors,
+timestamps, event types, hashes, and counts—not raw source or artifact bodies.
 
 `server.mjs` and `Dockerfile` provide the Cloud Run ingress container. Startup
 requires `DATABASE_URL`, `KMS_KEY_NAME`, `GUILD_DELEGATED_ISSUER`,
@@ -115,6 +156,7 @@ The production implementation must preserve these semantics on managed PostgreSQ
 - use unique idempotency constraints and database transactions;
 - use expected-revision checks for every mutable aggregate;
 - append hash-linked audit entries;
+- preserve immutable Launcher attempts and allow only one format-only repair;
 - support customer export and confirmed source/workspace deletion;
 - keep context publication separate from artifact approval and require the exact phrase `publish approved context to workspace context`;
 - reject all execution-mode or external-mutation requests in V1.

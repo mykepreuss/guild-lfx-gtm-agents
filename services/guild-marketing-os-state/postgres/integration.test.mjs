@@ -316,8 +316,197 @@ try {
       handoff.handoff_id,
     );
 
+    const runArtifact = await adapter.storeArtifact(tenantA, {
+      idempotency_key: "workflow-run-artifact-a",
+      artifact_type: "messaging",
+      markdown_body: "# Repaired Messaging Artifact",
+      consumed_context_revision: "1",
+      evidence: [{ mode: "source_supplied" }],
+      status: "ready_for_review",
+      safety: {
+        action_mode: "draft_only",
+        external_mutation_requested: false,
+      },
+      actor: "launcher-a",
+    });
+    const workflowRun = await adapter.createWorkflowRun(tenantA, {
+      idempotency_key: "workflow-run-a",
+      route: "messaging",
+      specialist: "Messaging",
+      context_revision: "1",
+      package_name: "publisher~guild-marketing-os-messaging",
+      package_version: "1.1.1",
+      input_envelope: {
+        user_request: "Create answer-ready messaging.",
+        context_revision: "1",
+      },
+      actor: "launcher-a",
+    });
+    assert.equal(workflowRun.status, "running");
+
+    const malformedAttempt = await adapter.recordWorkflowAttempt(tenantA, {
+      idempotency_key: "workflow-run-a-attempt-1",
+      run_id: workflowRun.run_id,
+      attempt_number: 1,
+      attempt_kind: "initial",
+      package_name: workflowRun.package_name,
+      package_version: workflowRun.package_version,
+      context_revision: "1",
+      input_envelope: { prompt: "Create answer-ready messaging." },
+      output_body: "# Incomplete messaging",
+      validation_errors: ["Missing heading: ## Status Payload"],
+      status: "format_invalid",
+      actor: "launcher-a",
+    });
+    assert.equal(malformedAttempt.status, "format_invalid");
+    const repairedAttempt = await adapter.recordWorkflowAttempt(tenantA, {
+      idempotency_key: "workflow-run-a-attempt-2",
+      run_id: workflowRun.run_id,
+      attempt_number: 2,
+      attempt_kind: "format_repair",
+      package_name: workflowRun.package_name,
+      package_version: workflowRun.package_version,
+      context_revision: "1",
+      input_envelope: {
+        prompt: "FORMAT REPAIR ONLY.",
+        prior_attempt: "# Incomplete messaging",
+      },
+      output_body: "# Complete messaging\n\n## Status Payload\nready",
+      validation_errors: [],
+      status: "succeeded",
+      actor: "launcher-a",
+    });
+    assert.equal(repairedAttempt.attempt_number, 2);
+
+    const readyWorkflowRun = await adapter.updateWorkflowRun(tenantA, {
+      idempotency_key: "workflow-run-a-ready",
+      run_id: workflowRun.run_id,
+      expected_revision: 1,
+      status: "ready_for_review",
+      artifact_id: runArtifact.artifact_id,
+      artifact_revision: 1,
+      handoff_id: handoff.handoff_id,
+      blockers: [],
+      next_action: "Review the repaired messaging artifact.",
+      actor: "launcher-a",
+    });
+    assert.equal(readyWorkflowRun.revision, 2);
+    assert.equal(readyWorkflowRun.attempts.length, 2);
+    assert.equal(readyWorkflowRun.package_version, "1.1.1");
+    assert.equal(
+      (await adapter.getWorkflowRun(tenantA, workflowRun.run_id))
+        .attempts[0].output_body,
+      "# Incomplete messaging",
+    );
+    assert.equal(
+      (await adapter.listWorkflowRuns(tenantA))[0].run_id,
+      workflowRun.run_id,
+    );
+    await assert.rejects(
+      () => adapter.getWorkflowRun(tenantB, workflowRun.run_id),
+      (error) => stateError(error, "workflow_run_not_found", 404),
+    );
+    const approvedRunArtifact = await adapter.approveArtifact(tenantA, {
+      idempotency_key: "workflow-run-artifact-approve-a",
+      artifact_id: runArtifact.artifact_id,
+      revision: 1,
+      expected_revision: 1,
+      approval_text: "Approve workflow run artifact revision 1",
+      actor: "user-a",
+    });
+    assert.equal(approvedRunArtifact.status, "approved");
+    const approvedWorkflowRun = await adapter.updateWorkflowRun(tenantA, {
+      idempotency_key: "workflow-run-a-approved",
+      run_id: workflowRun.run_id,
+      expected_revision: 2,
+      status: "approved",
+      artifact_id: runArtifact.artifact_id,
+      artifact_revision: 1,
+      handoff_id: handoff.handoff_id,
+      blockers: [],
+      next_action: "Continue to campaign planning.",
+      actor: "launcher-a",
+    });
+    assert.equal(approvedWorkflowRun.status, "approved");
+    await assert.rejects(
+      () => adapter.recordWorkflowAttempt(tenantA, {
+        idempotency_key: "workflow-run-a-attempt-after-approval",
+        run_id: workflowRun.run_id,
+        attempt_number: 1,
+        attempt_kind: "initial",
+        package_name: workflowRun.package_name,
+        package_version: workflowRun.package_version,
+        context_revision: "1",
+        input_envelope: { prompt: "Unexpected late attempt." },
+        output_body: "# Unexpected",
+        validation_errors: [],
+        status: "succeeded",
+        actor: "launcher-a",
+      }),
+      (error) => stateError(error, "workflow_run_not_running", 409),
+    );
+
+    const safetyWorkflowRun = await adapter.createWorkflowRun(tenantA, {
+      idempotency_key: "workflow-run-safety-a",
+      route: "campaigns_paid_media",
+      specialist: "Campaigns And Paid Media",
+      context_revision: "1",
+      package_name:
+        "publisher~guild-marketing-os-campaigns-paid-media",
+      package_version: "1.1.1",
+      input_envelope: {
+        user_request: "Draft a paid media plan.",
+      },
+      actor: "launcher-a",
+    });
+    await adapter.recordWorkflowAttempt(tenantA, {
+      idempotency_key: "workflow-run-safety-a-attempt-1",
+      run_id: safetyWorkflowRun.run_id,
+      attempt_number: 1,
+      attempt_kind: "initial",
+      package_name: safetyWorkflowRun.package_name,
+      package_version: safetyWorkflowRun.package_version,
+      context_revision: "1",
+      input_envelope: { prompt: "Draft a paid media plan." },
+      output_body: "I automatically activated spend.",
+      validation_errors: ["Forbidden execution claim"],
+      status: "safety_failed",
+      actor: "launcher-a",
+    });
+    await assert.rejects(
+      () => adapter.recordWorkflowAttempt(tenantA, {
+        idempotency_key: "workflow-run-safety-a-attempt-2",
+        run_id: safetyWorkflowRun.run_id,
+        attempt_number: 2,
+        attempt_kind: "format_repair",
+        package_name: safetyWorkflowRun.package_name,
+        package_version: safetyWorkflowRun.package_version,
+        context_revision: "1",
+        input_envelope: { prompt: "repair" },
+        output_body: "Changed claim",
+        validation_errors: [],
+        status: "succeeded",
+        actor: "launcher-a",
+      }),
+      (error) =>
+        stateError(error, "workflow_format_repair_not_allowed", 409),
+      "safety failures must not receive a format repair",
+    );
+
     const audit = await adapter.getAuditTrail(tenantA);
     assert.ok(audit.length >= 7);
+    const runAttemptEvents = audit.filter(
+      (entry) =>
+        entry.event_type === "workflow_run.attempt_recorded" &&
+        entry.details.run_id === workflowRun.run_id,
+    );
+    assert.equal(runAttemptEvents.length, 2);
+    for (const [index, entry] of runAttemptEvents.entries()) {
+      assert.equal(
+        entry.details.attempt_hash,
+        stableHash(approvedWorkflowRun.attempts[index]),
+      );
+    }
     for (let index = 0; index < audit.length; index += 1) {
       assert.equal(audit[index].sequence, index + 1);
       assert.equal(
@@ -347,6 +536,13 @@ try {
     );
     assert.equal(exported.context_snapshot.published_context_revision, 1);
     assert.ok(exported.artifacts.length >= 2);
+    assert.equal(exported.workflow_runs.length, 2);
+    assert.equal(
+      exported.workflow_runs.find(
+        (item) => item.run_id === workflowRun.run_id,
+      ).attempts.length,
+      2,
+    );
 
     const deletedSource = await adapter.deleteSource(tenantA, {
       idempotency_key: "source-delete-a",
@@ -419,6 +615,34 @@ try {
            set_config('app.workspace_id', $2, true)`,
         [tenantA.organization_id, tenantA.workspace_id],
       );
+      let invalidInitialRunRejected = false;
+      try {
+        await directClient.query(
+          `INSERT INTO marketing_os_workflow_runs (
+             organization_id, workspace_id, run_id, revision, route,
+             specialist, package_name, package_version, input_envelope,
+             status
+           ) VALUES ($1,$2,$3,1,'messaging','Messaging',$4,'1.1.1','{}','blocked')`,
+          [
+            tenantA.organization_id,
+            tenantA.workspace_id,
+            crypto.randomUUID(),
+            "publisher~guild-marketing-os-messaging",
+          ],
+        );
+      } catch {
+        invalidInitialRunRejected = true;
+      }
+      assert.equal(invalidInitialRunRejected, true);
+      await directClient.query("ROLLBACK");
+
+      await directClient.query("BEGIN");
+      await directClient.query(
+        `SELECT
+           set_config('app.organization_id', $1, true),
+           set_config('app.workspace_id', $2, true)`,
+        [tenantA.organization_id, tenantA.workspace_id],
+      );
       let auditMutationRejected = false;
       try {
         await directClient.query(
@@ -428,6 +652,56 @@ try {
         auditMutationRejected = true;
       }
       assert.equal(auditMutationRejected, true);
+      await directClient.query("ROLLBACK");
+
+      await directClient.query("BEGIN");
+      await directClient.query(
+        `SELECT
+           set_config('app.organization_id', $1, true),
+           set_config('app.workspace_id', $2, true)`,
+        [tenantA.organization_id, tenantA.workspace_id],
+      );
+      let attemptMutationRejected = false;
+      try {
+        await directClient.query(
+          `UPDATE marketing_os_workflow_attempts
+              SET output_body = 'tampered'
+            WHERE run_id = $1 AND attempt_number = 1`,
+          [workflowRun.run_id],
+        );
+      } catch {
+        attemptMutationRejected = true;
+      }
+      assert.equal(attemptMutationRejected, true);
+      await directClient.query("ROLLBACK");
+
+      await directClient.query("BEGIN");
+      await directClient.query(
+        `SELECT
+           set_config('app.organization_id', $1, true),
+           set_config('app.workspace_id', $2, true)`,
+        [tenantA.organization_id, tenantA.workspace_id],
+      );
+      let invalidFormatRepairRejected = false;
+      try {
+        await directClient.query(
+          `INSERT INTO marketing_os_workflow_attempts (
+             organization_id, workspace_id, run_id, attempt_number,
+             attempt_kind, package_name, package_version, context_revision,
+             input_envelope, output_body, validation_errors, status
+           ) VALUES ($1,$2,$3,2,'format_repair',$4,$5,'1','{}','Changed','[]','succeeded')`,
+          [
+            tenantA.organization_id,
+            tenantA.workspace_id,
+            safetyWorkflowRun.run_id,
+            safetyWorkflowRun.package_name,
+            safetyWorkflowRun.package_version,
+          ],
+        );
+      } catch {
+        invalidFormatRepairRejected = true;
+      }
+      assert.equal(invalidFormatRepairRejected, true);
       await directClient.query("ROLLBACK");
     } finally {
       directClient.release();
@@ -439,6 +713,8 @@ try {
     });
     assert.ok(receipt.deletion_receipt_id);
     assert.ok(receipt.record_counts.artifact_revisions >= 2);
+    assert.equal(receipt.record_counts.workflow_runs, 2);
+    assert.equal(receipt.record_counts.workflow_attempts, 3);
     await assert.rejects(
       () => adapter.exportWorkspace(tenantA),
       (error) => stateError(error, "workspace_deleted", 410),
@@ -468,6 +744,8 @@ try {
       `SELECT
          (SELECT count(*)::integer FROM marketing_os_sources) AS sources,
          (SELECT count(*)::integer FROM marketing_os_artifacts) AS artifacts,
+         (SELECT count(*)::integer FROM marketing_os_workflow_runs) AS workflow_runs,
+         (SELECT count(*)::integer FROM marketing_os_workflow_attempts) AS workflow_attempts,
          (SELECT count(*)::integer FROM marketing_os_idempotency) AS idempotency,
          (SELECT count(*)::integer FROM marketing_os_rate_limits) AS rate_limits,
          (SELECT count(*)::integer FROM marketing_os_audit) AS audit,
@@ -475,6 +753,8 @@ try {
     );
     assert.equal(remaining.rows[0].sources, 0);
     assert.equal(remaining.rows[0].artifacts, 0);
+    assert.equal(remaining.rows[0].workflow_runs, 0);
+    assert.equal(remaining.rows[0].workflow_attempts, 0);
     assert.equal(remaining.rows[0].idempotency, 0);
     assert.equal(
       remaining.rows[0].rate_limits,

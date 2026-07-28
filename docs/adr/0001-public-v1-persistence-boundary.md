@@ -31,6 +31,7 @@ idempotency key, actor, and delegated workspace authorization must also match.
 | Resolve session to workspace | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
 | Read compiled workspace context | Pass | Pass through maintainer Guild token | Pass once delegated Guild identity is available |
 | Revisioned artifact/source database | No agent-facing contract found | No | Implemented and locally exercised |
+| Durable route/invocation evidence | No agent-facing contract found | No | Immutable run/attempt ledger implemented and locally exercised |
 | Workspace-scoped context draft/publish | The current docs describe operations that the published 0.4.2 package does not contain | Technically possible, but uses one maintainer token | Blocked until a shipped, live-proven Guild authorization contract exists |
 | Tenant isolation | No durable store to assess | Fail: fixed workspace/host identity assumptions | PostgreSQL RLS plus verified server-side tenant binding |
 | Idempotency and optimistic concurrency | No durable store to assess | Partial context-only behavior | Production adapter and database rehearsal pass |
@@ -97,6 +98,10 @@ replacement is built. It must not be used by a public package.
   destruction when the workspace is deleted.
 - Audit entries are append-only and hash-linked. Application roles cannot
   update or delete them.
+- Launcher runs record route, specialist, context revision, invoked package and
+  version, full attempt inputs/outputs, validation errors, artifact revision,
+  status, blocker, and handoff. Attempts are immutable and only a
+  `format_invalid` first result can receive one format-only repair.
 - Export and deletion are authenticated, rate-limited, audited, and require
   exact confirmation text for destructive operations.
 - Logs contain opaque IDs and error codes, never raw source, artifact bodies,
@@ -129,7 +134,8 @@ The Cloud Run service source is complete enough for an authenticated deployment:
 - `npm run test:postgres:integration` starts a disposable PostgreSQL instance
   and passes concurrent idempotency, revision conflicts, forced RLS isolation,
   envelope-encrypted export, audit immutability, approval integrity, confirmed
-  deletion, and deletion-receipt checks.
+  deletion, deletion-receipt checks, and durable Launcher workflow-run
+  lifecycle checks through both the adapter and authenticated HTTP boundary.
 - Production dependencies currently report zero known npm vulnerabilities.
 
 No managed GCP environment is configured in this workspace, so backup/restore,

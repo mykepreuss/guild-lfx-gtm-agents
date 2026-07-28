@@ -431,6 +431,112 @@
         }
       }
     },
+    "/v1/runs": {
+      "post": {
+        "operationId": "createWorkflowRun",
+        "summary": "Create a durable Launcher workflow run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listWorkflowRuns",
+        "summary": "List durable Launcher workflow runs",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/runs/{runId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/RunId"
+        }
+      ],
+      "get": {
+        "operationId": "getWorkflowRun",
+        "summary": "Read a workflow run with every invocation attempt",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateWorkflowRun",
+        "summary": "Update workflow status, artifact, error, and handoff state",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/runs/{runId}/attempts": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/RunId"
+        }
+      ],
+      "post": {
+        "operationId": "recordWorkflowAttempt",
+        "summary": "Append an immutable initial or format-repair invocation attempt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordWorkflowAttemptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/audit": {
       "get": {
         "operationId": "getAuditTrail",
@@ -522,6 +628,15 @@
         "schema": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "RunId": {
+        "name": "runId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
         }
       },
       "Specialist": {
@@ -1081,6 +1196,192 @@
             ]
           }
         }
+      },
+      "CreateWorkflowRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "route",
+          "specialist",
+          "package_name",
+          "package_version",
+          "input_envelope"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "route": {
+            "type": "string",
+            "minLength": 1
+          },
+          "specialist": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context_revision": {
+            "type": "string"
+          },
+          "package_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running"
+          ],
+          "default": "running"
+        },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordWorkflowAttemptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "attempt_number",
+          "attempt_kind",
+          "package_name",
+          "package_version",
+          "input_envelope",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "attempt_kind": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "format_repair"
+            ]
+          },
+          "package_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context_revision": {
+            "type": "string"
+          },
+          "input_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "output_body": {
+            "type": "string"
+          },
+          "validation_errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "format_invalid",
+              "safety_failed",
+              "tool_failed"
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateWorkflowRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRunStatus"
+          },
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifact_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "handoff_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          },
+          "error_summary": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowRunStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "needs_input",
+          "ready_for_review",
+          "approved",
+          "blocked",
+          "failed"
+        ],
+        "default": "running"
       },
       "DeleteWorkspaceRequest": {
         "type": "object",

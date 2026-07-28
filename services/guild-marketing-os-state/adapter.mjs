@@ -63,6 +63,26 @@ export class MarketingOsStateAdapter {
     throw new Error("updateHandoff is not implemented.");
   }
 
+  async createWorkflowRun(_tenant, _request) {
+    throw new Error("createWorkflowRun is not implemented.");
+  }
+
+  async getWorkflowRun(_tenant, _runId) {
+    throw new Error("getWorkflowRun is not implemented.");
+  }
+
+  async listWorkflowRuns(_tenant) {
+    throw new Error("listWorkflowRuns is not implemented.");
+  }
+
+  async recordWorkflowAttempt(_tenant, _request) {
+    throw new Error("recordWorkflowAttempt is not implemented.");
+  }
+
+  async updateWorkflowRun(_tenant, _request) {
+    throw new Error("updateWorkflowRun is not implemented.");
+  }
+
   async getAuditTrail(_tenant) {
     throw new Error("getAuditTrail is not implemented.");
   }

@@ -25,6 +25,27 @@ export const HANDOFF_COMPLETION_STATES = Object.freeze([
   "failed",
 ]);
 
+export const WORKFLOW_RUN_STATUSES = Object.freeze([
+  "running",
+  "needs_input",
+  "ready_for_review",
+  "approved",
+  "blocked",
+  "failed",
+]);
+
+export const WORKFLOW_ATTEMPT_KINDS = Object.freeze([
+  "initial",
+  "format_repair",
+]);
+
+export const WORKFLOW_ATTEMPT_STATUSES = Object.freeze([
+  "succeeded",
+  "format_invalid",
+  "safety_failed",
+  "tool_failed",
+]);
+
 export const EVIDENCE_MODES = Object.freeze([
   "source_supplied",
   "connected_read_only",
@@ -152,6 +173,142 @@ export function handoffCompletionState(value = "pending") {
   return value;
 }
 
+export function workflowRunInput(value) {
+  if (!value || typeof value !== "object") {
+    throw new StateContractError(
+      "invalid_workflow_run",
+      "Workflow run must be an object.",
+    );
+  }
+  const status = value.status ?? "running";
+  if (!WORKFLOW_RUN_STATUSES.includes(status)) {
+    throw new StateContractError(
+      "invalid_workflow_run_status",
+      `Workflow run status must be ${WORKFLOW_RUN_STATUSES.join(", ")}.`,
+    );
+  }
+  if (status !== "running") {
+    throw new StateContractError(
+      "invalid_initial_workflow_run_status",
+      "A workflow run must be created in running status.",
+    );
+  }
+  return {
+    route: requiredString(value.route, "route"),
+    specialist: requiredString(value.specialist, "specialist"),
+    context_revision: optionalString(value.context_revision),
+    package_name: requiredString(value.package_name, "package_name"),
+    package_version: requiredString(
+      value.package_version,
+      "package_version",
+    ),
+    input_envelope: objectValue(value.input_envelope, "input_envelope"),
+    status,
+    blockers: stringArray(value.blockers ?? []),
+    next_action: optionalString(value.next_action),
+  };
+}
+
+export function workflowAttemptInput(value) {
+  if (!value || typeof value !== "object") {
+    throw new StateContractError(
+      "invalid_workflow_attempt",
+      "Workflow attempt must be an object.",
+    );
+  }
+  const attemptNumber = positiveInteger(
+    value.attempt_number,
+    "attempt_number",
+  );
+  if (!WORKFLOW_ATTEMPT_KINDS.includes(value.attempt_kind)) {
+    throw new StateContractError(
+      "invalid_workflow_attempt_kind",
+      `Workflow attempt kind must be ${WORKFLOW_ATTEMPT_KINDS.join(", ")}.`,
+    );
+  }
+  if (
+    (value.attempt_kind === "initial" && attemptNumber !== 1) ||
+    (value.attempt_kind === "format_repair" && attemptNumber !== 2)
+  ) {
+    throw new StateContractError(
+      "invalid_workflow_attempt_number",
+      "Initial workflow attempts use number 1 and format repairs use number 2.",
+    );
+  }
+  if (!WORKFLOW_ATTEMPT_STATUSES.includes(value.status)) {
+    throw new StateContractError(
+      "invalid_workflow_attempt_status",
+      `Workflow attempt status must be ${WORKFLOW_ATTEMPT_STATUSES.join(", ")}.`,
+    );
+  }
+  const outputBody = optionalString(value.output_body);
+  const errorCode = optionalString(value.error_code);
+  const errorMessage = optionalString(value.error_message);
+  if (value.status === "succeeded" && !outputBody) {
+    throw new StateContractError(
+      "workflow_attempt_output_required",
+      "A succeeded workflow attempt requires output_body.",
+    );
+  }
+  if (value.status === "tool_failed" && (!errorCode || !errorMessage)) {
+    throw new StateContractError(
+      "workflow_attempt_error_required",
+      "A failed workflow tool attempt requires error_code and error_message.",
+    );
+  }
+  return {
+    attempt_number: attemptNumber,
+    attempt_kind: value.attempt_kind,
+    package_name: requiredString(value.package_name, "package_name"),
+    package_version: requiredString(
+      value.package_version,
+      "package_version",
+    ),
+    context_revision: optionalString(value.context_revision),
+    input_envelope: objectValue(value.input_envelope, "input_envelope"),
+    output_body: outputBody,
+    validation_errors: stringArray(value.validation_errors ?? []),
+    status: value.status,
+    error_code: errorCode,
+    error_message: errorMessage,
+  };
+}
+
+export function workflowRunUpdateInput(value) {
+  if (!value || typeof value !== "object") {
+    throw new StateContractError(
+      "invalid_workflow_run",
+      "Workflow run update must be an object.",
+    );
+  }
+  if (!WORKFLOW_RUN_STATUSES.includes(value.status)) {
+    throw new StateContractError(
+      "invalid_workflow_run_status",
+      `Workflow run status must be ${WORKFLOW_RUN_STATUSES.join(", ")}.`,
+    );
+  }
+  const artifactId = optionalString(value.artifact_id);
+  const artifactRevision = optionalPositiveInteger(
+    value.artifact_revision,
+    "artifact_revision",
+  );
+  if ((artifactId && !artifactRevision) || (!artifactId && artifactRevision)) {
+    throw new StateContractError(
+      "invalid_workflow_artifact_reference",
+      "artifact_id and artifact_revision must be supplied together.",
+    );
+  }
+  return {
+    status: value.status,
+    artifact_id: artifactId,
+    artifact_revision: artifactRevision,
+    handoff_id: optionalString(value.handoff_id),
+    blockers: stringArray(value.blockers ?? []),
+    next_action: optionalString(value.next_action),
+    error_summary: optionalString(value.error_summary),
+  };
+}
+
 export function stableHash(value) {
   return crypto.createHash("sha256").update(stableJson(value)).digest("hex");
 }
@@ -194,4 +351,24 @@ function optionalPositiveInteger(value, field) {
     throw new StateContractError("invalid_request", `${field} must be a positive integer.`);
   }
   return value;
+}
+
+function positiveInteger(value, field) {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new StateContractError(
+      "invalid_request",
+      `${field} must be a positive integer.`,
+    );
+  }
+  return value;
+}
+
+function objectValue(value, field) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new StateContractError(
+      "invalid_request",
+      `${field} must be an object.`,
+    );
+  }
+  return structuredClone(value);
 }

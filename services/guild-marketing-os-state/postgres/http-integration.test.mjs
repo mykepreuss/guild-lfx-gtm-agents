@@ -267,6 +267,70 @@ try {
   );
   assert.equal(sourceB.response.status, 201);
 
+  const workflowRun = await request(
+    stateBaseUrl,
+    "POST",
+    "/v1/runs",
+    {
+      idempotency_key: "http-run-a",
+      route: "messaging",
+      specialist: "Messaging",
+      context_revision: "1",
+      package_name: "publisher~guild-marketing-os-messaging",
+      package_version: "1.1.1",
+      input_envelope: {
+        user_request: "Create answer-ready messaging.",
+        context_revision: "1",
+      },
+    },
+    tokenA,
+  );
+  assert.equal(workflowRun.response.status, 201);
+  const runId = workflowRun.body.data.run_id;
+
+  const malformedAttempt = await request(
+    stateBaseUrl,
+    "POST",
+    `/v1/runs/${encodeURIComponent(runId)}/attempts`,
+    {
+      idempotency_key: "http-run-a-attempt-1",
+      attempt_number: 1,
+      attempt_kind: "initial",
+      package_name: "publisher~guild-marketing-os-messaging",
+      package_version: "1.1.1",
+      context_revision: "1",
+      input_envelope: { prompt: "Create answer-ready messaging." },
+      output_body: "# Incomplete messaging",
+      validation_errors: ["Missing heading: ## Status Payload"],
+      status: "format_invalid",
+    },
+    tokenA,
+  );
+  assert.equal(malformedAttempt.response.status, 201);
+
+  const repairedAttempt = await request(
+    stateBaseUrl,
+    "POST",
+    `/v1/runs/${encodeURIComponent(runId)}/attempts`,
+    {
+      idempotency_key: "http-run-a-attempt-2",
+      attempt_number: 2,
+      attempt_kind: "format_repair",
+      package_name: "publisher~guild-marketing-os-messaging",
+      package_version: "1.1.1",
+      context_revision: "1",
+      input_envelope: {
+        prompt: "FORMAT REPAIR ONLY.",
+        prior_attempt: "# Incomplete messaging",
+      },
+      output_body: "# Complete messaging\n\n## Status Payload\nready",
+      validation_errors: [],
+      status: "succeeded",
+    },
+    tokenA,
+  );
+  assert.equal(repairedAttempt.response.status, 201);
+
   const artifact = await request(
     stateBaseUrl,
     "POST",
@@ -312,6 +376,100 @@ try {
     approved.body.data.approvals[0].actor,
     "user_http_a",
   );
+
+  const handoff = await request(
+    stateBaseUrl,
+    "POST",
+    "/v1/handoffs",
+    {
+      idempotency_key: "http-handoff-a",
+      source_agent: "Messaging",
+      target_agent: "Campaigns And Paid Media",
+      artifact_references: [
+        { artifact_id: artifactId, revision: 1 },
+      ],
+      context_revision: "1",
+      rationale: "Approved messaging is ready for campaign planning.",
+    },
+    tokenA,
+  );
+  assert.equal(handoff.response.status, 201);
+
+  const readyWorkflowRun = await request(
+    stateBaseUrl,
+    "PUT",
+    `/v1/runs/${encodeURIComponent(runId)}`,
+    {
+      idempotency_key: "http-run-a-ready",
+      expected_revision: 1,
+      status: "ready_for_review",
+      artifact_id: artifactId,
+      artifact_revision: 1,
+      handoff_id: handoff.body.data.handoff_id,
+      blockers: [],
+      next_action: "Review messaging and continue the handoff.",
+    },
+    tokenA,
+  );
+  assert.equal(readyWorkflowRun.response.status, 200);
+  assert.equal(readyWorkflowRun.body.data.attempts.length, 2);
+  assert.equal(readyWorkflowRun.body.data.package_version, "1.1.1");
+  const approvedWorkflowRun = await request(
+    stateBaseUrl,
+    "PUT",
+    `/v1/runs/${encodeURIComponent(runId)}`,
+    {
+      idempotency_key: "http-run-a-approved",
+      expected_revision: 2,
+      status: "approved",
+      artifact_id: artifactId,
+      artifact_revision: 1,
+      handoff_id: handoff.body.data.handoff_id,
+      blockers: [],
+      next_action: "Continue to campaign planning.",
+    },
+    tokenA,
+  );
+  assert.equal(approvedWorkflowRun.response.status, 200);
+  assert.equal(approvedWorkflowRun.body.data.status, "approved");
+  const lateAttempt = await request(
+    stateBaseUrl,
+    "POST",
+    `/v1/runs/${encodeURIComponent(runId)}/attempts`,
+    {
+      idempotency_key: "http-run-a-attempt-after-approval",
+      attempt_number: 1,
+      attempt_kind: "initial",
+      package_name: "publisher~guild-marketing-os-messaging",
+      package_version: "1.1.1",
+      context_revision: "1",
+      input_envelope: { prompt: "Unexpected late attempt." },
+      output_body: "# Unexpected",
+      validation_errors: [],
+      status: "succeeded",
+    },
+    tokenA,
+  );
+  assert.equal(lateAttempt.response.status, 409);
+  assert.equal(lateAttempt.body.error.code, "workflow_run_not_running");
+
+  const crossTenantRun = await request(
+    stateBaseUrl,
+    "GET",
+    `/v1/runs/${encodeURIComponent(runId)}`,
+    undefined,
+    tokenB,
+  );
+  assert.equal(crossTenantRun.response.status, 404);
+  const listedRuns = await request(
+    stateBaseUrl,
+    "GET",
+    "/v1/runs",
+    undefined,
+    tokenA,
+  );
+  assert.equal(listedRuns.response.status, 200);
+  assert.equal(listedRuns.body.data[0].run_id, runId);
 
   const missingPublishScope = await request(
     stateBaseUrl,
@@ -369,6 +527,7 @@ try {
     exported.body.data.context_snapshot.guild_context_id,
     "local-guild-context-1",
   );
+  assert.equal(exported.body.data.workflow_runs[0].attempts.length, 2);
 
   const deleted = await request(
     stateBaseUrl,

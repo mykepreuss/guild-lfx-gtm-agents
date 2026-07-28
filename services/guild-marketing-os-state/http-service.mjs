@@ -122,6 +122,42 @@ export const stateServiceRouteDefinitions = Object.freeze([
     hasBody: true,
   },
   {
+    method: "POST",
+    path: "/v1/runs",
+    name: "workflow_run_create",
+    hasBody: true,
+  },
+  {
+    method: "GET",
+    path: "/v1/runs",
+    name: "workflow_run_list",
+    hasBody: false,
+  },
+  {
+    method: "GET",
+    path: "/v1/runs/{runId}",
+    pattern: /^\/v1\/runs\/([^/]+)$/,
+    parameter: "runId",
+    name: "workflow_run_get",
+    hasBody: false,
+  },
+  {
+    method: "POST",
+    path: "/v1/runs/{runId}/attempts",
+    pattern: /^\/v1\/runs\/([^/]+)\/attempts$/,
+    parameter: "runId",
+    name: "workflow_attempt_record",
+    hasBody: true,
+  },
+  {
+    method: "PUT",
+    path: "/v1/runs/{runId}",
+    pattern: /^\/v1\/runs\/([^/]+)$/,
+    parameter: "runId",
+    name: "workflow_run_update",
+    hasBody: true,
+  },
+  {
     method: "GET",
     path: "/v1/audit",
     name: "audit_read",
@@ -324,6 +360,35 @@ export function createMarketingOsStateHandler({
             data: await adapter.updateHandoff(tenant, {
               ...requestValue,
               handoff_id: route.params.handoffId,
+            }),
+          });
+        case "workflow_run_create":
+          return jsonResponse(201, {
+            data: await adapter.createWorkflowRun(tenant, requestValue),
+          });
+        case "workflow_run_list":
+          return jsonResponse(200, {
+            data: await adapter.listWorkflowRuns(tenant),
+          });
+        case "workflow_run_get":
+          return jsonResponse(200, {
+            data: await adapter.getWorkflowRun(
+              tenant,
+              route.params.runId,
+            ),
+          });
+        case "workflow_attempt_record":
+          return jsonResponse(201, {
+            data: await adapter.recordWorkflowAttempt(tenant, {
+              ...requestValue,
+              run_id: route.params.runId,
+            }),
+          });
+        case "workflow_run_update":
+          return jsonResponse(200, {
+            data: await adapter.updateWorkflowRun(tenant, {
+              ...requestValue,
+              run_id: route.params.runId,
             }),
           });
         case "audit_read":

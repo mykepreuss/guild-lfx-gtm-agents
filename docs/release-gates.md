@@ -16,7 +16,7 @@ may be made public while any blocking row below remains open.
 | Guide fallback | Ambiguous request returned Marketing OS Guide with no specialist task in `019faa25-d311-351a-0000-92e3d5c2ba7a` | Pass in private alpha |
 | Browser normal-Chat UX | Launcher 0.2.5 is the private workspace default; onboarding, Builder, seven specialists, safety recovery, and ambiguity pass | Pass in private alpha |
 | Browser specialist selection | Automatic Launcher delegation removes the prior `@mention` dependency | Pass in private alpha |
-| Cross-session cockpit persistence | Production PostgreSQL adapter, Cloud Run container, migration path, envelope encryption, disposable database rehearsal, GCP Terraform, and importable OpenAPI contract pass locally | **Blocked on authenticated managed deployment** |
+| Cross-session cockpit persistence | Durable run/attempt ledger now preserves route, context, agent/version, full initial and format-repair attempts, validation/errors, artifact, status, and handoff; PostgreSQL/JWT/HTTP rehearsal passes locally | **Blocked on authenticated managed deployment and live Launcher wiring** |
 | Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
 | Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
@@ -44,9 +44,10 @@ The public Launcher binding decision is recorded in
    equivalent isolation. The currently published SDK and custom-integration
    contract do not provide this.
 5. Deploy the Cloud Run/Cloud SQL state service and pass tenant spoofing,
-   concurrency, idempotency, audit, backup/restore, export, and deletion tests.
-   No GCP project, Cloud SQL database, KMS key, or deploy identity is configured
-   in the current workspace.
+   concurrency, idempotency, workflow-resume, audit, backup/restore, export,
+   and deletion tests. Then wire the private Launcher to the run/attempt API
+   and repeat every route in normal Chat. No GCP project, Cloud SQL database,
+   KMS key, or deploy identity is configured in the current workspace.
 6. Run a clean organization rehearsal in
    `developers-at-guild/developer-sandbox` only with the workspace owner’s
    authorization, or use a newly created team-controlled organization.

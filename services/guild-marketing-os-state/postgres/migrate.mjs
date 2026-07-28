@@ -13,6 +13,8 @@ const applicationTables = [
   "marketing_os_context_snapshots",
   "marketing_os_workstreams",
   "marketing_os_handoffs",
+  "marketing_os_workflow_runs",
+  "marketing_os_workflow_attempts",
   "marketing_os_idempotency",
   "marketing_os_rate_limits",
   "marketing_os_audit",

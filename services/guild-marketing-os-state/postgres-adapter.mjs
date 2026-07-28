@@ -12,6 +12,9 @@ import {
   handoffCompletionState,
   requiredString,
   stableHash,
+  workflowAttemptInput,
+  workflowRunInput,
+  workflowRunUpdateInput,
   workstreamInput,
 } from "./contracts.mjs";
 
@@ -23,6 +26,20 @@ const artifactTransitions = Object.freeze({
   approved: new Set(["superseded"]),
   blocked: new Set(["draft", "ready_for_review"]),
   superseded: new Set(),
+});
+
+const workflowRunTransitions = Object.freeze({
+  running: new Set([
+    "needs_input",
+    "ready_for_review",
+    "blocked",
+    "failed",
+  ]),
+  needs_input: new Set(["running", "blocked", "failed"]),
+  ready_for_review: new Set(["running", "approved", "blocked"]),
+  approved: new Set(),
+  blocked: new Set(["running", "failed"]),
+  failed: new Set(),
 });
 
 export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
@@ -1164,6 +1181,425 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
     );
   }
 
+  async createWorkflowRun(tenant, request) {
+    const binding = assertTenant(tenant);
+    const input = workflowRunInput(request);
+    return this.#transaction(binding, { createTenant: true }, async (client) =>
+      this.#idempotent(
+        client,
+        binding,
+        "workflow_run_create",
+        request.idempotency_key,
+        request,
+        async () => {
+          const runId = request.run_id
+            ? uuid(request.run_id, "run_id")
+            : crypto.randomUUID();
+          const existing = await client.query(
+            `SELECT 1 FROM marketing_os_workflow_runs WHERE run_id = $1`,
+            [runId],
+          );
+          if (existing.rows[0]) {
+            throw new StateContractError(
+              "workflow_run_exists",
+              "Workflow run already exists.",
+              409,
+            );
+          }
+          const timestamp = this.#clock();
+          const result = await client.query(
+            `INSERT INTO marketing_os_workflow_runs (
+               organization_id, workspace_id, run_id, revision, route,
+               specialist, context_revision, package_name, package_version,
+               input_envelope, status, blockers, next_action,
+               created_at, updated_at
+             ) VALUES (
+               $1,$2,$3,1,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13
+             )
+             RETURNING *`,
+            [
+              binding.organization_id,
+              binding.workspace_id,
+              runId,
+              input.route,
+              input.specialist,
+              input.context_revision ?? null,
+              input.package_name,
+              input.package_version,
+              json(input.input_envelope),
+              input.status,
+              json(input.blockers),
+              input.next_action ?? null,
+              timestamp,
+            ],
+          );
+          await this.#audit(
+            client,
+            binding,
+            "workflow_run.created",
+            request.actor,
+            {
+              run_id: runId,
+              route: input.route,
+              specialist: input.specialist,
+              package_name: input.package_name,
+              package_version: input.package_version,
+              context_revision: input.context_revision ?? null,
+              input_envelope_hash: stableHash(input.input_envelope),
+            },
+          );
+          return workflowRunRecord(result.rows[0], []);
+        },
+      ),
+    );
+  }
+
+  async getWorkflowRun(tenant, runId) {
+    const binding = assertTenant(tenant);
+    const id = uuid(runId, "run_id");
+    return this.#transaction(binding, { createTenant: false }, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM marketing_os_workflow_runs WHERE run_id = $1`,
+        [id],
+      );
+      if (!result.rows[0]) {
+        throw new StateContractError(
+          "workflow_run_not_found",
+          "Workflow run was not found.",
+          404,
+        );
+      }
+      return workflowRunRecord(
+        result.rows[0],
+        await readWorkflowAttempts(client, id),
+      );
+    });
+  }
+
+  async listWorkflowRuns(tenant) {
+    const binding = assertTenant(tenant);
+    return this.#transaction(binding, { createTenant: false }, async (client) => {
+      const result = await client.query(
+        `SELECT *
+           FROM marketing_os_workflow_runs
+          ORDER BY updated_at DESC, run_id`,
+      );
+      const records = [];
+      for (const row of result.rows) {
+        records.push(
+          workflowRunRecord(
+            row,
+            await readWorkflowAttempts(client, row.run_id),
+          ),
+        );
+      }
+      return records;
+    });
+  }
+
+  async recordWorkflowAttempt(tenant, request) {
+    const binding = assertTenant(tenant);
+    const runId = uuid(request.run_id, "run_id");
+    const input = workflowAttemptInput(request);
+    return this.#transaction(binding, { createTenant: true }, async (client) =>
+      this.#idempotent(
+        client,
+        binding,
+        `workflow_attempt_record:${runId}`,
+        request.idempotency_key,
+        request,
+        async () => {
+          await this.#lockAggregate(
+            client,
+            binding,
+            "workflow_run",
+            runId,
+          );
+          const runResult = await client.query(
+            `SELECT *
+               FROM marketing_os_workflow_runs
+              WHERE run_id = $1
+              FOR UPDATE`,
+            [runId],
+          );
+          const run = runResult.rows[0];
+          if (!run) {
+            throw new StateContractError(
+              "workflow_run_not_found",
+              "Workflow run was not found.",
+              404,
+            );
+          }
+          if (run.status !== "running") {
+            throw new StateContractError(
+              "workflow_run_not_running",
+              "Workflow attempts can be recorded only while the run is running.",
+              409,
+            );
+          }
+          if (
+            input.package_name !== run.package_name ||
+            input.package_version !== run.package_version
+          ) {
+            throw new StateContractError(
+              "workflow_attempt_package_mismatch",
+              "Workflow attempt package and version must match the run binding.",
+              409,
+            );
+          }
+          if (
+            (input.context_revision ?? null) !==
+            (run.context_revision ?? null)
+          ) {
+            throw new StateContractError(
+              "workflow_attempt_context_mismatch",
+              "Workflow attempt context revision must match the run binding.",
+              409,
+            );
+          }
+          if (input.attempt_kind === "format_repair") {
+            const first = await client.query(
+              `SELECT status
+                 FROM marketing_os_workflow_attempts
+                WHERE run_id = $1 AND attempt_number = 1`,
+              [runId],
+            );
+            if (
+              !first.rows[0] ||
+              first.rows[0].status !== "format_invalid"
+            ) {
+              throw new StateContractError(
+                "workflow_format_repair_not_allowed",
+                "Format repair is allowed only after a format-invalid initial attempt.",
+                409,
+              );
+            }
+          }
+          const timestamp = this.#clock();
+          const result = await client.query(
+            `INSERT INTO marketing_os_workflow_attempts (
+               organization_id, workspace_id, run_id, attempt_number,
+               attempt_kind, package_name, package_version, context_revision,
+               input_envelope, output_body, validation_errors, status,
+               error_code, error_message, created_at
+             ) VALUES (
+               $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15
+             )
+             RETURNING *`,
+            [
+              binding.organization_id,
+              binding.workspace_id,
+              runId,
+              input.attempt_number,
+              input.attempt_kind,
+              input.package_name,
+              input.package_version,
+              input.context_revision ?? null,
+              json(input.input_envelope),
+              input.output_body ?? null,
+              json(input.validation_errors),
+              input.status,
+              input.error_code ?? null,
+              input.error_message ?? null,
+              timestamp,
+            ],
+          );
+          const attempt = workflowAttemptRecord(result.rows[0]);
+          await client.query(
+            `UPDATE marketing_os_workflow_runs
+                SET updated_at = $2
+              WHERE run_id = $1`,
+            [runId, timestamp],
+          );
+          await this.#audit(
+            client,
+            binding,
+            "workflow_run.attempt_recorded",
+            request.actor,
+            {
+              run_id: runId,
+              attempt_number: input.attempt_number,
+              attempt_kind: input.attempt_kind,
+              status: input.status,
+              validation_errors: input.validation_errors,
+              error_code: input.error_code ?? null,
+              attempt_hash: stableHash(attempt),
+            },
+          );
+          return attempt;
+        },
+      ),
+    );
+  }
+
+  async updateWorkflowRun(tenant, request) {
+    const binding = assertTenant(tenant);
+    const runId = uuid(request.run_id, "run_id");
+    const input = workflowRunUpdateInput(request);
+    return this.#transaction(binding, { createTenant: true }, async (client) =>
+      this.#idempotent(
+        client,
+        binding,
+        `workflow_run_update:${runId}`,
+        request.idempotency_key,
+        request,
+        async () => {
+          await this.#lockAggregate(
+            client,
+            binding,
+            "workflow_run",
+            runId,
+          );
+          const currentResult = await client.query(
+            `SELECT *
+               FROM marketing_os_workflow_runs
+              WHERE run_id = $1
+              FOR UPDATE`,
+            [runId],
+          );
+          const current = currentResult.rows[0];
+          if (!current) {
+            throw new StateContractError(
+              "workflow_run_not_found",
+              "Workflow run was not found.",
+              404,
+            );
+          }
+          expectRevision(
+            Number(current.revision),
+            request.expected_revision,
+          );
+          if (
+            input.status !== current.status &&
+            !workflowRunTransitions[current.status].has(input.status)
+          ) {
+            throw new StateContractError(
+              "invalid_workflow_run_transition",
+              `Cannot transition workflow run ${current.status} to ${input.status}.`,
+              409,
+            );
+          }
+          if (
+            ["ready_for_review", "approved"].includes(input.status) &&
+            (!input.artifact_id || !input.artifact_revision)
+          ) {
+            throw new StateContractError(
+              "workflow_run_artifact_required",
+              `${input.status} workflow runs require an artifact reference.`,
+              409,
+            );
+          }
+          if (input.status === "failed" && !input.error_summary) {
+            throw new StateContractError(
+              "workflow_run_error_required",
+              "A failed workflow run requires error_summary.",
+            );
+          }
+          if (["ready_for_review", "approved"].includes(input.status)) {
+            const finalAttempt = await client.query(
+              `SELECT status
+                 FROM marketing_os_workflow_attempts
+                WHERE run_id = $1
+                ORDER BY attempt_number DESC
+                LIMIT 1`,
+              [runId],
+            );
+            if (finalAttempt.rows[0]?.status !== "succeeded") {
+              throw new StateContractError(
+                "successful_workflow_attempt_required",
+                `${input.status} workflow runs require a succeeded final attempt.`,
+                409,
+              );
+            }
+            const artifact = await client.query(
+              `SELECT status
+                 FROM marketing_os_artifacts
+                WHERE artifact_id = $1 AND revision = $2`,
+              [
+                uuid(input.artifact_id, "artifact_id"),
+                input.artifact_revision,
+              ],
+            );
+            if (!artifact.rows[0]) {
+              throw new StateContractError(
+                "artifact_revision_not_found",
+                "Artifact revision was not found.",
+                404,
+              );
+            }
+            if (
+              (input.status === "ready_for_review" &&
+                !["ready_for_review", "approved"].includes(
+                  artifact.rows[0].status,
+                )) ||
+              (input.status === "approved" &&
+                artifact.rows[0].status !== "approved")
+            ) {
+              throw new StateContractError(
+                "workflow_run_artifact_status_mismatch",
+                input.status === "approved"
+                  ? "An approved workflow run requires an approved artifact."
+                  : "A review-ready workflow run requires a review-ready or approved artifact.",
+                409,
+              );
+            }
+          }
+          const revision = Number(current.revision) + 1;
+          const timestamp = this.#clock();
+          const result = await client.query(
+            `UPDATE marketing_os_workflow_runs
+                SET revision = $2,
+                    status = $3,
+                    artifact_id = $4,
+                    artifact_revision = $5,
+                    handoff_id = $6,
+                    blockers = $7,
+                    next_action = $8,
+                    error_summary = $9,
+                    updated_at = $10
+              WHERE run_id = $1
+              RETURNING *`,
+            [
+              runId,
+              revision,
+              input.status,
+              input.artifact_id
+                ? uuid(input.artifact_id, "artifact_id")
+                : null,
+              input.artifact_revision ?? null,
+              input.handoff_id
+                ? uuid(input.handoff_id, "handoff_id")
+                : null,
+              json(input.blockers),
+              input.next_action ?? null,
+              input.error_summary ?? null,
+              timestamp,
+            ],
+          );
+          await this.#audit(
+            client,
+            binding,
+            "workflow_run.updated",
+            request.actor,
+            {
+              run_id: runId,
+              revision,
+              from: current.status,
+              to: input.status,
+              artifact_id: input.artifact_id ?? null,
+              artifact_revision: input.artifact_revision ?? null,
+              handoff_id: input.handoff_id ?? null,
+            },
+          );
+          return workflowRunRecord(
+            result.rows[0],
+            await readWorkflowAttempts(client, runId),
+          );
+        },
+      ),
+    );
+  }
+
   async getAuditTrail(tenant) {
     const binding = assertTenant(tenant);
     return this.#transaction(binding, { createTenant: false }, async (client) => {
@@ -1213,6 +1649,16 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
              FROM marketing_os_handoffs
             ORDER BY created_at, handoff_id`,
         );
+        const workflowRuns = await client.query(
+          `SELECT *
+             FROM marketing_os_workflow_runs
+            ORDER BY created_at, run_id`,
+        );
+        const workflowAttempts = await client.query(
+          `SELECT *
+             FROM marketing_os_workflow_attempts
+            ORDER BY run_id, attempt_number`,
+        );
         const audit = await client.query(
           `SELECT *
              FROM marketing_os_audit
@@ -1225,6 +1671,8 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
           approvals: approvals.rows,
           workstreams: workstreams.rows,
           handoffs: handoffs.rows,
+          workflowRuns: workflowRuns.rows,
+          workflowAttempts: workflowAttempts.rows,
           audit: audit.rows,
         };
       },
@@ -1274,6 +1722,14 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
       ),
       workstreams: exported.workstreams.map(workstreamRecord),
       handoffs: exported.handoffs.map(handoffRecord),
+      workflow_runs: exported.workflowRuns.map((row) =>
+        workflowRunRecord(
+          row,
+          exported.workflowAttempts
+            .filter((attempt) => attempt.run_id === row.run_id)
+            .map(workflowAttemptRecord),
+        ),
+      ),
       approvals: exported.approvals.map(approvalRecord),
       audit: exported.audit.map((row) => auditRecord(row, binding)),
     };
@@ -1321,6 +1777,8 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
           ["artifact_revisions", "marketing_os_artifacts"],
           ["workstreams", "marketing_os_workstreams"],
           ["handoffs", "marketing_os_handoffs"],
+          ["workflow_runs", "marketing_os_workflow_runs"],
+          ["workflow_attempts", "marketing_os_workflow_attempts"],
           ["approvals", "marketing_os_approvals"],
           ["audit_entries", "marketing_os_audit"],
           ["rate_limit_buckets", "marketing_os_rate_limits"],
@@ -1368,6 +1826,8 @@ export class PostgresMarketingOsStateAdapter extends MarketingOsStateAdapter {
         }
 
         await client.query(`DELETE FROM marketing_os_context_snapshots`);
+        await client.query(`DELETE FROM marketing_os_workflow_attempts`);
+        await client.query(`DELETE FROM marketing_os_workflow_runs`);
         await client.query(`DELETE FROM marketing_os_workstreams`);
         await client.query(`DELETE FROM marketing_os_handoffs`);
         await client.query(`DELETE FROM marketing_os_approvals`);
@@ -1632,6 +2092,17 @@ async function readApprovals(client, artifactId, revision) {
   return result.rows.map(approvalRecord);
 }
 
+async function readWorkflowAttempts(client, runId) {
+  const result = await client.query(
+    `SELECT *
+       FROM marketing_os_workflow_attempts
+      WHERE run_id = $1
+      ORDER BY attempt_number`,
+    [runId],
+  );
+  return result.rows.map(workflowAttemptRecord);
+}
+
 function contextSnapshot(row, binding) {
   return {
     workspace: binding,
@@ -1730,6 +2201,50 @@ function handoffRecord(row) {
     completion_state: row.completion_state,
     created_at: timestamp(row.created_at),
     updated_at: timestamp(row.updated_at),
+  };
+}
+
+function workflowRunRecord(row, attempts) {
+  return {
+    run_id: row.run_id,
+    revision: Number(row.revision),
+    route: row.route,
+    specialist: row.specialist,
+    context_revision: row.context_revision ?? undefined,
+    package_name: row.package_name,
+    package_version: row.package_version,
+    input_envelope: row.input_envelope,
+    status: row.status,
+    artifact_id: row.artifact_id ?? undefined,
+    artifact_revision:
+      row.artifact_revision === null
+        ? undefined
+        : Number(row.artifact_revision),
+    handoff_id: row.handoff_id ?? undefined,
+    blockers: row.blockers,
+    next_action: row.next_action ?? undefined,
+    error_summary: row.error_summary ?? undefined,
+    attempts,
+    created_at: timestamp(row.created_at),
+    updated_at: timestamp(row.updated_at),
+  };
+}
+
+function workflowAttemptRecord(row) {
+  return {
+    run_id: row.run_id,
+    attempt_number: Number(row.attempt_number),
+    attempt_kind: row.attempt_kind,
+    package_name: row.package_name,
+    package_version: row.package_version,
+    context_revision: row.context_revision ?? undefined,
+    input_envelope: row.input_envelope,
+    output_body: row.output_body ?? undefined,
+    validation_errors: row.validation_errors,
+    status: row.status,
+    error_code: row.error_code ?? undefined,
+    error_message: row.error_message ?? undefined,
+    created_at: timestamp(row.created_at),
   };
 }
 

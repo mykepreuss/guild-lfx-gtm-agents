@@ -71,6 +71,32 @@ assert.deepEqual(
     .external_mutation_requested.enum,
   [false],
 );
+assert.deepEqual(
+  specification.components.schemas.RecordWorkflowAttemptRequest.properties
+    .attempt_number.enum,
+  [1, 2],
+);
+assert.deepEqual(
+  specification.components.schemas.RecordWorkflowAttemptRequest.properties
+    .attempt_kind.enum,
+  ["initial", "format_repair"],
+);
+assert.deepEqual(
+  specification.components.schemas.WorkflowRunStatus.enum,
+  [
+    "running",
+    "needs_input",
+    "ready_for_review",
+    "approved",
+    "blocked",
+    "failed",
+  ],
+);
+assert.deepEqual(
+  specification.components.schemas.CreateWorkflowRunRequest.properties
+    .status.enum,
+  ["running"],
+);
 assert.doesNotMatch(
   JSON.stringify(specification.components.schemas),
   /organization_id|workspace_id|maintainer_token|api_key/i,

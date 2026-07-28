@@ -13,6 +13,9 @@ import {
   requiredString,
   stableHash,
   tenantKey,
+  workflowAttemptInput,
+  workflowRunInput,
+  workflowRunUpdateInput,
   workstreamInput,
 } from "./contracts.mjs";
 
@@ -22,6 +25,20 @@ const artifactTransitions = Object.freeze({
   approved: new Set(["superseded"]),
   blocked: new Set(["draft", "ready_for_review"]),
   superseded: new Set(),
+});
+
+const workflowRunTransitions = Object.freeze({
+  running: new Set([
+    "needs_input",
+    "ready_for_review",
+    "blocked",
+    "failed",
+  ]),
+  needs_input: new Set(["running", "blocked", "failed"]),
+  ready_for_review: new Set(["running", "approved", "blocked"]),
+  approved: new Set(),
+  blocked: new Set(["running", "failed"]),
+  failed: new Set(),
 });
 
 export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
@@ -517,6 +534,284 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
     });
   }
 
+  async createWorkflowRun(tenant, request) {
+    const binding = assertTenant(tenant);
+    const state = this.#state(binding);
+    return this.#idempotent(
+      state,
+      "workflow_run_create",
+      request.idempotency_key,
+      request,
+      () => {
+        const runId = request.run_id ?? newId("run");
+        if (state.workflowRuns.has(runId)) {
+          throw new StateContractError(
+            "workflow_run_exists",
+            "Workflow run already exists.",
+            409,
+          );
+        }
+        const timestamp = this.#clock();
+        const record = {
+          run_id: runId,
+          revision: 1,
+          ...workflowRunInput(request),
+          artifact_id: undefined,
+          artifact_revision: undefined,
+          handoff_id: undefined,
+          error_summary: undefined,
+          attempts: [],
+          created_at: timestamp,
+          updated_at: timestamp,
+        };
+        state.workflowRuns.set(runId, record);
+        this.#audit(state, binding, "workflow_run.created", {
+          run_id: runId,
+          route: record.route,
+          specialist: record.specialist,
+          package_name: record.package_name,
+          package_version: record.package_version,
+          context_revision: record.context_revision ?? null,
+          input_envelope_hash: stableHash(record.input_envelope),
+        });
+        return clone(record);
+      },
+    );
+  }
+
+  async getWorkflowRun(tenant, runId) {
+    const state = this.#state(assertTenant(tenant), false);
+    const record = state?.workflowRuns.get(runId);
+    if (!record) {
+      throw new StateContractError(
+        "workflow_run_not_found",
+        "Workflow run was not found.",
+        404,
+      );
+    }
+    return clone(record);
+  }
+
+  async listWorkflowRuns(tenant) {
+    const state = this.#state(assertTenant(tenant), false);
+    return clone(
+      [...(state?.workflowRuns.values() ?? [])].sort((left, right) =>
+        right.updated_at.localeCompare(left.updated_at),
+      ),
+    );
+  }
+
+  async recordWorkflowAttempt(tenant, request) {
+    const binding = assertTenant(tenant);
+    const state = this.#state(binding);
+    const runId = requiredString(request.run_id, "run_id");
+    return this.#idempotent(
+      state,
+      `workflow_attempt_record:${runId}`,
+      request.idempotency_key,
+      request,
+      () => {
+        const run = state.workflowRuns.get(runId);
+        if (!run) {
+          throw new StateContractError(
+            "workflow_run_not_found",
+            "Workflow run was not found.",
+            404,
+          );
+        }
+        if (run.status !== "running") {
+          throw new StateContractError(
+            "workflow_run_not_running",
+            "Workflow attempts can be recorded only while the run is running.",
+            409,
+          );
+        }
+        const input = workflowAttemptInput(request);
+        if (
+          input.package_name !== run.package_name ||
+          input.package_version !== run.package_version
+        ) {
+          throw new StateContractError(
+            "workflow_attempt_package_mismatch",
+            "Workflow attempt package and version must match the run binding.",
+            409,
+          );
+        }
+        if (
+          (input.context_revision ?? null) !==
+          (run.context_revision ?? null)
+        ) {
+          throw new StateContractError(
+            "workflow_attempt_context_mismatch",
+            "Workflow attempt context revision must match the run binding.",
+            409,
+          );
+        }
+        if (
+          run.attempts.some(
+            (attempt) =>
+              attempt.attempt_number === input.attempt_number,
+          )
+        ) {
+          throw new StateContractError(
+            "workflow_attempt_exists",
+            "Workflow attempt number already exists.",
+            409,
+          );
+        }
+        if (input.attempt_kind === "format_repair") {
+          const first = run.attempts.find(
+            (attempt) => attempt.attempt_number === 1,
+          );
+          if (!first || first.status !== "format_invalid") {
+            throw new StateContractError(
+              "workflow_format_repair_not_allowed",
+              "Format repair is allowed only after a format-invalid initial attempt.",
+              409,
+            );
+          }
+        }
+        const attempt = {
+          run_id: runId,
+          ...input,
+          created_at: this.#clock(),
+        };
+        run.attempts.push(attempt);
+        run.updated_at = attempt.created_at;
+        this.#audit(state, binding, "workflow_run.attempt_recorded", {
+          run_id: runId,
+          attempt_number: attempt.attempt_number,
+          attempt_kind: attempt.attempt_kind,
+          status: attempt.status,
+          validation_errors: attempt.validation_errors,
+          error_code: attempt.error_code ?? null,
+          attempt_hash: stableHash(attempt),
+        });
+        return clone(attempt);
+      },
+    );
+  }
+
+  async updateWorkflowRun(tenant, request) {
+    const binding = assertTenant(tenant);
+    const state = this.#state(binding);
+    const runId = requiredString(request.run_id, "run_id");
+    return this.#idempotent(
+      state,
+      `workflow_run_update:${runId}`,
+      request.idempotency_key,
+      request,
+      () => {
+        const current = state.workflowRuns.get(runId);
+        if (!current) {
+          throw new StateContractError(
+            "workflow_run_not_found",
+            "Workflow run was not found.",
+            404,
+          );
+        }
+        this.#expectRevision(
+          current.revision,
+          request.expected_revision,
+        );
+        const input = workflowRunUpdateInput(request);
+        if (
+          input.status !== current.status &&
+          !workflowRunTransitions[current.status].has(input.status)
+        ) {
+          throw new StateContractError(
+            "invalid_workflow_run_transition",
+            `Cannot transition workflow run ${current.status} to ${input.status}.`,
+            409,
+          );
+        }
+        if (
+          ["ready_for_review", "approved"].includes(input.status) &&
+          (!input.artifact_id || !input.artifact_revision)
+        ) {
+          throw new StateContractError(
+            "workflow_run_artifact_required",
+            `${input.status} workflow runs require an artifact reference.`,
+            409,
+          );
+        }
+        if (input.status === "failed" && !input.error_summary) {
+          throw new StateContractError(
+            "workflow_run_error_required",
+            "A failed workflow run requires error_summary.",
+          );
+        }
+        let referencedArtifact;
+        if (input.artifact_id) {
+          referencedArtifact = this.#artifactRevision(
+            state,
+            input.artifact_id,
+            input.artifact_revision,
+          );
+        }
+        if (
+          input.status === "ready_for_review" &&
+          !["ready_for_review", "approved"].includes(
+            referencedArtifact.status,
+          )
+        ) {
+          throw new StateContractError(
+            "workflow_run_artifact_status_mismatch",
+            "A review-ready workflow run requires a review-ready or approved artifact.",
+            409,
+          );
+        }
+        if (
+          input.status === "approved" &&
+          referencedArtifact.status !== "approved"
+        ) {
+          throw new StateContractError(
+            "workflow_run_artifact_status_mismatch",
+            "An approved workflow run requires an approved artifact.",
+            409,
+          );
+        }
+        if (
+          input.handoff_id &&
+          !state.handoffs.has(input.handoff_id)
+        ) {
+          throw new StateContractError(
+            "handoff_not_found",
+            "Handoff was not found.",
+            404,
+          );
+        }
+        if (
+          ["ready_for_review", "approved"].includes(input.status) &&
+          current.attempts.at(-1)?.status !== "succeeded"
+        ) {
+          throw new StateContractError(
+            "successful_workflow_attempt_required",
+            `${input.status} workflow runs require a succeeded final attempt.`,
+            409,
+          );
+        }
+        const updated = {
+          ...current,
+          ...input,
+          revision: current.revision + 1,
+          updated_at: this.#clock(),
+        };
+        state.workflowRuns.set(runId, updated);
+        this.#audit(state, binding, "workflow_run.updated", {
+          run_id: runId,
+          revision: updated.revision,
+          from: current.status,
+          to: updated.status,
+          artifact_id: updated.artifact_id ?? null,
+          artifact_revision: updated.artifact_revision ?? null,
+          handoff_id: updated.handoff_id ?? null,
+        });
+        return clone(updated);
+      },
+    );
+  }
+
   async getAuditTrail(tenant) {
     const state = this.#state(assertTenant(tenant), false);
     return clone(state?.audit ?? []);
@@ -526,7 +821,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
     const binding = assertTenant(tenant);
     const state = this.#state(binding, false);
     if (!state) {
-      return { schema_version: "1.0", tenant: binding, context_snapshot: null, sources: [], artifacts: [], workstreams: [], handoffs: [], approvals: [], audit: [] };
+      return { schema_version: "1.0", tenant: binding, context_snapshot: null, sources: [], artifacts: [], workstreams: [], handoffs: [], workflow_runs: [], approvals: [], audit: [] };
     }
     const sources = [];
     for (const revisions of state.sources.values()) {
@@ -545,6 +840,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
       artifacts: [...state.artifacts.values()].flatMap((items) => clone(items)),
       workstreams: clone([...state.workstreams.values()]),
       handoffs: clone([...state.handoffs.values()]),
+      workflow_runs: clone([...state.workflowRuns.values()]),
       approvals: clone(state.approvals),
       audit: clone(state.audit),
     };
@@ -572,6 +868,11 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
             artifact_revisions: [...state.artifacts.values()].reduce((count, revisions) => count + revisions.length, 0),
             workstreams: state.workstreams.size,
             handoffs: state.handoffs.size,
+            workflow_runs: state.workflowRuns.size,
+            workflow_attempts: [...state.workflowRuns.values()].reduce(
+              (count, run) => count + run.attempts.length,
+              0,
+            ),
             approvals: state.approvals.length,
             audit_entries: state.audit.length,
           }
@@ -599,6 +900,7 @@ export class MemoryMarketingOsStateAdapter extends MarketingOsStateAdapter {
         artifacts: new Map(),
         workstreams: new Map(),
         handoffs: new Map(),
+        workflowRuns: new Map(),
         approvals: [],
         audit: [],
         idempotency: new Map(),
