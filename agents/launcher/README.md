@@ -1,6 +1,6 @@
 # Marketing OS Launcher
 
-Status: non-delegating Guide fallback private alpha
+Status: automatically resumed delegation private alpha
 
 The Launcher is the draft-only front door for a dedicated Guild Marketing OS workspace.
 
@@ -8,20 +8,24 @@ It:
 
 - deterministically routes clear requests across Company Context Builder and the seven specialists;
 - uses an LLM only when a request is genuinely ambiguous, accepting a strict route enum and one classifier format repair;
-- reads the live session workspace and published compiled context before declaring context missing;
-- discovers installed workspace agents but exposes only the eight exact suite packages as callable tools;
+- reads the workspace-injected published context before declaring context missing;
+- verifies installed workspace agents and exposes only the eight exact suite packages as callable tools;
 - blocks itself, unrelated agents, recursive delegation, publishing, scheduling, spend, CRM mutation, credential setup, legal approval, and other external execution;
-- prepares a complete specialist handoff prompt and directs the user to select
-  or `@mention` that specialist;
+- delegates to the selected allowlisted specialist and returns the complete
+  result to the originating Chat;
 - validates required headings, evidence mode, and the V1 draft-only safety envelope;
-- permits one format-only repair while retaining both complete attempts in its audit state;
-- records route, context revision, invoked package/version ID, attempts, errors, status, and next handoff in session state.
+- permits one format-only repair and keeps every root and child attempt in Guild
+  task/event evidence;
+- keeps internal package/version provenance out of the customer-facing status
+  table while retaining it in Guild evidence.
 
-The allowlisted same-session delegation path remains implemented but disabled.
-In live evidence, a Messaging child completed while the coded Launcher root
-remained dispatched, so the result was not reliably returned to the originating
-chat. The delivery plan requires this Guide fallback under that condition.
+The earlier self-managed delegation path remains in source as a rollback during
+the private spike. Live evidence showed its Messaging child completed while the
+Launcher root remained dispatched. The active implementation uses Guild's
+automatically managed runtime so the root suspend/resume cycle is owned by the
+platform.
 
 The durable PostgreSQL cockpit adapter and delegated Guild tenant authorization
-are also release gates. Until those are connected, Launcher session state is
-private-alpha evidence rather than the public cross-session system of record.
+are still public release gates. Until those are connected, Guild task/event
+evidence is private-alpha validation rather than the public cross-session system
+of record.

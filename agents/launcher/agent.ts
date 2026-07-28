@@ -177,7 +177,7 @@ const tools: Record<string, Tool> = {
 type Tools = typeof tools;
 type LauncherTask = Task<Tools, LauncherState>;
 
-export default agent({
+const legacySelfManagedLauncher = agent({
   identifier: "guild_marketing_os_launcher",
   description:
     "Routes draft-only Marketing OS work to an explicit suite allowlist, returns complete specialist artifacts, and fails safely when context or a required package is unavailable.",
@@ -760,11 +760,11 @@ function renderOnboardingStatus(
     "",
     "All eight capability packages are installed.",
     "",
-    "| Capability | State | Version provenance |",
-    "| --- | --- | --- |",
+    "| Capability | State |",
+    "| --- | --- |",
     ...suiteInstallOrder.map((entry) => {
       const record = installed.get(entry.packageName);
-      return `| ${entry.displayName} | ${record ? "installed" : "blocked"} | ${record?.versionId ?? "unavailable"} |`;
+      return `| ${entry.displayName} | ${record ? "installed" : "blocked"} |`;
     }),
     "",
     "Launcher is active in this Chat.",
@@ -875,4 +875,300 @@ function newToolCallId(): string {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+// Guild's automatically managed agent runtime owns the suspend/resume cycle
+// for delegated agent calls. This avoids the self-managed root-resume failure
+// observed in the private Launcher spike while keeping every callable agent
+// statically allowlisted.
+const automaticTools = {
+  ...pick(guildTools, [
+    "guild_agent_install_request",
+    "guild_get_task_workspace_agents",
+  ]),
+  marketing_os_company_context_builder: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-company-context-builder",
+  }),
+  marketing_os_market_signal: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-market-signal",
+  }),
+  marketing_os_icp: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-icp",
+  }),
+  marketing_os_audience_segmentation: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-audience-segmentation",
+  }),
+  marketing_os_messaging: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-messaging",
+  }),
+  marketing_os_branding_pitch_deck: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-branding-pitch-deck",
+  }),
+  marketing_os_social_monitoring_content: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-social-monitoring-content",
+  }),
+  marketing_os_campaigns_paid_media: guildAgentTool({
+    inputSchema: specialistInputSchema,
+    outputSchema: specialistOutputSchema,
+    calls: "michaelpreuss~guild-marketing-os-campaigns-paid-media",
+  }),
+};
+
+type AutomaticTools = typeof automaticTools;
+type AutomaticLauncherTask = Task<AutomaticTools>;
+
+export default agent({
+  identifier: "guild_marketing_os_launcher",
+  description:
+    "Routes draft-only Marketing OS work to an explicit suite allowlist, returns complete specialist artifacts, and fails safely when context or a required package is unavailable.",
+  inputSchema,
+  outputSchema,
+  tools: automaticTools,
+  async run(input, task: AutomaticLauncherTask) {
+    const context = await readContextSnapshot(input.text, task as unknown as LauncherTask);
+    const userText = removeCompiledWorkspaceContext(input.text, context.compiled);
+    const classification = await classifyRoute(userText, task as unknown as LauncherTask);
+
+    if (classification.route === "blocked") {
+      return {
+        type: "text" as const,
+        text: renderBlocked(
+          "V1 is draft-only. Publishing, scheduling, spend, CRM mutation, credential setup, legal approval, recursive delegation, and arbitrary-agent invocation are not supported.",
+        ),
+      };
+    }
+
+    if (classification.route === "guide") {
+      const audit = baseAudit(classification, context.contextRevision, null);
+      audit.status = "blocked";
+      return {
+        type: "text" as const,
+        text: renderGuide(
+          "I could not determine one safe specialist workflow. Name the desired outcome—company context, market signal, ICP, audience segmentation, messaging, brand/deck, social/content, or campaigns/paid media.",
+          audit,
+        ),
+      };
+    }
+
+    const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
+    const installed = installedSuiteAgentsFromWorkspace(workspaceAgents);
+
+    if (classification.route === "onboarding") {
+      const missing = suiteInstallOrder.find((entry) => !installed.has(entry.packageName));
+      if (missing) {
+        try {
+          await task.tools.guild_agent_install_request({ agent_id: missing.agentId });
+          return {
+            type: "text" as const,
+            text: [
+              "# Marketing OS Onboarding",
+              "",
+              `${missing.displayName} installation was approved. Continue onboarding to verify it and request the next missing package.`,
+              "",
+              "No other installation request was made.",
+            ].join("\n"),
+          };
+        } catch {
+          return {
+            type: "text" as const,
+            text: [
+              "# Marketing OS Onboarding",
+              "",
+              `${missing.displayName} is still unavailable. Its installation request was denied, suspended, or failed, and onboarding remains resumable.`,
+              "",
+              "No other installation request was made.",
+            ].join("\n"),
+          };
+        }
+      }
+
+      const audit = baseAudit(classification, context.contextRevision, null);
+      audit.status = "ready_for_review";
+      return {
+        type: "text" as const,
+        text: renderOnboardingStatus(installed, audit),
+      };
+    }
+
+    const route = classification.route;
+    const config = routeConfig[route];
+    const installedAgent = installed.get(config.packageName);
+
+    if (route !== "company_context" && !context.ready) {
+      const audit = baseAudit(classification, context.contextRevision, installedAgent ?? null);
+      audit.status = "blocked";
+      audit.next_handoff = "Company Context Builder";
+      return {
+        type: "text" as const,
+        text: renderGuide(
+          "Approved published Marketing OS context is not ready. Use Company Context Builder first; approve the context artifact, then confirm publication with the exact required phrase.",
+          audit,
+        ),
+      };
+    }
+
+    if (!installedAgent) {
+      const audit = baseAudit(classification, context.contextRevision, null);
+      audit.status = "blocked";
+      audit.next_handoff = config.displayName;
+      return {
+        type: "text" as const,
+        text: renderGuide(
+          `${config.displayName} is required but unavailable. Installation remains blocked and resumable; an administrator must approve that suite package before this route can run.`,
+          audit,
+        ),
+      };
+    }
+
+    const delegatedInput = specialistInput(userText, context.contextRevision);
+    let firstAttempt: { type: "text"; text: string };
+    try {
+      firstAttempt = await invokeAutomaticSpecialist(route, delegatedInput, task);
+    } catch (error) {
+      return {
+        type: "text" as const,
+        text: renderBlocked(`Specialist failed: ${safeError(error)}`),
+      };
+    }
+
+    const firstText = extractSpecialistText(firstAttempt);
+    if (!firstText) {
+      return {
+        type: "text" as const,
+        text: renderBlocked("Specialist returned an empty or unsupported output."),
+      };
+    }
+
+    const firstErrors = validateSpecialistOutput(firstText);
+    if (firstErrors.length === 0) {
+      return {
+        type: "text" as const,
+        text: renderDelegatedResult(
+          {
+            route,
+            tool_name: config.toolName,
+            user_text: userText,
+            context_revision: context.contextRevision,
+            package_name: installedAgent.packageName,
+            version_id: installedAgent.versionId,
+            format_repair_attempted: false,
+            audit: baseAudit(classification, context.contextRevision, installedAgent),
+          },
+          firstText,
+        ),
+      };
+    }
+
+    if (!onlyFormatErrors(firstErrors)) {
+      return {
+        type: "text" as const,
+        text: renderBlocked(`Specialist output failed safety validation: ${firstErrors.join("; ")}`),
+      };
+    }
+
+    const repairInput = specialistInput(
+      [
+        "FORMAT REPAIR ONLY.",
+        "Preserve the substantive content from the prior attempt; do not add new claims.",
+        `Repair these validation errors: ${firstErrors.join("; ")}`,
+        "Return the complete corrected artifact with the seven required headings, an explicit evidence mode, and a draft-only safety envelope.",
+        "",
+        "Prior attempt:",
+        firstText,
+      ].join("\n"),
+      context.contextRevision,
+    );
+
+    let repairedAttempt: { type: "text"; text: string };
+    try {
+      repairedAttempt = await invokeAutomaticSpecialist(route, repairInput, task);
+    } catch (error) {
+      return {
+        type: "text" as const,
+        text: renderBlocked(`Format repair failed: ${safeError(error)}`),
+      };
+    }
+
+    const repairedText = extractSpecialistText(repairedAttempt);
+    const repairedErrors = repairedText ? validateSpecialistOutput(repairedText) : ["Empty repair output."];
+    if (!repairedText || repairedErrors.length > 0) {
+      return {
+        type: "text" as const,
+        text: renderBlocked(`Specialist format repair failed validation: ${repairedErrors.join("; ")}`),
+      };
+    }
+
+    return {
+      type: "text" as const,
+      text: renderDelegatedResult(
+        {
+          route,
+          tool_name: config.toolName,
+          user_text: userText,
+          context_revision: context.contextRevision,
+          package_name: installedAgent.packageName,
+          version_id: installedAgent.versionId,
+          format_repair_attempted: true,
+          audit: baseAudit(classification, context.contextRevision, installedAgent),
+        },
+        repairedText,
+      ),
+    };
+  },
+});
+
+function installedSuiteAgentsFromWorkspace(
+  workspaceAgents: unknown,
+): Map<string, { packageName: string; versionId: string }> {
+  const installed = new Map<string, { packageName: string; versionId: string }>();
+  if (!Array.isArray(workspaceAgents)) return installed;
+  for (const workspaceAgent of workspaceAgents) {
+    if (!workspaceAgent || typeof workspaceAgent !== "object") continue;
+    const packageNameValue = Reflect.get(workspaceAgent, "package_name");
+    const versionValue = Reflect.get(workspaceAgent, "version_id");
+    if (typeof packageNameValue !== "string" || typeof versionValue !== "string") continue;
+    const packageName = unqualifiedPackageName(packageNameValue);
+    if (!delegatedRouteForPackage(packageName)) continue;
+    installed.set(packageName, { packageName: packageNameValue, versionId: versionValue });
+  }
+  return installed;
+}
+
+async function invokeAutomaticSpecialist(
+  route: DelegatedRoute,
+  input: z.infer<typeof specialistInputSchema>,
+  task: AutomaticLauncherTask,
+): Promise<z.infer<typeof specialistOutputSchema>> {
+  switch (route) {
+    case "company_context":
+      return await task.tools.marketing_os_company_context_builder(input);
+    case "market_signal":
+      return await task.tools.marketing_os_market_signal(input);
+    case "icp":
+      return await task.tools.marketing_os_icp(input);
+    case "audience_segmentation":
+      return await task.tools.marketing_os_audience_segmentation(input);
+    case "messaging":
+      return await task.tools.marketing_os_messaging(input);
+    case "branding_pitch_deck":
+      return await task.tools.marketing_os_branding_pitch_deck(input);
+    case "social_monitoring_content":
+      return await task.tools.marketing_os_social_monitoring_content(input);
+    case "campaigns_paid_media":
+      return await task.tools.marketing_os_campaigns_paid_media(input);
+  }
 }
