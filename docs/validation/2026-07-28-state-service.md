@@ -133,6 +133,20 @@ service interface. Guild's public custom-integration documentation also does
 not specify a signed outbound identity carrying organization, workspace,
 actor, session, and task claims.
 
+The logged-in Guild organization UI was also inspected without creating an
+integration. The live three-step REST/MCP integration creator exposes:
+
+- outbound authentication by API key, OAuth 2.0, OAuth 2.0 M2M, or no
+  authentication; and
+- optional inbound webhook verification by HMAC-SHA256 or Ed25519.
+
+It does not expose a Guild-signed outbound caller identity, issuer, audience,
+JWKS, or organization/workspace/session/task claim contract. The disposable
+integration draft was discarded, the organization still showed “No
+integrations yet,” and the browser was restored to the personal Marketing OS
+workspace. This confirms the authorization gate in the shipped UI as well as
+the published documentation.
+
 The current environment has no Google Cloud CLI, application-default
 credentials, project, Cloud SQL URL, or KMS key configured. Therefore:
 

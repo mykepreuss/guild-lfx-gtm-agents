@@ -63,6 +63,13 @@ for a customer service to verify. Passing workspace identifiers in an agent
 request body is insufficient because a malicious or compromised agent could
 spoof them.
 
+The logged-in organization integration creator confirms the shipped surface.
+For REST and MCP integrations it offers API key, OAuth 2.0, OAuth 2.0 M2M, or
+no outbound authentication. Its HMAC-SHA256 and Ed25519 signing controls apply
+to inbound webhooks sent to Guild. No option signs Guild-to-service requests
+with tenant, actor, session, and task claims. A disposable form draft was
+discarded without creating an integration.
+
 This means native Guild state is useful for deterministic context reads and
 installation verification, but it cannot currently be the V1 system of record.
 It may become the context-publication path after the documented operations ship

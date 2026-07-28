@@ -17,7 +17,7 @@ may be made public while any blocking row below remains open.
 | Browser normal-Chat UX | Launcher 0.2.5 is the private workspace default; onboarding, Builder, seven specialists, safety recovery, and ambiguity pass | Pass in private alpha |
 | Browser specialist selection | Automatic Launcher delegation removes the prior `@mention` dependency | Pass in private alpha |
 | Cross-session cockpit persistence | Durable run/attempt ledger now preserves route, context, agent/version, full initial and format-repair attempts, validation/errors, artifact, status, and handoff; PostgreSQL/JWT/HTTP rehearsal passes locally | **Blocked on authenticated managed deployment and live Launcher wiring** |
-| Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
+| Delegated workspace context publication | Online docs list context operations, but published SDK 0.4.2 does not contain them; the live integration creator offers API key/OAuth/OAuth M2M/no auth, not a Guild-signed tenant caller identity; old bridge uses maintainer identity | **Blocked on shipped Guild authorization** |
 | Self-install onboarding | One-at-a-time install request and default verification code implemented | **Blocked on public versions and clean-org test** |
 | No private Skills dependency | All live 1.1.x capability packages are self-contained | Pass in private alpha |
 | Tenant isolation | Forced PostgreSQL RLS, production-adapter cross-tenant rehearsal, and full HTTP/JWKS tenant-spoof test pass locally | **Blocked on deployed Guild-issued identity spoof test** |
