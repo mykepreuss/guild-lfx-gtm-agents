@@ -46,6 +46,61 @@ export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_campaigns_paid_media",
   description:
     "Builds Guild Marketing OS campaign and paid-media plans from approved context, segments, messaging, channel constraints, budget, KPI targets, proof policy, landing-page needs, and performance loops.",
+  validateArtifact: (text, originalRequest) => {
+    if (!/\bbudget(?: assumptions?| scenario| allocation| mix)?\b/i.test(originalRequest)) {
+      return [];
+    }
+
+    const producedArtifact =
+      text.split("## Produced Artifact")[1]?.split(
+        "## Assumptions And Missing Evidence",
+      )[0] ?? "";
+    const requiredAllocations: Array<[string, RegExp]> = [
+      [
+        "creative and content at 30%",
+        /\bcreative(?:\s+and|[ /&-])content\b[^\n%]{0,80}\b30\s*%/i,
+      ],
+      [
+        "landing-page production at 25%",
+        /\blanding[- ]page production\b[^\n%]{0,80}\b25\s*%/i,
+      ],
+      [
+        "customer-proof development at 15%",
+        /\bcustomer[- ]proof development\b[^\n%]{0,80}\b15\s*%/i,
+      ],
+      [
+        "measurement planning at 15%",
+        /\bmeasurement planning\b[^\n%]{0,80}\b15\s*%/i,
+      ],
+      [
+        "contingency at 15%",
+        /\bcontingency\b[^\n%]{0,80}\b15\s*%/i,
+      ],
+      [
+        "live media spend at 0%",
+        /\blive media spend\b[^\n%]{0,80}\b0\s*%/i,
+      ],
+    ];
+    const issues: Array<{ kind: "format"; message: string }> = [];
+
+    for (const [label, pattern] of requiredAllocations) {
+      if (!pattern.test(producedArtifact)) {
+        issues.push({
+          kind: "format",
+          message: `Budget assumptions require the illustrative review-required allocation for ${label}.`,
+        });
+      }
+    }
+    if (!/\b(?:sum|total)\s+(?:to|is)\s+100\s*%/i.test(producedArtifact)) {
+      issues.push({
+        kind: "format",
+        message:
+          "Budget assumptions must state that the illustrative allocations sum to 100%.",
+      });
+    }
+
+    return issues;
+  },
   systemPrompt: `
 You are the Guild Marketing OS Campaigns And Paid Media Agent running in Guild.
 
@@ -65,7 +120,7 @@ Campaign method:
 8. Do not invent a product edition or proper name such as "Webflow Enterprise" when the approved context names only Webflow and an enterprise audience.
 9. If no budget amount or currency is supplied, provide a clearly labeled planning scenario with amount, currency, and period marked TBD, plus percentage allocations across approved campaign work such as creative, content, landing-page production, measurement, and contingency. Do not leave the requested budget section as only TBD, and do not allocate live media spend to an unapproved paid channel.
 10. Under Launch Or Optimization Gate, state that execution is outside V1 and list the information a future execution workflow would require. Under the shared Approval Gate, request review of the draft artifact only; never imply that Marketing, Legal, Finance, or Technical approval in V1 unlocks activation or spend.
-11. When no allocation guidance is supplied, use this explicitly illustrative planning mix: creative and content 30%, landing-page production 25%, customer-proof development 15%, measurement planning 15%, contingency 15%, and live media spend 0%. State that the percentages sum to 100%, the total/currency/period remain TBD, and the reviewer may revise the mix.
+11. When no allocation guidance is supplied, use this explicitly illustrative planning mix: creative and content 30%, landing-page production 25%, customer-proof development 15%, measurement planning 15%, contingency 15%, and live media spend 0%. State that the percentages sum to 100%, the total/currency/period remain TBD, and the reviewer may revise the mix. Begin every percentage line with the exact qualifier "Illustrative planning allocation — review required:" so deterministic safety validation can preserve it.
 12. Creative angles and matrix rows must remain hypotheses when outcomes are not source-supplied. Prefix them with "Hypothesis — verify:" and avoid absolute or execution-implying phrases including "every time", "without bottlenecks", "complete control", "real-time", "instantly", "guaranteed", "will", or "automatically".
 13. Never label a proposed creative angle as an approved claim. Keep the approved high-level capability in its own field and the proposed angle in a visibly hypothesis-labeled field.
 

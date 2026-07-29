@@ -125,6 +125,16 @@ assert.match(
 );
 assert.match(
   campaignsPaidMediaSource,
+  /Budget assumptions require the illustrative review-required allocation for \$\{label\}\./,
+  "campaign validation should reject an incomplete requested budget mix",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /Illustrative planning allocation — review required:/,
+  "every illustrative campaign percentage should be visibly review-required",
+);
+assert.match(
+  campaignsPaidMediaSource,
   /Prefix them with "Hypothesis — verify:" and avoid absolute or execution-implying phrases/,
   "campaign creative should not present unsupported outcomes as facts",
 );

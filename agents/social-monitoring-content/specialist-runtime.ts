@@ -622,6 +622,9 @@ ${initialText}
 If a requested-period draft body is empty after deterministic safety filtering,
 fill only that missing body with useful copy grounded in the approved facts already
 present in Consumed Context. Keep unsupported details out; do not add new facts.
+If a config-specific completeness error identifies a missing planning field, fill
+that field only from the exact method required by the system prompt and qualify
+every unsupported numeric planning line as review required.
 `.trim();
 }
 
