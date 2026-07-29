@@ -1272,6 +1272,24 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     for (const blocker of output.statusPayload.blockers) blockers.add(blocker);
   }
 
+  const preservesSourceHipaaNuance = (claim: Claim): boolean =>
+    preservesQualifiedHipaaNuance(claim.claim, rawContext);
+  blockedClaims = blockedClaims.filter(preservesSourceHipaaNuance);
+  assumptionsAndMissingEvidence =
+    assumptionsAndMissingEvidence.filter(preservesSourceHipaaNuance);
+  claimsNeedingApproval =
+    claimsNeedingApproval.filter(preservesSourceHipaaNuance);
+  output.approvedFacts =
+    output.approvedFacts.filter(preservesSourceHipaaNuance);
+  output.extractedClaims =
+    output.extractedClaims.filter(preservesSourceHipaaNuance);
+  output.proofBackedClaims =
+    output.proofBackedClaims.filter(preservesSourceHipaaNuance);
+  output.contextArtifacts.proofAndConstraints.approvedClaims =
+    output.contextArtifacts.proofAndConstraints.approvedClaims.filter(
+      preservesSourceHipaaNuance,
+    );
+
   if (explicitCompanyName) {
     output.contextArtifacts.companyContext.companyName = explicitCompanyName;
     output.statusPayload.companyName = explicitCompanyName;
@@ -1438,8 +1456,6 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
     .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
-  const preservesSourceHipaaNuance = (claim: Claim): boolean =>
-    preservesQualifiedHipaaNuance(claim.claim, rawContext);
   output.contextArtifacts.proofAndConstraints.blockedClaims =
     normalizeBlockedClaims(blockedClaims.filter(preservesSourceHipaaNuance));
   output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
@@ -3308,7 +3324,7 @@ export function preservesQualifiedHipaaNuance(
   if (!/\bmay not be HIPAA compliant\b/i.test(rawContext)) {
     return true;
   }
-  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
+  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
     claim,
   );
 }

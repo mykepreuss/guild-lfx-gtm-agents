@@ -382,7 +382,7 @@ function guildChatEnvelope(text) {
   );
   assert.doesNotMatch(
     draft.output.text,
-    /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i,
+    /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i,
     "Builder must not strengthen a qualified HIPAA caveat even inside blocked claims",
   );
   const blockedActionKeys =
@@ -517,6 +517,7 @@ assert.equal(
   true,
 );
 for (const strengthenedClaim of [
+  "Webflow is HIPAA compliant.",
   "Webflow is explicitly not HIPAA compliant.",
   "Key constraints include lack of HIPAA compliance.",
   "Protected Health Information is prohibited (not HIPAA compliant).",
