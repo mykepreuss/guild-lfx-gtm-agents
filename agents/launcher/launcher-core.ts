@@ -217,7 +217,7 @@ function deterministicRouteDecision(
   }
 
   if (
-    /\b(?:set up|setup|start|begin|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)(?:\s+(?:setup|workflow|draft))?\b/i.test(
+    /\b(?:set up|setup|start|begin|build|create|prepare|draft|refresh|update|resume|continue)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)(?:\s+(?:setup|workflow|draft))?\b/i.test(
       routingText,
     )
   ) {

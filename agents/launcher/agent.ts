@@ -431,6 +431,7 @@ async function run(
   let currentRun: WorkflowRun | undefined;
   let idempotencyPrefix = "";
   let requestText = userText;
+  let resumingNeedsInput = false;
 
   if (resumeRequested(userText)) {
     currentRun = cockpit.state.runs.find(
@@ -441,10 +442,16 @@ async function run(
           ),
       );
     if (currentRun) {
+      resumingNeedsInput = currentRun.status === "needs_input";
       idempotencyPrefix = `launcher-${currentRun.run_id}`;
       const originalRequest = currentRun.input_envelope.user_request;
       if (typeof originalRequest === "string" && originalRequest.trim()) {
-        requestText = originalRequest.trim();
+        requestText = [
+          originalRequest.trim(),
+          "",
+          "## Focused resume input",
+          userText.trim(),
+        ].join("\n");
       }
     }
   }
@@ -627,16 +634,21 @@ async function run(
     };
   }
 
-  const existingCompletedAttempt = [...currentRun.attempts]
-    .reverse()
-    .find((attempt) => attempt.status === "succeeded");
+  const existingCompletedAttempt = resumingNeedsInput
+    ? undefined
+    : [...currentRun.attempts]
+        .reverse()
+        .find((attempt) => attempt.status === "succeeded");
   let completedText = existingCompletedAttempt
     ? existingCompletedAttempt.output_body
     : undefined;
-  let nextAttemptNumber: 1 | 2 =
-    currentRun.attempts.length === 0 ? 1 : 2;
-  let nextAttemptKind: "initial" | "format_repair" =
-    nextAttemptNumber === 1 ? "initial" : "format_repair";
+  let nextAttemptNumber = currentRun.attempts.length + 1;
+  let nextAttemptKind: "initial" | "format_repair" | "resume" =
+    resumingNeedsInput
+      ? "resume"
+      : nextAttemptNumber === 1
+        ? "initial"
+        : "format_repair";
   let finalAttemptCount = currentRun.attempts.length;
   const expectedHipaaConstraint = route !== "company_context" &&
     /\bHIPAA\b|\bPHI\b/i.test(requestText)
@@ -650,7 +662,7 @@ async function run(
   );
 
   const previousAttempt = currentRun.attempts.at(-1);
-  if (!completedText && previousAttempt) {
+  if (!completedText && previousAttempt && !resumingNeedsInput) {
     if (
       previousAttempt.status === "format_invalid" &&
       previousAttempt.attempt_number === 1 &&
@@ -848,7 +860,7 @@ async function run(
       };
     }
 
-    if (nextAttemptNumber === 2) {
+    if (nextAttemptKind === "format_repair") {
       const reason = `Specialist format repair failed validation: ${errors.join("; ")}`;
       finishFailedRun(
         cockpit,
@@ -872,7 +884,7 @@ async function run(
       route,
       expectedHipaaConstraint,
     );
-    nextAttemptNumber = 2;
+    nextAttemptNumber += 1;
     nextAttemptKind = "format_repair";
   }
 
@@ -895,7 +907,8 @@ async function run(
       : [];
     const artifact = artifactResponseSchema.parse(
       applyCockpitOperation(cockpit, "artifactStore", {
-        idempotency_key: `${idempotencyPrefix}-artifact`,
+        idempotency_key: `${idempotencyPrefix}-artifact-a${nextAttemptNumber}`,
+        artifact_id: currentRun.artifact_id ?? undefined,
         artifact_type: route,
         markdown_body: completedText,
         consumed_context_revision: context.contextRevision,
@@ -933,7 +946,7 @@ async function run(
       : `Review ${config.displayName} artifact revision ${artifact.revision}.`;
     const handoff = handoffResponseSchema.parse(
       applyCockpitOperation(cockpit, "handoffCreate", {
-        idempotency_key: `${idempotencyPrefix}-handoff`,
+        idempotency_key: `${idempotencyPrefix}-handoff-r${artifact.revision}`,
         source_agent: config.displayName,
         target_agent: "Marketing OS Launcher",
         artifact_references: [
@@ -952,7 +965,7 @@ async function run(
         runId: currentRun.run_id,
         idempotency_key: `${idempotencyPrefix}-${
           needsInput ? "needs-input" : "ready"
-        }`,
+        }-r${artifact.revision}`,
         expected_revision: currentRun.revision,
         status: needsInput ? "needs_input" : "ready_for_review",
         artifact_id: artifact.artifact_id,
@@ -966,7 +979,7 @@ async function run(
       specialist: config.displayName,
       idempotency_key: `${idempotencyPrefix}-workstream-${
         needsInput ? "needs-input" : "ready"
-      }`,
+      }-r${artifact.revision}`,
       expected_revision: workstream.revision,
       status: needsInput ? "needs_input" : "ready_for_review",
       latest_artifact_id: artifact.artifact_id,

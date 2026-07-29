@@ -16,8 +16,8 @@ export const workflowRunStatusSchema = z.enum([
 export const workflowAttemptSchema = z
   .object({
     run_id: z.string(),
-    attempt_number: z.union([z.literal(1), z.literal(2)]),
-    attempt_kind: z.enum(["initial", "format_repair"]),
+    attempt_number: z.number().int().positive(),
+    attempt_kind: z.enum(["initial", "format_repair", "resume"]),
     package_name: z.string(),
     package_version: z.string(),
     context_revision: z.string().nullable().optional(),
@@ -168,8 +168,8 @@ export const createWorkflowRunRequestSchema = z.object({
 export const recordWorkflowAttemptRequestSchema = z.object({
   runId: z.string(),
   idempotency_key: z.string(),
-  attempt_number: z.union([z.literal(1), z.literal(2)]),
-  attempt_kind: z.enum(["initial", "format_repair"]),
+  attempt_number: z.number().int().positive(),
+  attempt_kind: z.enum(["initial", "format_repair", "resume"]),
   package_name: z.string(),
   package_version: z.string(),
   context_revision: z.string().optional(),
@@ -188,6 +188,7 @@ export const recordWorkflowAttemptRequestSchema = z.object({
 
 export const storeArtifactRequestSchema = z.object({
   idempotency_key: z.string(),
+  artifact_id: z.string().optional(),
   artifact_type: z.string(),
   markdown_body: z.string(),
   consumed_context_revision: z.string().optional(),
@@ -623,7 +624,11 @@ export function createSessionCockpit(
       );
       if (existing) return { data: existing };
     }
-    const artifactId = uuidFromSeed(`${state.canonical_session_id ?? "session"}:${input.idempotency_key}`);
+    const artifactId =
+      input.artifact_id ??
+      uuidFromSeed(
+        `${state.canonical_session_id ?? "session"}:${input.idempotency_key}`,
+      );
     const prior = state.artifacts.filter((candidate) => candidate.artifact_id === artifactId);
     const revision = prior.length + 1;
     const now = new Date().toISOString();
@@ -1318,9 +1323,11 @@ export function reduceSessionCockpitOperation(
     if (existing) {
       response = { data: existing };
     } else {
-      const artifactId = uuidFromSeed(
-        `${state.canonical_session_id ?? "session"}:${request.idempotency_key}`,
-      );
+      const artifactId =
+        request.artifact_id ??
+        uuidFromSeed(
+          `${state.canonical_session_id ?? "session"}:${request.idempotency_key}`,
+        );
       const revision =
         state.artifacts.filter(
           (candidate) => candidate.artifact_id === artifactId,

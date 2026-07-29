@@ -113,6 +113,11 @@ Published context revision consumed.
 Draft positioning.
 `.trim();
 
+const needsInputArtifact = validArtifact.replace(
+  '"status":"ready_for_review"',
+  '"status":"needs_input"',
+);
+
 function installedAgents() {
   return launcherCore.suiteInstallOrder.map((entry, index) => ({
     package_name:
@@ -458,25 +463,44 @@ function launcherInput(request, context = managedContext) {
 }
 
 {
+  let call = 0;
   const chat = createChat({
     sessionId: "canonical-resume",
-    specialist: async () => ({ type: "text", text: validArtifact }),
+    specialist: async () => ({
+      type: "text",
+      text: call++ === 0 ? needsInputArtifact : validArtifact,
+    }),
   });
-  await launcher.run(
+  const initial = await launcher.run(
     launcherInput("Create messaging for the approved audience."),
     chat.task,
   );
-  const before = chat.readState();
-  before.runs[0].status = "needs_input";
-  before.runs[0].next_action = "Resume Messaging.";
-  await chat.task.save(before);
+  assert.match(initial.text, /Status: needs input/);
+  assert.equal(chat.readState().runs[0].status, "needs_input");
+  assert.equal(chat.readState().artifacts[0].revision, 1);
 
   const resumed = await launcher.run(
-    launcherInput("Resume messaging work."),
+    launcherInput(
+      "Resume messaging work with approved proof: customer interviews.",
+    ),
     chat.task,
   );
   assert.match(resumed.text, /Handled by: Messaging/);
   assert.equal(chat.readState().runs.length, 1);
+  assert.equal(chat.specialistCallCount(), 2);
+  assert.match(
+    chat.specialistInputs[1].text,
+    /Create messaging for the approved audience\./,
+  );
+  assert.match(
+    chat.specialistInputs[1].text,
+    /Focused resume input[\s\S]*approved proof: customer interviews/,
+  );
+  assert.equal(chat.readState().artifacts.length, 2);
+  assert.equal(chat.readState().artifacts[0].artifact_id, chat.readState().artifacts[1].artifact_id);
+  assert.equal(chat.readState().artifacts[1].revision, 2);
+  assert.equal(chat.readState().artifacts[1].status, "ready_for_review");
+  assert.equal(chat.readState().runs[0].artifact_revision, 2);
 }
 
 {
