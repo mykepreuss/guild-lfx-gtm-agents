@@ -176,8 +176,16 @@ function guildChatEnvelope(text) {
 
 {
   const harness = createTask({ sessionId: "foundation-draft-approval" });
+  const approvalFixture = [
+    "Company name: Webflow.",
+    "Approved description: Webflow is a visual website platform for teams that need to design, build, manage, and optimize web experiences.",
+    "Primary audiences: marketing teams, web teams, agencies, designers, developers, and enterprise digital teams.",
+    "Current goals: create approved company context and route the next Marketing OS agent.",
+    "Proof-backed claims: the user-supplied source packet says Webflow combines visual site design, CMS, hosting, collaboration, optimization, AI, and extensibility features.",
+    "Approved channels: website, email, social content, pitch materials, and campaign planning.",
+  ].join("\n");
   const draft = await foundationAgent.start(
-    { type: "text", text: fixture },
+    { type: "text", text: approvalFixture },
     harness.task,
   );
   assert.equal(draft.type, "output");
@@ -226,11 +234,19 @@ function guildChatEnvelope(text) {
       draft.output.text.lastIndexOf("\n## "),
     "Downstream Handoff should be the final top-level artifact section",
   );
-  assert.equal(harness.readState().lastSourceText, fixture);
+  assert.equal(harness.readState().lastSourceText, approvalFixture);
   assert.equal(
     harness.readState().durableContextArtifactStatus,
-    "ready_for_review",
+    "draft",
   );
+  assert.match(draft.output.text, /plus a draft Company Context artifact/);
+
+  const readyState = harness.readState();
+  readyState.lastOutput.status = "ready_for_review";
+  readyState.lastOutput.statusPayload.readiness = "review_ready";
+  readyState.lastOutput.statusPayload.blockers = [];
+  readyState.durableContextArtifactStatus = "ready_for_review";
+  await harness.task.save(readyState);
 
   const approvalText = "Context approved save to workspace context";
   const approval = await foundationAgent.start(
@@ -241,7 +257,7 @@ function guildChatEnvelope(text) {
   assert.match(approval.output.text, /approved_in_session: true/);
   assert.match(approval.output.text, /approved in this Guild Chat/);
   assert.match(approval.output.text, new RegExp(approvalText));
-  assert.equal(harness.readState().approvedSourceText, fixture);
+  assert.equal(harness.readState().approvedSourceText, approvalFixture);
   assert.equal(
     harness.readState().durableContextArtifactStatus,
     "approved",
@@ -325,6 +341,61 @@ function guildChatEnvelope(text) {
     harness.readState().lastOutput.consumedContext.missing.join(", "),
     /Approved description/,
   );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-incomplete-sensitive-source",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Start Company Context setup using only the source document below.",
+    "Source document: Webflow acceptance fixture",
+    "",
+    "Webflow, Inc. provides a visual website platform. Its current positioning includes Website Experience Platform and agentic web marketing platform.",
+    "Primary audiences include enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "The company reports more than 900 team members in 25 countries and 3.5 million users.",
+    "The supplied source states that Webflow is audited for SOC 2 Type II and certified to ISO 27001.",
+    "Webflow may not be HIPAA compliant, so protected health information must not be provided through the platform.",
+    "Treat scale, trust, compliance, pricing, and performance claims as source-supplied and review-required.",
+    "Evidence mode: source_supplied. No live source was inspected.",
+  ].join("\n");
+  const draft = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(draft.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "needs_input");
+  assert.equal(harness.readState().durableContextArtifactStatus, "draft");
+  assert.match(draft.output.text, /plus a draft Company Context artifact/);
+  assert.doesNotMatch(
+    draft.output.text,
+    /plus review-ready Company Context artifact/,
+  );
+  assert.equal(
+    harness.readState().lastOutput.approvedFacts.some((claim) =>
+      /agentic web marketing platform/i.test(claim.claim)
+    ),
+    false,
+    "guarded positioning must not remain in reusable facts before approval",
+  );
+  assert.doesNotMatch(
+    draft.output.text,
+    /\bis explicitly not HIPAA compliant\b/i,
+    "Builder must not strengthen a qualified HIPAA caveat even inside blocked claims",
+  );
+
+  const prematureApproval = await foundationAgent.start(
+    { type: "text", text: "Context approved save to workspace context" },
+    harness.task,
+  );
+  assert.equal(prematureApproval.type, "output");
+  assert.match(
+    prematureApproval.output.text,
+    /still a draft and cannot be approved/,
+  );
+  assert.match(prematureApproval.output.text, /approved_in_session: false/);
+  assert.equal(harness.readState().durableContextArtifactStatus, "draft");
 }
 
 {

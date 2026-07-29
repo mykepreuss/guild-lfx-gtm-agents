@@ -245,7 +245,7 @@ const agentStateSchema = z.object({
   durableSourceRevision: z.number().int().positive().optional(),
   durableContextArtifactId: z.string().optional(),
   durableContextArtifactRevision: z.number().int().positive().optional(),
-  durableContextArtifactStatus: z.enum(["ready_for_review", "approved", "blocked"]).optional(),
+  durableContextArtifactStatus: z.enum(["draft", "ready_for_review", "approved", "blocked"]).optional(),
   durableContextFingerprint: z.string().optional(),
   durablePublishedContextRevision: z.number().int().positive().optional(),
 });
@@ -612,7 +612,9 @@ async function persistContextDraft(
       source_references: [sourceReference],
       context_artifact_references: [artifactReference],
       persistence_note:
-        "The supplied source and review-ready Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the completed artifact into the canonical cockpit. Workspace Context is still unchanged.",
+        output.status === "ready_for_review"
+          ? "The supplied source and review-ready Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the completed artifact into the canonical cockpit. Workspace Context is still unchanged."
+          : "The supplied source and draft Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the draft into the canonical cockpit for focused follow-up. Workspace Context is still unchanged.",
     },
   });
 
@@ -628,7 +630,11 @@ async function persistContextDraft(
       durableContextArtifactId: artifactId,
       durableContextArtifactRevision: 1,
       durableContextArtifactStatus:
-        output.status === "blocked" ? "blocked" : "ready_for_review",
+        output.status === "blocked"
+          ? "blocked"
+          : output.status === "ready_for_review"
+            ? "ready_for_review"
+            : "draft",
       durableContextFingerprint: fingerprint,
     },
   };
@@ -660,10 +666,15 @@ async function persistContextApproval(
     };
   }
 
-  if (state.durableContextArtifactStatus === "blocked") {
+  if (
+    state.durableContextArtifactStatus !== "ready_for_review" &&
+    state.durableContextArtifactStatus !== "approved"
+  ) {
     const blockedOutput = markDurableContextApprovalBlocked(
       output,
-      "The Company Context artifact is blocked and cannot be approved until its evidence gaps are resolved.",
+      state.durableContextArtifactStatus === "blocked"
+        ? "The Company Context artifact is blocked and cannot be approved until its evidence gaps are resolved."
+        : "The Company Context artifact is still a draft and cannot be approved until its required inputs and evidence gaps are resolved.",
     );
     return {
       output: blockedOutput,
@@ -1427,10 +1438,15 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
     .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
+  const sourcePreservesQualifiedHipaa =
+    /\bmay not be HIPAA compliant\b/i.test(rawContext);
+  const preservesSourceHipaaNuance = (claim: Claim): boolean =>
+    !sourcePreservesQualifiedHipaa ||
+    !/\bis (?:explicitly )?not HIPAA compliant\b/i.test(claim.claim);
   output.contextArtifacts.proofAndConstraints.blockedClaims =
-    normalizeBlockedClaims(blockedClaims);
+    normalizeBlockedClaims(blockedClaims.filter(preservesSourceHipaaNuance));
   output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
-    ...claimsNeedingApproval,
+    ...claimsNeedingApproval.filter(preservesSourceHipaaNuance),
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
     ...output.assumptionsAndMissingEvidence.filter((claim) => claim.status === "assumption" || claim.status === "missing"),
   ]);
@@ -1625,7 +1641,7 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
       continue;
     }
 
-    if (isSensitiveClaim(claim.claim)) {
+    if (isGuardedReusableClaim(claim.claim)) {
       sensitive.push(sensitiveClaimGuardrail(claim.claim));
       continue;
     }
@@ -3285,7 +3301,7 @@ function isPricingOrSensitiveEdit(rawContext: string): boolean {
 }
 
 export function isSensitiveClaim(claim: string): boolean {
-  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|only|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9]+(?:[.,][0-9]+)?\+?\s+(?:pages|brands?|teams?|bookings?|mqls?|countries)\b|\$[0-9]/i.test(claim);
+  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9]+(?:[.,][0-9]+)?\+?\s+(?:pages|brands?|teams?|bookings?|mqls?|countries)\b|\$[0-9]/i.test(claim);
 }
 
 function isGuardedReusableClaim(claim: string): boolean {
@@ -4320,7 +4336,9 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
   }
   const companyName = output.statusPayload.companyName === "TBD" ? "this company" : output.statusPayload.companyName;
   return output.persistenceState.saved_to_context_artifacts
-    ? `I drafted initial company context for ${companyName} and retained the supplied source plus review-ready Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Review and approve the exact artifact revision in the canonical Launcher Chat before publication.`
+    ? output.status === "ready_for_review"
+      ? `I drafted initial company context for ${companyName} and retained the supplied source plus review-ready Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Review and approve the exact artifact revision in the canonical Launcher Chat before publication.`
+      : `I drafted initial company context for ${companyName} and retained the supplied source plus a draft Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Continue in the canonical Launcher Chat with the focused inputs listed in this draft.`
     : `I drafted initial company context for ${companyName}, but durable source and artifact persistence did not complete. Approval and workspace-context publication remain blocked.`;
 }
 
