@@ -109,7 +109,7 @@ const requiredHeadings = [
 ] as const;
 
 const approvedHipaaConstraintPattern =
-  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant; customers do not provide Protected Health Information \(PHI\) through the platform\./gi;
+  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant,\s+and customers\s+should not provide Protected Health Information\s*\/\s*PHI\s+through the platform\./gi;
 
 const specialistStatusPayloadSchema = z.object({
   evidence_mode: z.enum([
@@ -364,6 +364,7 @@ export function specialistInput(
   userText: string,
   contextRevision: string,
   route?: DelegatedRoute,
+  expectedHipaaConstraint?: string,
 ) {
   const publicationBoundary =
     route === "company_context"
@@ -382,6 +383,12 @@ export function specialistInput(
       "- State the actual evidence mode and coverage limitations.",
       "- Keep action_mode draft_only and external_mutation_requested false.",
       "- Do not publish, schedule, spend, mutate CRM, configure credentials, make legal decisions, or delegate.",
+      ...(expectedHipaaConstraint
+        ? [
+            `- Exact approved HIPAA constraint for verbatim reuse: "${expectedHipaaConstraint}"`,
+            "- If the request asks to preserve this constraint, reproduce that quoted sentence verbatim exactly once and refer to it elsewhere only as the approved HIPAA constraint.",
+          ]
+        : []),
       ...publicationBoundary,
     ].join("\n"),
   };
@@ -394,7 +401,13 @@ export function extractSpecialistText(value: unknown): string {
 
 export function validateSpecialistOutput(
   text: string,
-  { allowContextPublicationPhrase = false } = {},
+  {
+    allowContextPublicationPhrase = false,
+    expectedHipaaConstraint,
+  }: {
+    allowContextPublicationPhrase?: boolean;
+    expectedHipaaConstraint?: string;
+  } = {},
 ): string[] {
   const errors: string[] = [];
   let previousIndex = -1;
@@ -531,16 +544,26 @@ export function validateSpecialistOutput(
       }
     }
   }
-  const exactHipaaMatches = safetyNarrative.match(
-    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-  ) ?? [];
-  const hipaaRemainder = safetyNarrative
-    .replace(
-      new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-      "",
-    )
-    .replace(/\b(?:the\s+)?approved HIPAA constraint\b/gi, "");
-  if (exactHipaaMatches.length > 1) {
+  const exactHipaaMatches = expectedHipaaConstraint
+    ? safetyNarrative.split(expectedHipaaConstraint).length - 1
+    : (
+        safetyNarrative.match(
+          new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+        ) ?? []
+      ).length;
+  const hipaaRemainder = (
+    expectedHipaaConstraint
+      ? safetyNarrative.split(expectedHipaaConstraint).join("")
+      : safetyNarrative.replace(
+          new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+          "",
+        )
+  ).replace(/\b(?:the\s+)?approved HIPAA constraint\b/gi, "");
+  if (expectedHipaaConstraint && exactHipaaMatches !== 1) {
+    errors.push(
+      "Safety error: the exact approved HIPAA constraint from Guild Workspace Context must appear verbatim exactly once.",
+    );
+  } else if (exactHipaaMatches > 1) {
     errors.push(
       "Safety error: the exact approved HIPAA constraint appears more than once.",
     );
@@ -570,6 +593,15 @@ export function validateSpecialistOutput(
     );
   }
   return errors;
+}
+
+export function extractApprovedHipaaConstraint(
+  compiledContext: string,
+): string | undefined {
+  const match = compiledContext.match(
+    new RegExp(approvedHipaaConstraintPattern.source, "i"),
+  );
+  return match?.[0]?.replace(/\s+/g, " ").trim() || undefined;
 }
 
 export function onlyFormatErrors(errors: string[]): boolean {

@@ -12,6 +12,7 @@ import { z } from "zod";
 import {
   classifyRoute,
   deterministicRoute,
+  extractApprovedHipaaConstraint,
   extractSpecialistText,
   inputSchema,
   installedSuiteAgents,
@@ -58,10 +59,12 @@ import {
 
 export {
   deterministicRoute,
+  extractApprovedHipaaConstraint,
   parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
   renderDelegatedResult,
   renderOnboardingStatus,
+  specialistInput,
   validateSpecialistOutput,
 } from "./launcher-core.js";
 
@@ -622,10 +625,14 @@ async function run(
   let nextAttemptKind: "initial" | "format_repair" =
     nextAttemptNumber === 1 ? "initial" : "format_repair";
   let finalAttemptCount = currentRun.attempts.length;
+  const expectedHipaaConstraint = /\bHIPAA\b|\bPHI\b/i.test(requestText)
+    ? extractApprovedHipaaConstraint(context.compiled)
+    : undefined;
   let delegatedInput = specialistInput(
     requestText,
     context.contextRevision,
     route,
+    expectedHipaaConstraint,
   );
 
   const previousAttempt = currentRun.attempts.at(-1);
@@ -640,6 +647,7 @@ async function run(
         previousAttempt.validation_errors,
         context.contextRevision,
         route,
+        expectedHipaaConstraint,
       );
     } else {
       const reason =
@@ -767,6 +775,7 @@ async function run(
     const errors = attemptText
       ? validateSpecialistOutput(attemptText, {
           allowContextPublicationPhrase: route === "company_context",
+          expectedHipaaConstraint,
         })
       : ["Empty or unsupported specialist output."];
     const attemptStatus =
@@ -846,6 +855,7 @@ async function run(
       errors,
       context.contextRevision,
       route,
+      expectedHipaaConstraint,
     );
     nextAttemptNumber = 2;
     nextAttemptKind = "format_repair";
@@ -1493,6 +1503,7 @@ function formatRepairInput(
   errors: string[],
   contextRevision: string,
   route: DelegatedRoute,
+  expectedHipaaConstraint?: string,
 ): z.infer<typeof specialistInputSchema> {
   return specialistInput(
     [
@@ -1506,6 +1517,7 @@ function formatRepairInput(
     ].join("\n"),
     contextRevision,
     route,
+    expectedHipaaConstraint,
   );
 }
 

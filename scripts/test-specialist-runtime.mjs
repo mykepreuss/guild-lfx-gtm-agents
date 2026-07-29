@@ -25,7 +25,7 @@ const {
 } = await import(path.join(messagingDir, "dist/specialist-runtime.js"));
 
 const approvedHipaaConstraint =
-  "Webflow may not be HIPAA compliant; customers do not provide Protected Health Information (PHI) through the platform.";
+  "Webflow may not be HIPAA compliant, and customers should not provide Protected Health Information / PHI through the platform.";
 
 const validArtifact = `## Consumed Context
 
@@ -147,9 +147,18 @@ const exactHipaaArtifact = validArtifact.replace(
   `Claim status: do_not_use_as_positive_claim — ${approvedHipaaConstraint}`,
 );
 assert.equal(
-  validateSpecialistArtifact(exactHipaaArtifact).valid,
+  validateSpecialistArtifact(exactHipaaArtifact, {
+    expectedHipaaConstraint: approvedHipaaConstraint,
+  }).valid,
   true,
   "the exact approved HIPAA constraint remains valid",
+);
+assert.equal(
+  validateSpecialistArtifact(validArtifact, {
+    expectedHipaaConstraint: approvedHipaaConstraint,
+  }).valid,
+  false,
+  "an explicitly requested exact constraint may not be silently omitted",
 );
 
 let calls = 0;

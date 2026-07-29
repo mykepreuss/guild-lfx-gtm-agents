@@ -32,7 +32,7 @@ const evidenceModes = [
 ] as const;
 
 const approvedHipaaConstraintPattern =
-  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant; customers do not provide Protected Health Information \(PHI\) through the platform\./gi;
+  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant,\s+and customers\s+should not provide Protected Health Information\s*\/\s*PHI\s+through the platform\./gi;
 
 const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
   [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],
@@ -80,6 +80,10 @@ export type SpecialistValidation = {
   valid: boolean;
   issues: ValidationIssue[];
   formatOnly: boolean;
+};
+
+type SpecialistValidationOptions = {
+  expectedHipaaConstraint?: string;
 };
 
 export type ValidatedSpecialistConfig = {
@@ -131,13 +135,19 @@ export function createValidatedSpecialistAgent(
     tools: noTools,
     async run(input: Input, task: Task): Promise<Output> {
       const system = `${config.systemPrompt}\n\n${deterministicContract}`;
+      const validationOptions = {
+        expectedHipaaConstraint: extractExpectedHipaaConstraint(input.text),
+      };
       const initial = await task.llm.generateText({
         system,
         prompt: input.text,
         stream: false,
       });
       const initialText = initial.text.trim();
-      const initialValidation = validateSpecialistArtifact(initialText);
+      const initialValidation = validateSpecialistArtifact(
+        initialText,
+        validationOptions,
+      );
 
       if (initialValidation.valid) {
         return { type: "text", text: initialText };
@@ -152,10 +162,11 @@ export function createValidatedSpecialistAgent(
           const redacted = redactUnsafeGeneratedLines(
             initialText,
             initialValidation.issues,
+            validationOptions,
           );
           if (
             redacted.changed &&
-            validateSpecialistArtifact(redacted.text).valid
+            validateSpecialistArtifact(redacted.text, validationOptions).valid
           ) {
             return { type: "text", text: redacted.text };
           }
@@ -172,7 +183,10 @@ export function createValidatedSpecialistAgent(
         stream: false,
       });
       const repairedText = repair.text.trim();
-      const repairedValidation = validateSpecialistArtifact(repairedText);
+      const repairedValidation = validateSpecialistArtifact(
+        repairedText,
+        validationOptions,
+      );
       if (repairedValidation.valid) {
         return { type: "text", text: repairedText };
       }
@@ -187,6 +201,7 @@ export function createValidatedSpecialistAgent(
 
 export function validateSpecialistArtifact(
   text: string,
+  options: SpecialistValidationOptions = {},
 ): SpecialistValidation {
   const issues: ValidationIssue[] = [];
   let previousIndex = -1;
@@ -300,7 +315,12 @@ export function validateSpecialistArtifact(
     extractSection(text, "## Downstream Handoff", "\u0000"),
   ].join("\n");
   issues.push(...validateProducedArtifactSafety(safetyNarrative));
-  issues.push(...validateHipaaConstraintLanguage(safetyNarrative));
+  issues.push(
+    ...validateHipaaConstraintLanguage(
+      safetyNarrative,
+      options.expectedHipaaConstraint,
+    ),
+  );
   if (
     /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
       text,
@@ -325,6 +345,7 @@ export function validateSpecialistArtifact(
 export function redactUnsafeGeneratedLines(
   text: string,
   issues: ValidationIssue[],
+  options: SpecialistValidationOptions = {},
 ): { changed: boolean; text: string } {
   const lines = text.split("\n");
   const redactedExcerpts: string[] = [];
@@ -343,7 +364,10 @@ export function redactUnsafeGeneratedLines(
       /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
         trimmed,
       );
-    const paraphrasesHipaa = hasDisallowedHipaaLanguage(trimmed);
+    const paraphrasesHipaa = hasDisallowedHipaaLanguage(
+      trimmed,
+      options.expectedHipaaConstraint,
+    );
     const sentenceParts = trimmed.split(
       /(?<=[.!?])\s+(?=[A-Z])/,
     );
@@ -462,19 +486,32 @@ function validateProducedArtifactSafety(
   return issues;
 }
 
-function validateHipaaConstraintLanguage(text: string): ValidationIssue[] {
-  const exactMatches = text.match(
-    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-  ) ?? [];
+function validateHipaaConstraintLanguage(
+  text: string,
+  expectedHipaaConstraint?: string,
+): ValidationIssue[] {
+  const exactMatches = expectedHipaaConstraint
+    ? text.split(expectedHipaaConstraint).length - 1
+    : (
+        text.match(
+          new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+        ) ?? []
+      ).length;
   const issues: ValidationIssue[] = [];
-  if (exactMatches.length > 1) {
+  if (expectedHipaaConstraint && exactMatches !== 1) {
+    issues.push({
+      kind: "safety",
+      message:
+        "The exact approved HIPAA constraint from Guild Workspace Context must appear verbatim exactly once.",
+    });
+  } else if (exactMatches > 1) {
     issues.push({
       kind: "safety",
       message:
         "The approved HIPAA constraint appears more than once. Preserve the exact source wording once and refer to it elsewhere only as the approved HIPAA constraint.",
     });
   }
-  if (hasDisallowedHipaaLanguage(text)) {
+  if (hasDisallowedHipaaLanguage(text, expectedHipaaConstraint)) {
     issues.push({
       kind: "safety",
       message:
@@ -484,11 +521,16 @@ function validateHipaaConstraintLanguage(text: string): ValidationIssue[] {
   return issues;
 }
 
-function hasDisallowedHipaaLanguage(text: string): boolean {
-  const withoutExactConstraint = text.replace(
-    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-    "",
-  );
+function hasDisallowedHipaaLanguage(
+  text: string,
+  expectedHipaaConstraint?: string,
+): boolean {
+  const withoutExactConstraint = expectedHipaaConstraint
+    ? text.split(expectedHipaaConstraint).join("")
+    : text.replace(
+        new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+        "",
+      );
   const withoutApprovedReference = withoutExactConstraint.replace(
     /\b(?:the\s+)?approved HIPAA constraint\b/gi,
     "",
@@ -496,6 +538,13 @@ function hasDisallowedHipaaLanguage(text: string): boolean {
   return /\bHIPAA\b|\bPHI\b|Protected Health Information/i.test(
     withoutApprovedReference,
   );
+}
+
+function extractExpectedHipaaConstraint(text: string): string | undefined {
+  const match = text.match(
+    /Exact approved HIPAA constraint for verbatim reuse:\s*"([^"\n]+)"/i,
+  );
+  return match?.[1]?.trim() || undefined;
 }
 
 function isExplicitlyQualifiedLine(line: string): boolean {
