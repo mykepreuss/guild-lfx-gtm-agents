@@ -75,6 +75,9 @@ cockpit import occurred.
 
 Public release still requires:
 
+- a private organization-owned rehearsal Launcher bound only to the eight
+  organization-owned capability package IDs, because Guild private packages
+  are owner-scoped and cannot be installed across owners;
 - a clean organization with the public Launcher and eight public capability
   packages installed through the customer experience;
 - a same-named unrelated agent present in that workspace;

@@ -152,8 +152,11 @@ separate storage administration surface.
 
 Before any package becomes public:
 
-1. resolve private cross-owner package availability and complete the clean
-   separate-organization installation and concurrency rehearsal;
+1. with explicit organization-owner authorization, publish validated private
+   builds into the eight existing `developers-at-guild` placeholder packages,
+   create the missing private organization Launcher bound only to those eight
+   package IDs, and complete the clean separate-organization installation and
+   concurrency rehearsal;
 2. complete unaffiliated design-partner acceptance with no maintainer CLI
    intervention;
 3. approve the staged compact Workspace Context artifact and run its exact

@@ -30,7 +30,7 @@ may be made public while any blocking row below remains open.
 | No private Skills dependency | Capability packages are self-contained; private skills remain maintainer assets only | Pass |
 | No external runtime service | Launcher and Builder declare no Cloud, database, bridge, or Marketing OS integration tools; `npm run verify` excludes contingency-service tests | Pass locally |
 | Context-size benchmark | Final serial confirmation selected compressed at ~1,805 tokens: 7/7 complete, no lost golden facts, zero unqualified sensitive claims, and zero validation errors; the candidate is staged as an unapproved cockpit artifact | Pass; exact approval/publication to working Workspace Context pending |
-| Clean separate-organization rehearsal | Created empty `developers-at-guild/marketing-os-clean-rehearsal-20260728` and opened it in Guild. Private user-owned Launcher returned zero Agent Hub results and cross-owner installation was rejected by the Guild service. Production packages remained private. | **Blocked on supported organization-private sharing, organization-owned rehearsal copies, or staged public visibility** |
+| Clean separate-organization rehearsal | The empty `developers-at-guild/marketing-os-clean-rehearsal-20260728` workspace remains untouched. Guild's Organization tab exposes eight existing `developers-at-guild` Marketing OS scaffolds, but each has only draft placeholder code and no published version; the organization-owned Launcher does not yet exist. The supported Guild-only path is to publish the validated eight capability builds into those private organization-owned packages, create a private organization-owned Launcher bound only to their package IDs, then install and onboard through the normal UI. | **Blocked on explicit authorization to update shared organization agents and create the private organization Launcher** |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
 | Public Agent Hub visibility | All packages remain private | **Blocked until every prior gate passes** |
 
@@ -51,12 +51,16 @@ The explicit suite-binding decision is recorded in
    ambiguity.
 4. Review the staged compressed Company Context artifact, approve its exact
    revision, and publish it only after the separate exact confirmation phrase.
-5. Resolve private cross-owner package availability, then complete the
-   existing empty `developers-at-guild/marketing-os-clean-rehearsal-20260728`
-   rehearsal through the normal Agent Hub and Launcher onboarding path.
-6. Run unaffiliated design-partner acceptance with no maintainer CLI or
+5. With the organization owner's explicit authorization, publish the validated
+   builds into the eight existing private `developers-at-guild` package
+   scaffolds and create the missing private organization-owned Launcher. Bind
+   that rehearsal Launcher only to the eight organization package IDs.
+6. Complete the existing empty
+   `developers-at-guild/marketing-os-clean-rehearsal-20260728` rehearsal
+   through the normal Agent Hub and Launcher onboarding path.
+7. Run unaffiliated design-partner acceptance with no maintainer CLI or
    infrastructure credentials.
-7. Only then consider public Agent Hub visibility.
+8. Only then consider public Agent Hub visibility.
 
 ## Evidence handling
 

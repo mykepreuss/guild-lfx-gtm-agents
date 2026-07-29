@@ -392,3 +392,21 @@ The current account did not change
 the Guild UI. The private user-owned Launcher was absent from Agent Hub search,
 and the Guild service rejected explicit cross-owner installation. No
 production package was made public to bypass that isolation boundary.
+
+A later read-only CLI and browser review established the supported Guild-only
+private-rehearsal route:
+
+- Guild recognizes `developers-at-guild` as an allowed agent owner for the
+  authenticated maintainer.
+- The organization already owns all eight same-named capability packages.
+- Each package has only old draft scaffolding, no published version, zero
+  installs, and placeholder GitHub-tool descriptions.
+- No `developers-at-guild~guild-marketing-os-launcher` package exists.
+- In the clean workspace's Agents dialog, the Organization tab shows the eight
+  placeholders and a Workspace count of zero.
+
+The clean workspace and all organization packages remained unchanged during
+this review. The next shared-state step requires organization-owner
+authorization: publish the validated capability builds into those eight
+private packages and create a private Launcher whose static allowlist is bound
+only to their organization package IDs.
