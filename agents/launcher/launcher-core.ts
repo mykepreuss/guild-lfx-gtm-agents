@@ -217,7 +217,7 @@ function deterministicRouteDecision(
   }
 
   if (
-    /\b(?:set up|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
+    /\b(?:set up|setup|start|begin|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)(?:\s+(?:setup|workflow|draft))?\b/i.test(
       routingText,
     )
   ) {
@@ -292,7 +292,7 @@ function deterministicRouteDecision(
 
 function routingIntentText(text: string): string {
   const sourceBoundary = text.search(
-    /\n\s*(?:#{1,6}\s+\S|(?:candidate|source|reference)\s+(?:brief|material|text|packet)\s*:)/i,
+    /\n\s*(?:#{1,6}\s+\S|(?:candidate|source|reference)\s+(?:brief|document|material|profile|text|packet)\s*:)/i,
   );
   if (sourceBoundary > 0) {
     return text.slice(0, sourceBoundary).trim();

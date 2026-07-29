@@ -263,6 +263,49 @@ function launcherInput(request, context = managedContext) {
 }
 
 {
+  const acceptancePrompt = [
+    "Start Company Context setup using only the source document below.",
+    "Produce a review-ready draft and do not publish Workspace Context.",
+    "",
+    "Source document: Webflow acceptance fixture",
+    "",
+    "Webflow is a visual website platform.",
+    "Primary audiences include marketers, designers, developers, and agencies.",
+    "Keep everything draft-only.",
+  ].join("\n");
+  assert.equal(
+    launcherCore.deterministicRoute(acceptancePrompt),
+    "company_context",
+  );
+
+  const chat = createChat({
+    sessionId: "company-context-start-acceptance-language",
+    specialist: async () => ({
+      type: "text",
+      text: companyContextArtifact,
+    }),
+    initialContexts: [
+      {
+        id: "context-original",
+        status: "PUBLISHED",
+        manual_context: "# Unmanaged workspace note\nKeep this text.",
+        summary: "Original context",
+      },
+    ],
+  });
+  const result = await launcher.run(
+    launcherInput(acceptancePrompt, ""),
+    chat.task,
+  );
+  assert.match(result.text, /Handled by: Company Context Builder/);
+  assert.equal(chat.specialistCallCount(), 1);
+  assert.equal(chat.readState().runs[0].route, "company_context");
+  assert.equal(chat.readState().runs[0].status, "ready_for_review");
+  assert.equal(chat.contexts.length, 1);
+  assert.equal(chat.contexts[0].id, "context-original");
+}
+
+{
   const chat = createChat({
     sessionId: "sequential-onboarding",
     specialist: async () => {
