@@ -16,10 +16,16 @@ if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
 
-const [{ default: launcher }, launcherCore, launcherState] = await Promise.all([
+const [
+  { default: launcher },
+  launcherCore,
+  launcherState,
+  { suitePackageBindings },
+] = await Promise.all([
   import(path.join(launcherDir, "dist/agent.js")),
   import(path.join(launcherDir, "dist/launcher-core.js")),
   import(path.join(launcherDir, "dist/launcher-state.js")),
+  import(path.join(launcherDir, "dist/suite-binding.js")),
 ]);
 
 const managedContext = [
@@ -109,7 +115,8 @@ Draft positioning.
 
 function installedAgents() {
   return launcherCore.suiteInstallOrder.map((entry, index) => ({
-    package_name: `michaelpreuss~${entry.packageName}`,
+    package_name:
+      suitePackageBindings[entry.route].qualifiedName,
     version_id: `version-${index + 1}`,
   }));
 }

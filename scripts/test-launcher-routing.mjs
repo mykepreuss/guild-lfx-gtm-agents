@@ -27,6 +27,29 @@ const {
   specialistResultStatus,
   validateSpecialistOutput,
 } = await import(path.join(launcherDir, "dist/agent.js"));
+const { suitePackageBindings } = await import(
+  path.join(launcherDir, "dist/suite-binding.js")
+);
+
+assert.equal(
+  Object.keys(suitePackageBindings).length,
+  8,
+  "Launcher must bind exactly eight suite capability packages",
+);
+assert.equal(
+  new Set(
+    Object.values(suitePackageBindings).map((binding) => binding.agentId),
+  ).size,
+  8,
+  "Launcher suite capability IDs must be unique",
+);
+for (const binding of Object.values(suitePackageBindings)) {
+  assert.match(binding.agentId, /^[0-9a-f-]{36}$/);
+  assert.ok(
+    binding.qualifiedName.endsWith(`~${binding.packageName}`),
+    `${binding.qualifiedName} must qualify ${binding.packageName}`,
+  );
+}
 
 const routingCases = [
   ["Continue Marketing OS onboarding", "onboarding"],

@@ -1,5 +1,6 @@
 import type { Task } from "@guildai/agents-sdk";
 import { z } from "zod";
+import { suitePackageBindings } from "./suite-binding.js";
 
 export const routes = [
   "onboarding",
@@ -21,51 +22,52 @@ export type Route = (typeof routes)[number];
 export const routeConfig = {
   company_context: {
     displayName: "Company Context Builder",
-    packageName: "guild-marketing-os-company-context-builder",
+    packageName: suitePackageBindings.company_context.packageName,
     toolName: "marketing_os_company_context_builder",
-    agentId: "019f0024-33dd-726e-0000-0d487f1261a7",
+    agentId: suitePackageBindings.company_context.agentId,
   },
   market_signal: {
     displayName: "Market Signal",
-    packageName: "guild-marketing-os-market-signal",
+    packageName: suitePackageBindings.market_signal.packageName,
     toolName: "marketing_os_market_signal",
-    agentId: "019f0024-978a-726e-0000-6116f4c49ff4",
+    agentId: suitePackageBindings.market_signal.agentId,
   },
   icp: {
     displayName: "ICP",
-    packageName: "guild-marketing-os-icp",
+    packageName: suitePackageBindings.icp.packageName,
     toolName: "marketing_os_icp",
-    agentId: "019f0025-0fda-726e-0000-b57226531776",
+    agentId: suitePackageBindings.icp.agentId,
   },
   audience_segmentation: {
     displayName: "Audience Segmentation",
-    packageName: "guild-marketing-os-audience-segmentation",
+    packageName: suitePackageBindings.audience_segmentation.packageName,
     toolName: "marketing_os_audience_segmentation",
-    agentId: "019f0025-7767-726e-0000-74ce71ea69b9",
+    agentId: suitePackageBindings.audience_segmentation.agentId,
   },
   messaging: {
     displayName: "Messaging",
-    packageName: "guild-marketing-os-messaging",
+    packageName: suitePackageBindings.messaging.packageName,
     toolName: "marketing_os_messaging",
-    agentId: "019f0025-e267-726e-0000-79109cb788a0",
+    agentId: suitePackageBindings.messaging.agentId,
   },
   branding_pitch_deck: {
     displayName: "Branding And Pitch Deck",
-    packageName: "guild-marketing-os-branding-pitch-deck",
+    packageName: suitePackageBindings.branding_pitch_deck.packageName,
     toolName: "marketing_os_branding_pitch_deck",
-    agentId: "019f0026-4f43-726e-0000-ca5ea98e608f",
+    agentId: suitePackageBindings.branding_pitch_deck.agentId,
   },
   social_monitoring_content: {
     displayName: "Social Monitoring And Content",
-    packageName: "guild-marketing-os-social-monitoring-content",
+    packageName:
+      suitePackageBindings.social_monitoring_content.packageName,
     toolName: "marketing_os_social_monitoring_content",
-    agentId: "019f0026-ccca-726e-0000-69405bcb5de7",
+    agentId: suitePackageBindings.social_monitoring_content.agentId,
   },
   campaigns_paid_media: {
     displayName: "Campaigns And Paid Media",
-    packageName: "guild-marketing-os-campaigns-paid-media",
+    packageName: suitePackageBindings.campaigns_paid_media.packageName,
     toolName: "marketing_os_campaigns_paid_media",
-    agentId: "019f0027-3298-726e-0000-32cad92c2c88",
+    agentId: suitePackageBindings.campaigns_paid_media.agentId,
   },
 } as const;
 

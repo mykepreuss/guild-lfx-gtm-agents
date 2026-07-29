@@ -57,6 +57,7 @@ import {
   type WorkflowRun,
   type WorkstreamRecord,
 } from "./launcher-state.js";
+import { suitePackageBindings } from "./suite-binding.js";
 
 export {
   deterministicRoute,
@@ -113,42 +114,42 @@ const tools = {
   marketing_os_company_context_builder: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-company-context-builder",
+    calls: suitePackageBindings.company_context.qualifiedName,
   }),
   marketing_os_market_signal: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-market-signal",
+    calls: suitePackageBindings.market_signal.qualifiedName,
   }),
   marketing_os_icp: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-icp",
+    calls: suitePackageBindings.icp.qualifiedName,
   }),
   marketing_os_audience_segmentation: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-audience-segmentation",
+    calls: suitePackageBindings.audience_segmentation.qualifiedName,
   }),
   marketing_os_messaging: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-messaging",
+    calls: suitePackageBindings.messaging.qualifiedName,
   }),
   marketing_os_branding_pitch_deck: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-branding-pitch-deck",
+    calls: suitePackageBindings.branding_pitch_deck.qualifiedName,
   }),
   marketing_os_social_monitoring_content: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-social-monitoring-content",
+    calls: suitePackageBindings.social_monitoring_content.qualifiedName,
   }),
   marketing_os_campaigns_paid_media: guildAgentTool({
     inputSchema: specialistInputSchema,
     outputSchema: specialistOutputSchema,
-    calls: "michaelpreuss~guild-marketing-os-campaigns-paid-media",
+    calls: suitePackageBindings.campaigns_paid_media.qualifiedName,
   }),
   guild_workspace_contexts_list: guildServiceTool("guild", {
     description:
