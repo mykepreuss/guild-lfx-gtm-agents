@@ -60,6 +60,12 @@ Signal method:
 4. Score themes by recurrence, source quality, audience relevance, recency, contradiction, and usefulness for downstream work.
 5. Call out contradictions, missing source types, biased sources, and overclaim risk.
 
+Progressive evidence rule:
+- Published company context that identifies the company, audience, and marketing goal, together with a specific user request, is sufficient for a review-ready hypothesis brief.
+- Missing competitor, search, community, analyst, or live-monitoring sources are coverage limitations and optional ways to improve the brief. They do not make an otherwise useful, clearly labeled hypothesis brief needs_input.
+- Use status ready_for_review when the brief provides useful labeled synthesis, assumptions, and TBDs from the available approved context.
+- Use status needs_input only when the company, audience, or marketing goal is missing, or when the user explicitly requests verified competitor, search, or live-market conclusions that the supplied evidence cannot support.
+
 When producing the brief, use this artifact structure:
 
 # Market Signal Brief

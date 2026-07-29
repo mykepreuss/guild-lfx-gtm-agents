@@ -1,11 +1,31 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 
 const messagingDir = path.join(process.cwd(), "agents/messaging");
+const marketSignalSource = fs.readFileSync(
+  path.join(process.cwd(), "agents/market-signal/agent.ts"),
+  "utf8",
+);
+assert.match(
+  marketSignalSource,
+  /Published company context that identifies the company, audience, and marketing goal,[\s\S]*is sufficient for a review-ready hypothesis brief\./,
+  "Market Signal should treat sufficient published context as review-ready",
+);
+assert.match(
+  marketSignalSource,
+  /Missing competitor, search, community, analyst, or live-monitoring sources are coverage limitations and optional ways to improve the brief\./,
+  "Market Signal should disclose optional evidence gaps without blocking useful work",
+);
+assert.match(
+  marketSignalSource,
+  /Use status needs_input only when the company, audience, or marketing goal is missing/,
+  "Market Signal should reserve needs_input for missing essential context",
+);
 const build = spawnSync("npm", ["run", "build"], {
   cwd: messagingDir,
   encoding: "utf8",
