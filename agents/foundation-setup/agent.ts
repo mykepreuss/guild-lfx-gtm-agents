@@ -3364,16 +3364,40 @@ function mergeDefaultConstraints(values: readonly string[]): string[] {
   for (const value of [...defaultConstraints, ...values]) {
     const trimmed = value.trim();
     if (!trimmed) continue;
-    const key = trimmed
-      .toLowerCase()
-      .replace(/^no\s+/, "")
-      .replace(/[.!?]+$/, "")
-      .replace(/\s+/g, " ");
+    const key = operatingConstraintKey(trimmed);
     if (normalized.has(key)) continue;
     normalized.add(key);
     merged.push(trimmed);
   }
   return merged;
+}
+
+function operatingConstraintKey(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const categories = [
+    ["workspace_context_publish", /\bworkspace context\b.*\bpublish/],
+    ["context_artifact_persistence", /\bcontext artifact\b.*\bpersist/],
+    ["crm_activation", /\bcrm\b.*\b(?:activat|mutat|updat|writ|sync)/],
+    ["scheduling", /\bschedul/],
+    ["paid_media_spend", /\b(?:paid media|ad spend|advertising spend)\b|\bspend\b/],
+    ["credential_setup", /\bcredentials?\b.*\b(?:setup|configur)/],
+    ["workspace_install", /\bworkspace\b.*\binstall/],
+    ["trigger_setup", /\btriggers?\b.*\b(?:setup|configur)/],
+    ["visibility_changes", /\bvisibility\b.*\b(?:chang|updat|modif)/],
+    ["live_publishing", /\b(?:live|external|direct)?\s*publish/],
+    [
+      "approval_implication",
+      /\b(?:legal|compliance|pricing|security|performance|production-readiness)\b.*\b(?:approval|approved|implied)\b/,
+    ],
+  ] as const;
+  for (const [category, pattern] of categories) {
+    if (pattern.test(normalized)) return `category:${category}`;
+  }
+  return `text:${normalized.replace(/^no\s+/, "")}`;
 }
 
 function extractSensitiveClaimMentions(rawContext: string): string[] {
@@ -3472,13 +3496,17 @@ function scrubReusableGuardedClaims(output: Output): void {
   output.contextArtifacts.brandKit.constraints = scrubGuardedList(output.contextArtifacts.brandKit.constraints, [
     "No final logo, trademark, legal, or production identity claims without approval.",
   ]);
-  output.contextArtifacts.proofAndConstraints.constraints = scrubGuardedList(
-    output.contextArtifacts.proofAndConstraints.constraints,
-    defaultConstraints,
+  output.contextArtifacts.proofAndConstraints.constraints = mergeDefaultConstraints(
+    scrubGuardedList(
+      output.contextArtifacts.proofAndConstraints.constraints,
+      defaultConstraints,
+    ),
   );
-  output.contextArtifacts.channelRegistry.blockedActions = scrubGuardedList(
-    output.contextArtifacts.channelRegistry.blockedActions,
-    defaultConstraints,
+  output.contextArtifacts.channelRegistry.blockedActions = mergeDefaultConstraints(
+    scrubGuardedList(
+      output.contextArtifacts.channelRegistry.blockedActions,
+      defaultConstraints,
+    ),
   );
 
   output.contextArtifacts.audienceSegments = output.contextArtifacts.audienceSegments.map((segment) => {

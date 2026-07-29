@@ -410,6 +410,8 @@ function guildChatEnvelope(text) {
     "paid media spend",
     "CRM activation",
     "credential setup",
+    "External CRM activation",
+    "Direct scheduling of social or paid media",
   );
   const hardenedHarness = createTask({
     sessionId: "foundation-hardened-generated-output",
@@ -435,6 +437,11 @@ function guildChatEnvelope(text) {
     new Set(hardenedBlockedActionKeys).size,
     hardenedBlockedActionKeys.length,
     "Builder must collapse affirmative and leading-No forms of the same blocked action",
+  );
+  assert.doesNotMatch(
+    hardenedDraft.output.text,
+    /External CRM activation|Direct scheduling of social or paid media/i,
+    "Builder must collapse paraphrases already covered by the canonical blocked-action categories",
   );
 
   const prematureApproval = await foundationAgent.start(
