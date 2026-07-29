@@ -32,6 +32,7 @@ const {
   convertMarkdownTablesToBullets,
   isSensitiveClaim,
   normalizeBlockedClaims,
+  preservesQualifiedHipaaNuance,
   replaceManagedWorkspaceContextBlock,
   sourceEvidenceLabelsAllowReuse,
 } = await import(path.join(foundationDir, "dist/agent.js"));
@@ -381,8 +382,18 @@ function guildChatEnvelope(text) {
   );
   assert.doesNotMatch(
     draft.output.text,
-    /\bis explicitly not HIPAA compliant\b/i,
+    /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i,
     "Builder must not strengthen a qualified HIPAA caveat even inside blocked claims",
+  );
+  const blockedActionKeys =
+    harness.readState().lastOutput.contextArtifacts.channelRegistry.blockedActions
+      .map((value) =>
+        value.toLowerCase().replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+      );
+  assert.equal(
+    new Set(blockedActionKeys).size,
+    blockedActionKeys.length,
+    "blocked actions should not repeat because of punctuation variants",
   );
 
   const prematureApproval = await foundationAgent.start(
@@ -498,6 +509,28 @@ assert.equal(
   sourceEvidenceLabelsAllowReuse("Company name: Webflow", compressedContext),
   true,
 );
+assert.equal(
+  preservesQualifiedHipaaNuance(
+    "Webflow may not be HIPAA compliant, so Protected Health Information must not be provided through the platform.",
+    "Webflow may not be HIPAA compliant.",
+  ),
+  true,
+);
+for (const strengthenedClaim of [
+  "Webflow is explicitly not HIPAA compliant.",
+  "Key constraints include lack of HIPAA compliance.",
+  "Protected Health Information is prohibited (not HIPAA compliant).",
+  "Webflow is HIPAA-noncompliant.",
+]) {
+  assert.equal(
+    preservesQualifiedHipaaNuance(
+      strengthenedClaim,
+      "Webflow may not be HIPAA compliant.",
+    ),
+    false,
+    `qualified HIPAA source wording must reject: ${strengthenedClaim}`,
+  );
+}
 assert.equal(
   sourceEvidenceLabelsAllowReuse(
     "Wave achieved a 3x speed improvement and a 4% to 21% organic traffic increase.",

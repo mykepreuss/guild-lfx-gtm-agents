@@ -30,7 +30,15 @@ const evidence = {
   context_versions: guildJson(["workspace", "context", "list", workspace, "--limit", "20"]),
   session: guildJson(["session", "get", sessionId]),
   tasks: guildJson(["session", "tasks", sessionId]),
-  events: guildJson(["session", "events", sessionId]),
+  events: guildJson([
+    "session",
+    "events",
+    sessionId,
+    "--events",
+    "all",
+    "--limit",
+    "500",
+  ]),
 };
 
 const serialized = `${JSON.stringify(evidence, null, 2)}\n`;

@@ -1438,11 +1438,8 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
     .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
-  const sourcePreservesQualifiedHipaa =
-    /\bmay not be HIPAA compliant\b/i.test(rawContext);
   const preservesSourceHipaaNuance = (claim: Claim): boolean =>
-    !sourcePreservesQualifiedHipaa ||
-    !/\bis (?:explicitly )?not HIPAA compliant\b/i.test(claim.claim);
+    preservesQualifiedHipaaNuance(claim.claim, rawContext);
   output.contextArtifacts.proofAndConstraints.blockedClaims =
     normalizeBlockedClaims(blockedClaims.filter(preservesSourceHipaaNuance));
   output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
@@ -3304,6 +3301,18 @@ export function isSensitiveClaim(claim: string): boolean {
   return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9]+(?:[.,][0-9]+)?\+?\s+(?:pages|brands?|teams?|bookings?|mqls?|countries)\b|\$[0-9]/i.test(claim);
 }
 
+export function preservesQualifiedHipaaNuance(
+  claim: string,
+  rawContext: string,
+): boolean {
+  if (!/\bmay not be HIPAA compliant\b/i.test(rawContext)) {
+    return true;
+  }
+  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
+    claim,
+  );
+}
+
 function isGuardedReusableClaim(claim: string): boolean {
   return isSensitiveClaim(claim) ||
     /\b(agentic web marketing|website experience platform|default operating system|revenue-driving|ai search|aeo agents?|mach-certified|enterprise compliance|enterprise security|enterprise production|advanced governance|customer success|cloudflare|user count|audience count|data residency|protected health information|phi|dpf|scc)\b/i.test(claim);
@@ -3328,7 +3337,20 @@ function sensitiveClaimNeedsApproval(claim: string): Claim {
 }
 
 function mergeDefaultConstraints(values: readonly string[]): string[] {
-  return [...new Set([...values.filter(Boolean), ...defaultConstraints])];
+  const normalized = new Set<string>();
+  const merged: string[] = [];
+  for (const value of [...defaultConstraints, ...values]) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed
+      .toLowerCase()
+      .replace(/[.!?]+$/, "")
+      .replace(/\s+/g, " ");
+    if (normalized.has(key)) continue;
+    normalized.add(key);
+    merged.push(trimmed);
+  }
+  return merged;
 }
 
 function extractSensitiveClaimMentions(rawContext: string): string[] {
