@@ -421,14 +421,27 @@ function launcherInput(request, context = managedContext) {
   assert.match(status.text, /No incomplete workflow is waiting to resume/);
 
   const approvalText = "Approve Messaging artifact revision 1.";
+  const approvalRuntimeEnvelope = [
+    "* This session was started at 20:09:36 UTC.",
+    "* The current Guild workspace is named `marketing-os`.",
+    "",
+    "```json",
+    '{"workspace_capabilities":{"configured_integrations":[]}}',
+    "```",
+  ].join("\n");
   const approved = await launcher.run(
-    launcherInput(approvalText),
+    launcherInput(approvalText, approvalRuntimeEnvelope),
     chat.task,
   );
   assert.match(approved.text, /# Marketing OS Approval/);
   assert.match(approved.text, /Status: approved/);
   assert.match(approved.text, new RegExp(`Exact approval text: ${approvalText}`));
+  assert.doesNotMatch(approved.text, /This session was started/);
   assert.equal(chat.readState().artifacts[0].approvals.length, 1);
+  assert.equal(
+    chat.readState().artifacts[0].approvals[0].exact_approval_text,
+    approvalText,
+  );
   assert.equal(chat.readState().runs[0].status, "approved");
   assert.equal(chat.readState().workstreams[0].status, "approved");
   assert.equal(chat.readState().handoffs[0].completion_state, "completed");

@@ -1065,6 +1065,21 @@ export function parseArtifactApprovalRequest(text: string): {
   };
 }
 
+export function extractArtifactApprovalText(text: string): string {
+  const approvalLines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        /\bapprove\b/i.test(line) &&
+        /\b(?:artifact|revision)\b/i.test(line),
+    );
+  return (
+    approvalLines[approvalLines.length - 1] ??
+    text.trim()
+  );
+}
+
 export function safeError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer <redacted>").slice(0, 500);

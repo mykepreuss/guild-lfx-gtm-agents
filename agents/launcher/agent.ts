@@ -13,6 +13,7 @@ import {
   classifyRoute,
   deterministicRoute,
   extractApprovedHipaaConstraint,
+  extractArtifactApprovalText,
   extractSpecialistText,
   inputSchema,
   installedSuiteAgents,
@@ -62,6 +63,7 @@ import { suitePackageBindings } from "./suite-binding.js";
 export {
   deterministicRoute,
   extractApprovedHipaaConstraint,
+  extractArtifactApprovalText,
   parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
   renderDelegatedResult,
@@ -387,7 +389,11 @@ async function run(
   if (classification["route"] === "cockpit") {
     const approval = parseArtifactApprovalRequest(userText);
     if (approval.requested) {
-      const output = approveCockpitArtifact(userText, approval, cockpit);
+      const output = approveCockpitArtifact(
+        extractArtifactApprovalText(userText),
+        approval,
+        cockpit,
+      );
       await task.save(cockpit.state);
       return output;
     }

@@ -19,6 +19,7 @@ if (build.status !== 0) {
 const {
   deterministicRoute,
   extractApprovedHipaaConstraint,
+  extractArtifactApprovalText,
   parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
   renderDelegatedResult,
@@ -174,6 +175,22 @@ assert.deepEqual(
     revision: 2,
     artifactId: "artifact_019faa08-43e5-351a-0000-9235d92b0dff",
   },
+);
+assert.equal(
+  extractArtifactApprovalText(
+    [
+      "* This session was started at 20:09:36 UTC.",
+      "* The current Guild workspace is named `marketing-os`.",
+      "",
+      "```json",
+      '{"workspace_capabilities":{"configured_integrations":[]}}',
+      "```",
+      "",
+      "Approve Company Context Builder artifact revision 1.",
+    ].join("\n"),
+  ),
+  "Approve Company Context Builder artifact revision 1.",
+  "approval receipts must retain only the user's approval line, not Guild runtime metadata",
 );
 const compiledContext =
   "<!-- guild-marketing-os-context:start -->\nBlocked actions: No workspace context publish except through the exact approved Company Context Builder publish confirmation.\n<!-- guild-marketing-os-context:end -->";

@@ -36,13 +36,16 @@ show what will be reused, and provide the exact approval command.
 - Workspace: `marketing-os-clean-rehearsal-20260728`
 - Workspace type: dedicated Marketing OS workspace
 - Interface: signed-in Guild browser, ordinary Chat
+- Pre-publication Workspace Context:
+  `019fabb4-22bf-ea2d-0000-e54c726628eb` (`PUBLISHED`,
+  `system_generated`)
 - External execution: none
 
 Current private package versions:
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.25` |
+| Marketing OS Launcher | `0.3.26` |
 | Company Context Builder | `1.2.15` |
 | Market Signal | `1.2.6` |
 | ICP | `1.2.6` |
@@ -90,8 +93,8 @@ the marketer journey.
 | Plain Webflow packet in orientation Chat | Fixed | Launcher `0.3.22` misclassified the packet as a cockpit request. Launcher `0.3.23` added deterministic fielded-packet routing. |
 | Plain Webflow packet in fresh Chat | Fixed | Builder `1.2.14` saved a draft but treated optional detail and goal wording as blocking. Builder `1.2.15` and Launcher `0.3.24` introduced progressive disclosure, explicit reusable fields, and a clear approval call to action. |
 | Progressive-disclosure rerun | Fixed; rerun required | Session `019faf77-6990-351a-0000-960d21298474` produced a review-ready Builder packet, but Launcher `0.3.24` treated the word “faster” inside four explicitly labeled marketing-goal fields as an unqualified performance claim. Launcher `0.3.25` keeps ordinary specialist safety strict while treating goal fields as intentions only during Company Context reconciliation. |
-| Launcher `0.3.25` rerun | Pending | Repeat the same unchanged Webflow packet without weakening its goal or constraints. |
-| Artifact approval | Pending | Run after the progressive-disclosure rerun passes. |
+| Launcher `0.3.25` rerun | Pass | Session `019faf7d-5e2f-351a-0000-9235c84b9d47` returned the unchanged Webflow packet as `Ready for review`, said the baseline is complete enough to power specialist drafts, preserved the goal and constraints, retained artifact `33bf29ac-41cf-4def-994b-36b600a8114f` revision 1, and presented the exact approval command prominently. |
+| Artifact approval | Pass with receipt fix | The exact command approved artifact `33bf29ac-41cf-4def-994b-36b600a8114f` revision 1 in session `019faf7d-5e2f-351a-0000-9235c84b9d47`; the response explicitly authorized only the stored draft and confirmed Workspace Context was unchanged. Launcher `0.3.25` included Guild runtime metadata in the displayed/stored “Exact approval text.” Launcher `0.3.26` extracts only the user’s approval line, with a regression test using the live runtime envelope. The valid approval is retained; the marketer is not asked to redo it. |
 | Workspace Context publication | Pending | Publish only the approved compact brief with the existing exact phrase. |
 | Specialist reuse without repaste | Pending | Prove in the seven representative specialist requests. |
 
@@ -120,6 +123,10 @@ event records for every attempt, including failures:
   `_private/evidence/2026-07-29T19-45-56-746Z-019faf68-9ad0-351a-0000-9297b6913a4e.json`
 - Review-ready Builder packet rejected by Launcher goal validation:
   `_private/evidence/2026-07-29T20-01-57-160Z-019faf77-6990-351a-0000-960d21298474.json`
+- Progressive Company Context pass:
+  `_private/evidence/2026-07-29T20-08-16-913Z-019faf7d-5e2f-351a-0000-9235c84b9d47.json`
+- Artifact approval pass and technical receipt defect:
+  `_private/evidence/2026-07-29T20-09-56-687Z-019faf7d-5e2f-351a-0000-9235c84b9d47.json`
 
 These evidence files are intentionally not committed because they contain
 private workspace transcripts. This record keeps the session IDs and the
@@ -138,8 +145,9 @@ product decisions required to reproduce and review the acceptance.
 ## Release status
 
 Marketer acceptance is in progress. The setup and orientation journey passes.
-Three material Company Context usability problems have been found and fixed.
-The newest Launcher fix is locally verified and awaits private publication and
-a browser rerun. Browser proof of the progressive approval flow and all seven
-specialist workflows remains required before this record can be marked
-complete.
+Three material Company Context usability problems were found and fixed. The
+unchanged progressive-disclosure rerun now passes in the browser. Artifact
+approval also passed; its technical receipt noise is fixed in Launcher
+`0.3.26` without requiring the marketer to redo the valid approval. Workspace
+Context publication, context reuse, and all seven specialist workflows remain
+required before this record can be marked complete.
