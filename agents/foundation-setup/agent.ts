@@ -4068,7 +4068,7 @@ ${formatBulletList(output.openQuestions)}
 
 ## Approval Gate
 ${output.approvalGates
-  .map((gate) => `- ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
+  .map((gate) => `- Review required — ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
   .join("\n")}
 
 ## AEO / AI-Readiness Contribution
@@ -4115,7 +4115,7 @@ function renderDownstreamRoutingPacket(output: Omit<Output, "markdownPacket">): 
 
 ## Approval Gate
 ${output.approvalGates
-  .map((gate) => `- ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
+  .map((gate) => `- Review required — ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
   .join("\n")}
 
 ## AEO / AI-Readiness Contribution

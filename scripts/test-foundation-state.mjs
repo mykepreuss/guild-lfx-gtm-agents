@@ -183,6 +183,11 @@ function guildChatEnvelope(text) {
   assert.match(draft.output.text, /saved_to_workspace_context: false/);
   assert.match(draft.output.text, /saved_to_context_artifacts: true/);
   assert.match(draft.output.text, /retained in this Guild Chat/);
+  assert.match(
+    draft.output.text,
+    /Review required — Legal Reviewer:/,
+    "approval-gate lines should be explicitly qualified for the shared safety validator",
+  );
   const evidenceSection = draft.output.text
     .split("## Assumptions And Missing Evidence")[1]
     .split("## Approval Gate")[0];
