@@ -194,7 +194,7 @@ function deterministicRouteDecision(
     const match = routingText.match(pattern);
     if (
       match?.index !== undefined &&
-      routingMatchIsNegated(routingText, match.index)
+      routingMatchIsNegated(routingText, match.index, match[0])
     ) {
       continue;
     }
@@ -298,9 +298,28 @@ function routingIntentText(text: string): string {
   return text.slice(0, 4000);
 }
 
-function routingMatchIsNegated(text: string, matchIndex: number): boolean {
-  const prefix = text.slice(Math.max(0, matchIndex - 40), matchIndex);
-  return /\b(?:do not|don't|never|must not|should not|no)\s*$/i.test(prefix);
+function routingMatchIsNegated(
+  text: string,
+  matchIndex: number,
+  matchedText: string,
+): boolean {
+  const prefixWindow = text.slice(Math.max(0, matchIndex - 240), matchIndex);
+  const boundaryIndex = Math.max(
+    prefixWindow.lastIndexOf("."),
+    prefixWindow.lastIndexOf(";"),
+    prefixWindow.lastIndexOf("!"),
+    prefixWindow.lastIndexOf("?"),
+    prefixWindow.lastIndexOf("\n"),
+  );
+  const clausePrefix = prefixWindow.slice(boundaryIndex + 1);
+  const directNo = /\bno\s*$/i.test(clausePrefix);
+  const explicitNegation = clausePrefix.match(
+    /\b(?:do not|don't|never|must not|should not)\b[\s\S]*$/i,
+  );
+  if (!directNo && !explicitNegation) return false;
+
+  const negatedScope = `${explicitNegation?.[0] ?? clausePrefix}${matchedText}`;
+  return !/\b(?:but|however|instead|except|then)\b/i.test(negatedScope);
 }
 
 function classifierPrompt(text: string, repair: boolean): string {
