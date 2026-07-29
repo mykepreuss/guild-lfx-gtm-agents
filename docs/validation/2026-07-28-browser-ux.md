@@ -2,7 +2,7 @@
 
 > This record retains every failed and passing browser attempt from the July 28
 > private alpha. The final section records the fresh Guild-only acceptance pass
-> on Launcher `0.3.14`, Company Context Builder `1.2.5`, and specialists
+> on Launcher `0.3.15`, Company Context Builder `1.2.5`, and specialists
 > `1.2.6`.
 
 ## Scope
@@ -20,7 +20,7 @@ legal approval, or perform any other external marketing action.
 
 | Package | Live version | Default |
 | --- | --- | --- |
-| Marketing OS Launcher | 0.3.14 | yes |
+| Marketing OS Launcher | 0.3.15 | yes |
 | Company Context Builder | 1.2.5 | no |
 | Market Signal | 1.2.6 | no |
 | ICP | 1.2.6 | no |
@@ -37,7 +37,7 @@ The exact final version IDs are:
 
 | Package | Version ID |
 | --- | --- |
-| Marketing OS Launcher | `019fac04-7261-cf83-0000-96e0a90b9ba6` |
+| Marketing OS Launcher | `019fac16-95b8-cf83-0000-955dd4bf430f` |
 | Company Context Builder | `019fabf9-6502-cf83-0000-84c2dd6a04a9` |
 | Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
 | ICP | `019faba1-1977-cf83-0000-3278fc178485` |
@@ -153,6 +153,31 @@ index were removed from this Chat state. It did not claim to erase
 Guild-retained Chat history or Workspace Context. The live Workspace Context
 revision remained `019f10b8-0faa-9b1f-0000-0f14b2f84fea`, and no external
 marketing action occurred.
+
+## Owner-bound Launcher smoke test
+
+Launcher `0.3.15` centralizes its eight static package bindings so the guarded
+publisher can emit an owner-specific private-rehearsal allowlist without
+exposing arbitrary workspace agents. Normal-Chat session
+`019fac18-4b91-351a-0000-04ebcf7eae60` verified the refactor in the existing
+private alpha:
+
+1. A brand-new Chat used Launcher `0.3.15` version
+   `019fac16-95b8-cf83-0000-955dd4bf430f` as the default and rendered all
+   eight workstreams.
+2. The coordinated negated-safety request delegated only to Messaging `1.2.6`
+   version `019faba2-f413-cf83-0000-1211032600ce`.
+3. The child task returned a complete validated Messaging Approval Packet in
+   the originating Chat, and Launcher saved artifact
+   `2d2cfa64-1f5c-445d-9475-89374fb2b8e1` revision 1 from workflow run
+   `118bbc01-c405-4be8-9b22-df3dabaed20b`.
+4. The deletion request returned the exact confirmation gate, and the exact
+   phrase removed the disposable cockpit state while explicitly preserving
+   Guild Chat history and Workspace Context.
+
+The evidence collector retained one Launcher root task and one Messaging child
+task. No unrelated agent, recursive Launcher call, publication, scheduling,
+spend, CRM mutation, credential setup, or other external action occurred.
 
 ## Final Guild-only acceptance
 

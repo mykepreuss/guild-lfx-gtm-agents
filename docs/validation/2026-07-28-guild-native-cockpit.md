@@ -70,7 +70,7 @@ Builder runtime dependency on those integrations.
 
 All packages remained private during validation:
 
-- Launcher `0.3.14` is the workspace default.
+- Launcher `0.3.15` is the workspace default.
 - Company Context Builder is `1.2.5`.
 - All seven specialists are `1.2.6`.
 - Every package has automatic updates enabled.
