@@ -225,7 +225,7 @@ function deterministicRouteDecision(
   }
 
   if (
-    /\b(?:set up|build|create|refresh|update)\s+(?:the\s+|our\s+|a\s+)?(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
+    /\b(?:set up|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
       text,
     )
   ) {

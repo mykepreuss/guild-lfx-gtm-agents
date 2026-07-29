@@ -90,18 +90,44 @@ therefore does not imply content-quality acceptance.
 
 ## Decision
 
-No workspace-context variant is selected. The public release gate remains
-blocked.
+The historical runs above selected no variant. A later full rerun after the
+Guild-native hardened specialist deployment supersedes that decision; see
+`Final three-variant rerun` below.
 
-The benchmark demonstrates two separate requirements for the next authorized
-live cycle:
+## Final three-variant rerun
 
-1. Deploy the authenticated state-backed `1.2.0` specialist and Builder
-   sources so approval labels and consumed revisions are authoritative.
-2. Re-run all three variants across all seven routes and require both 7/7
-   contract completeness and zero unqualified sensitive claims before choosing
-   the smallest eligible brief.
+Run directory:
+`_private/context-benchmark/2026-07-29T02-31-16-454Z`
 
-The working-alpha context and packages remain unchanged because deploying the
-fixed sources without Guild-signed tenant identity and a delegated
-workspace-scoped context publisher would weaken the required isolation model.
+The harness rebuilt the current specialist sources, published each variant
+only in the dedicated benchmark workspace, and ran all seven routes for each
+variant. The checked-in V2 scorer evaluated contract completeness, golden
+facts, unqualified sensitive claims, and conflict recall.
+
+| Variant | Approximate tokens | Complete routes | Lost golden facts | Unqualified sensitive claims | Minimum conflict recall |
+| --- | ---: | ---: | --- | ---: | ---: |
+| Current | 4,971 | 5/7 | `draft_only_boundary` | 0 | 1 |
+| Compressed | 1,789 | 7/7 | None | 0 | 1 |
+| Pointer minimum | 499 | 7/7 | `site_basic_price`, `team_price`, `optimize_price`, `funding_label`, `wave_proof`, `hipaa_nuance` | 0 | 1 |
+
+Every compressed route passed with no validation error:
+
+- Market Signal: session `019fabb8-cc38-f268-0000-828460c23b1c`
+- ICP: session `019fabb8-c82a-f268-0000-55b95a26a182`
+- Audience Segmentation: session `019fabb8-c79e-f268-0000-b7b68a526c2d`
+- Messaging: session `019fabb9-b012-f268-0000-fe88ac9f29be`
+- Branding And Pitch Deck: session `019fabba-1dc4-f268-0000-9e04269e9146`
+- Social Monitoring And Content: session
+  `019fabba-433c-f268-0000-f6f95616aded`
+- Campaigns And Paid Media: session
+  `019fabba-a5e6-f268-0000-a3f376769eb6`
+
+The report selected `compressed` and recorded `release_gate: pass`. It is the
+smallest eligible brief. Pointer minimum remains ineligible despite 7/7
+completeness because it loses six required pricing, funding-label, proof, and
+HIPAA facts.
+
+The selected brief is
+`scripts/fixtures/context-benchmark/compressed.md`. The working-alpha Workspace
+Context was not changed. Publication still requires an approved Company
+Context artifact revision and the exact second-step user confirmation.

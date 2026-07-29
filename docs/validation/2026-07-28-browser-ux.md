@@ -2,7 +2,7 @@
 
 > This record retains every failed and passing browser attempt from the July 28
 > private alpha. The final section records the fresh Guild-only acceptance pass
-> on Launcher `0.3.7` and specialists `1.2.6`.
+> on Launcher `0.3.8` and specialists `1.2.6`.
 
 ## Scope
 
@@ -19,7 +19,7 @@ legal approval, or perform any other external marketing action.
 
 | Package | Live version | Default |
 | --- | --- | --- |
-| Marketing OS Launcher | 0.3.7 | yes |
+| Marketing OS Launcher | 0.3.8 | yes |
 | Company Context Builder | 1.2.0 | no |
 | Market Signal | 1.2.6 | no |
 | ICP | 1.2.6 | no |
@@ -36,7 +36,7 @@ The exact final version IDs are:
 
 | Package | Version ID |
 | --- | --- |
-| Marketing OS Launcher | `019fab9e-fe9d-cf83-0000-d0e87362b7ca` |
+| Marketing OS Launcher | `019fabb0-276c-cf83-0000-46121049f608` |
 | Company Context Builder | `019fab14-9c9b-cf83-0000-3019218b1897` |
 | Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
 | ICP | `019faba1-1977-cf83-0000-3278fc178485` |
@@ -48,10 +48,44 @@ The exact final version IDs are:
 
 ## Final Guild-only acceptance
 
+### Summary-first real-user lifecycle
+
+Session `019fabb1-c08e-351a-0000-bdc23f1e166c` was started from a brand-new
+normal workspace Chat after Launcher `0.3.8` auto-updated as the default. The
+Campaigns And Paid Media result rendered:
+
+- an `At a glance` table before the long packet;
+- draft name, review state, `source supplied` evidence mode, six included
+  sections, and saved revision;
+- the exact next review action;
+- the complete validated specialist artifact and Status Payload below the
+  summary; and
+- the normal cockpit provenance receipt.
+
+The result saved artifact `48412941-f383-4d32-9e87-edb6dc10483c` revision 1
+from workflow run `8665dd80-cfc3-49a1-9083-386b4fa8698b`. After a full browser
+page reload, `Show Marketing OS status.` restored the same Campaigns
+workstream as `ready_for_review` revision 1. Export returned the retained run,
+artifact, workstream, handoff, and audit trail.
+
+The exact user approval
+`Approve Campaigns And Paid Media artifact revision 1.` then transitioned the
+artifact, run, workstream, and handoff to approved. A subsequent status request
+showed:
+
+`Campaigns And Paid Media | Approved | r1 | Approved`.
+
+The receipt stated that approval authorized only the stored draft. No
+publishing, scheduling, spend, CRM mutation, context publication, or other
+external action occurred.
+
+### Final contract and cleanup acceptance
+
 Session `019faba7-0e57-351a-0000-79b14e75b6fc` was started from the workspace
 Chat entrypoint after all final private versions had auto-updated. It proved:
 
-- a brand-new normal Chat used Launcher `0.3.7` as the default;
+- a brand-new normal Chat used Launcher `0.3.7` as the default before the
+  summary-first presentation update;
 - the fresh cockpit started with all eight capability workstreams at
   `not_started`;
 - Campaigns And Paid Media `1.2.6` returned its complete approval packet in
@@ -190,7 +224,7 @@ action.
   retained.
 - “Concise” prompts still produce long approval packets because the specialist
   contract requires seven sections. The artifacts are complete and readable,
-  but a summary-first presentation would improve the public experience.
+  and Launcher `0.3.8` now places the useful summary and next action first.
 - The final deterministic cleanup removes repeated redaction placeholders and
   leaves one concise disclosure. The structured Status Payload is useful for
   auditability but still makes the rendered packet feel technical.
@@ -233,20 +267,22 @@ guidance.
 
 Public V1 remains blocked. The live browser passes do not satisfy:
 
-1. an authorized, clean separate-organization installation and concurrency
-   rehearsal;
+1. clean separate-organization installation and concurrency after resolving
+   private cross-owner package availability;
 2. unaffiliated design-partner acceptance without maintainer intervention;
 3. final approval and publication of the selected compact Workspace Context
    variant through the exact two-step gate;
 4. a customer-completed confirmed deletion rehearsal, with the documented
    distinction between cockpit state and Guild-retained Chat/context history;
-5. final summary-first UX polish for long specialist packets; and
+5. live Company Context lifecycle and publication proof; and
 6. public Agent Hub visibility.
 
 No package should be made public until every remaining gate passes.
 
-The current account can read
-`developers-at-guild/developer-sandbox`, but Guild reports
-`is_viewer_member: false`. No package was installed and no workspace state was
-changed there. An owner authorization or a newly created team-controlled clean
-organization is still required for the separate-organization rehearsal.
+The current account did not change
+`developers-at-guild/developer-sandbox`, where Guild reports
+`is_viewer_member: false`. Instead it created the empty organization workspace
+`developers-at-guild/marketing-os-clean-rehearsal-20260728` and opened it in
+the Guild UI. The private user-owned Launcher was absent from Agent Hub search,
+and the Guild service rejected explicit cross-owner installation. No
+production package was made public to bypass that isolation boundary.

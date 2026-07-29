@@ -35,6 +35,11 @@ const routingCases = [
   ["Show cockpit progress", "cockpit"],
   ["Approve Messaging artifact revision 1", "cockpit"],
   ["Set up the Marketing OS company context", "company_context"],
+  [
+    "Prepare a new Company Context Approval Packet from this candidate brief.",
+    "company_context",
+  ],
+  ["Draft our workspace context for review.", "company_context"],
   ["Summarize competitor and market signals", "market_signal"],
   ["Draft an ICP and ideal customer profile", "icp"],
   ["Define audience segmentation and suppression rules", "audience_segmentation"],

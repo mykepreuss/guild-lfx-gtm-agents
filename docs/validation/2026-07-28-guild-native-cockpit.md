@@ -70,10 +70,17 @@ Builder runtime dependency on those integrations.
 
 All packages remained private during validation:
 
-- Launcher `0.3.7` is the workspace default.
+- Launcher `0.3.8` is the workspace default.
 - Company Context Builder is `1.2.0`.
 - All seven specialists are `1.2.6`.
 - Every package has automatic updates enabled.
+
+Summary-first session `019fabb1-c08e-351a-0000-bdc23f1e166c` then verified the
+complete real-user lifecycle on Launcher `0.3.8`: summarized specialist
+result, complete artifact in the same Chat, page-reload restoration, cockpit
+status, structured export, exact artifact-revision approval, and approved
+workstream state. The Launcher version ID was
+`019fabb0-276c-cf83-0000-46121049f608`.
 
 Final session `019faba7-0e57-351a-0000-79b14e75b6fc` started as a brand-new
 ordinary Guild Chat. It loaded a fresh Launcher cockpit, returned complete
@@ -108,12 +115,11 @@ separate storage administration surface.
 
 Before any package becomes public:
 
-1. obtain owner authorization and complete a clean separate-organization
-   installation and concurrency rehearsal;
+1. resolve private cross-owner package availability and complete the clean
+   separate-organization installation and concurrency rehearsal;
 2. complete unaffiliated design-partner acceptance with no maintainer CLI
    intervention;
 3. select the compact Workspace Context variant and run its exact two-step
    approval/publication gate;
 4. complete the customer-facing confirmed-deletion rehearsal;
-5. finish summary-first polish for long specialist packets; and
-6. rerun the complete public release evidence matrix in those organizations.
+5. rerun the complete public release evidence matrix in those organizations.
