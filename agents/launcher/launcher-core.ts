@@ -412,7 +412,7 @@ export function validateSpecialistOutput(
   const errors: string[] = [];
   let previousIndex = -1;
   for (const heading of requiredHeadings) {
-    const indexes = allTextIndexes(text, heading);
+    const indexes = headingLineIndexes(text, heading);
     if (indexes.length !== 1) {
       errors.push(
         indexes.length === 0
@@ -653,14 +653,14 @@ export function onlyFormatErrors(errors: string[]): boolean {
   return errors.length > 0 && errors.every((error) => error.startsWith("Format error:"));
 }
 
-function allTextIndexes(text: string, value: string): number[] {
+function headingLineIndexes(text: string, value: string): number[] {
   const indexes: number[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const index = text.indexOf(value, cursor);
-    if (index === -1) break;
-    indexes.push(index);
-    cursor = index + value.length;
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    if (line.trim() === value) {
+      indexes.push(offset + line.indexOf(value));
+    }
+    offset += line.length + 1;
   }
   return indexes;
 }

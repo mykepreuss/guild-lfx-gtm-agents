@@ -20,6 +20,7 @@ const {
   default: messagingAgent,
 } = await import(path.join(messagingDir, "dist/agent.js"));
 const {
+  normalizeDuplicateSharedHeadings,
   redactUnsafeGeneratedLines,
   validateSpecialistArtifact,
 } = await import(path.join(messagingDir, "dist/specialist-runtime.js"));
@@ -197,10 +198,10 @@ assert.match(
   /Safety filter disclosure:/,
   "deterministic withholding is disclosed",
 );
-assert.match(
+assert.doesNotMatch(
   safetyFiltered.text,
   /This generated line was withheld by deterministic safety validation/,
-  "unsafe line is replaced with a reviewable TBD",
+  "unsafe generated lines are removed from the reader-facing draft",
 );
 assert.doesNotMatch(
   safetyFiltered.text
@@ -261,6 +262,32 @@ assert.match(
   nestedSafetyFiltered.text,
   /No claims of HIPAA compliance allowed/,
   "audit-only Status Payload evidence is preserved as valid JSON",
+);
+
+const duplicateHeadingArtifact = validArtifact.replace(
+  "## Assumptions And Missing Evidence",
+  `## Consumed Context
+
+Additional context note.
+
+## Assumptions And Missing Evidence`,
+);
+assert.equal(
+  validateSpecialistArtifact(duplicateHeadingArtifact).valid,
+  false,
+  "duplicate shared headings should fail before deterministic normalization",
+);
+const normalizedHeadingArtifact =
+  normalizeDuplicateSharedHeadings(duplicateHeadingArtifact);
+assert.match(
+  normalizedHeadingArtifact,
+  /### Additional Consumed Context/,
+  "duplicate shared heading content should be preserved under a subordinate heading",
+);
+assert.equal(
+  validateSpecialistArtifact(normalizedHeadingArtifact).valid,
+  true,
+  JSON.stringify(validateSpecialistArtifact(normalizedHeadingArtifact).issues),
 );
 
 const unqualifiedProofArtifact = validArtifact.replace(

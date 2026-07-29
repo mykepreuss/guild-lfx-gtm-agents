@@ -152,7 +152,9 @@ export function createValidatedSpecialistAgent(
         prompt: input.text,
         stream: false,
       });
-      const initialText = initial.text.trim();
+      const initialText = normalizeDuplicateSharedHeadings(
+        initial.text.trim(),
+      );
       const initialValidation = validateSpecialistArtifact(
         initialText,
         validationOptions,
@@ -191,7 +193,9 @@ export function createValidatedSpecialistAgent(
         prompt: buildFormatRepairPrompt(input.text, initialText, initialValidation.issues),
         stream: false,
       });
-      const repairedText = repair.text.trim();
+      const repairedText = normalizeDuplicateSharedHeadings(
+        repair.text.trim(),
+      );
       const repairedValidation = validateSpecialistArtifact(
         repairedText,
         validationOptions,
@@ -216,7 +220,7 @@ export function validateSpecialistArtifact(
   let previousIndex = -1;
 
   for (const heading of requiredHeadings) {
-    const indexes = allIndexes(text, heading);
+    const indexes = headingLineIndexes(text, heading);
     if (indexes.length !== 1) {
       issues.push({
         kind: "format",
@@ -394,8 +398,7 @@ export function redactUnsafeGeneratedLines(
     if (!unsafe) return line;
 
     redactedExcerpts.push(trimmed.replace(/\s+/g, " ").slice(0, 180));
-    const indentation = line.match(/^\s*/)?.[0] ?? "";
-    return `${indentation}- TBD — This generated line was withheld by deterministic safety validation; source evidence and owner approval are required.`;
+    return "";
   });
 
   if (redactedExcerpts.length === 0) {
@@ -635,14 +638,33 @@ No answer-ready claims were produced from the rejected attempt.
 Return to Marketing OS Launcher with the validation errors above. No external action occurred.`;
 }
 
-function allIndexes(text: string, value: string): number[] {
+export function normalizeDuplicateSharedHeadings(text: string): string {
+  const seen = new Set<string>();
+  return text
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!(requiredHeadings as readonly string[]).includes(trimmed)) {
+        return line;
+      }
+      if (!seen.has(trimmed)) {
+        seen.add(trimmed);
+        return line;
+      }
+      const indentation = line.match(/^\s*/)?.[0] ?? "";
+      return `${indentation}### Additional ${trimmed.slice(3)}`;
+    })
+    .join("\n");
+}
+
+function headingLineIndexes(text: string, value: string): number[] {
   const indexes: number[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const index = text.indexOf(value, cursor);
-    if (index === -1) break;
-    indexes.push(index);
-    cursor = index + value.length;
+  let offset = 0;
+  for (const line of text.split("\n")) {
+    if (line.trim() === value) {
+      indexes.push(offset + line.indexOf(value));
+    }
+    offset += line.length + 1;
   }
   return indexes;
 }
