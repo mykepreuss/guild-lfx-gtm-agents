@@ -260,6 +260,8 @@ function createPrivateLauncher(owner, launcher) {
         owner,
         "--name",
         launcher.guildName,
+        "--agent-type",
+        "GUILD_TYPESCRIPT",
         "--template",
         "BLANK",
         "--category",
