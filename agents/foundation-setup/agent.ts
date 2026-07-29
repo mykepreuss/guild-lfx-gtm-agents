@@ -4046,20 +4046,22 @@ ${output.persistenceState.saved_to_workspace_context
   : "Paste this block into a downstream agent if workspace context has not been published yet."}
 
 ## Assumptions And Missing Evidence
+- Evidence mode: ${output.statusPayload.evidence_mode}
+
 ### Approved Or User-Supplied Facts
-${formatClaims(output.approvedFacts)}
+${formatEvidenceSectionClaims(output.approvedFacts)}
 
 ### Extracted Claims
-${formatClaims(output.extractedClaims)}
+${formatEvidenceSectionClaims(output.extractedClaims)}
 
 ### Proof-Backed Claims
-${formatClaims(output.proofBackedClaims)}
+${formatEvidenceSectionClaims(output.proofBackedClaims)}
 
 ### Claims Needing Approval
-${formatClaims(output.claimsNeedingApproval)}
+${formatEvidenceSectionClaims(output.claimsNeedingApproval)}
 
 ### Assumptions And Missing Evidence
-${formatClaims(output.assumptionsAndMissingEvidence)}
+${formatEvidenceSectionClaims(output.assumptionsAndMissingEvidence)}
 
 ### Open Questions
 ${formatBulletList(output.openQuestions)}
@@ -4080,6 +4082,7 @@ ${output.approvalGates
 \`\`\`json
 ${JSON.stringify({
   ...output.statusPayload,
+  status: output.status,
   conversationIntent: output.conversationIntent,
   persistenceState: output.persistenceState,
 }, null, 2)}
@@ -4089,9 +4092,6 @@ ${JSON.stringify({
 ${output.downstreamHandoff
   .map((handoff) => `- ${handoff.agent}: receives ${handoff.receives.join(", ")}. ${handoff.reason}`)
   .join("\n")}
-
-## Do Not Do Yet
-${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `- ${constraint}`).join("\n")}
 `;
 }
 
@@ -4125,6 +4125,7 @@ ${output.approvalGates
 \`\`\`json
 ${JSON.stringify({
   ...output.statusPayload,
+  status: output.status,
   conversationIntent: output.conversationIntent,
   persistenceState: output.persistenceState,
 }, null, 2)}
@@ -4218,4 +4219,11 @@ function formatSchemaIssues(issues: z.ZodIssue[]): string {
 function formatClaims(claims: readonly Claim[]): string {
   if (!claims.length) return "- None identified.";
   return claims.map((claim) => `- ${claim.claim} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`).join("\n");
+}
+
+function formatEvidenceSectionClaims(claims: readonly Claim[]): string {
+  return formatClaims(claims)
+    .replace(/\bsource_supplied\b/gi, "source supplied")
+    .replace(/\bconnected_read_only\b/gi, "connected read only")
+    .replace(/\blive_monitoring\b/gi, "live monitoring");
 }

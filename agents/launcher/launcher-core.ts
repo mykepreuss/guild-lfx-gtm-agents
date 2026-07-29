@@ -403,9 +403,11 @@ export function validateSpecialistOutput(
   text: string,
   {
     allowContextPublicationPhrase = false,
+    allowContextEvidenceReconciliation = false,
     expectedHipaaConstraint,
   }: {
     allowContextPublicationPhrase?: boolean;
+    allowContextEvidenceReconciliation?: boolean;
     expectedHipaaConstraint?: string;
   } = {},
 ): string[] {
@@ -548,34 +550,36 @@ export function validateSpecialistOutput(
       }
     }
   }
-  const exactHipaaMatches = expectedHipaaConstraint
-    ? safetyNarrative.split(expectedHipaaConstraint).length - 1
-    : (
-        safetyNarrative.match(
-          new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-        ) ?? []
-      ).length;
-  const hipaaRemainder = (
-    expectedHipaaConstraint
-      ? safetyNarrative.split(expectedHipaaConstraint).join("")
-      : safetyNarrative.replace(
-          new RegExp(approvedHipaaConstraintPattern.source, "gi"),
-          "",
-        )
-  ).replace(/\b(?:the\s+)?approved HIPAA constraint\b/gi, "");
-  if (expectedHipaaConstraint && exactHipaaMatches !== 1) {
-    errors.push(
-      "Safety error: the exact approved HIPAA constraint from Guild Workspace Context must appear verbatim exactly once.",
-    );
-  } else if (exactHipaaMatches > 1) {
-    errors.push(
-      "Safety error: the exact approved HIPAA constraint appears more than once.",
-    );
-  }
-  if (/\bHIPAA\b|\bPHI\b|Protected Health Information/i.test(hipaaRemainder)) {
-    errors.push(
-      "Safety error: the approved HIPAA constraint was paraphrased or expanded.",
-    );
+  if (!allowContextEvidenceReconciliation) {
+    const exactHipaaMatches = expectedHipaaConstraint
+      ? safetyNarrative.split(expectedHipaaConstraint).length - 1
+      : (
+          safetyNarrative.match(
+            new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+          ) ?? []
+        ).length;
+    const hipaaRemainder = (
+      expectedHipaaConstraint
+        ? safetyNarrative.split(expectedHipaaConstraint).join("")
+        : safetyNarrative.replace(
+            new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+            "",
+          )
+    ).replace(/\b(?:the\s+)?approved HIPAA constraint\b/gi, "");
+    if (expectedHipaaConstraint && exactHipaaMatches !== 1) {
+      errors.push(
+        "Safety error: the exact approved HIPAA constraint from Guild Workspace Context must appear verbatim exactly once.",
+      );
+    } else if (exactHipaaMatches > 1) {
+      errors.push(
+        "Safety error: the exact approved HIPAA constraint appears more than once.",
+      );
+    }
+    if (/\bHIPAA\b|\bPHI\b|Protected Health Information/i.test(hipaaRemainder)) {
+      errors.push(
+        "Safety error: the approved HIPAA constraint was paraphrased or expanded.",
+      );
+    }
   }
 
   for (const pattern of [

@@ -272,6 +272,31 @@ assert.deepEqual(
   ),
   [],
 );
+const contextReconciliationArtifact = validArtifact.replace(
+  "Draft artifact.",
+  [
+    "Claim status: blocked — The supplied source says Webflow may not be HIPAA compliant.",
+    "Claim status: blocked — A current approved revision instead references Protected Health Information (PHI).",
+    "The Marketing Owner must choose which exact approved revision wins before publication.",
+  ].join("\n"),
+);
+assert.deepEqual(
+  validateSpecialistOutput(contextReconciliationArtifact, {
+    allowContextEvidenceReconciliation: true,
+  }),
+  [],
+  "Context Builder may safely compare qualified HIPAA wording while reconciling revisions",
+);
+assert.ok(
+  validateSpecialistOutput(
+    contextReconciliationArtifact.replace(
+      "Claim status: blocked — The supplied source says Webflow may not be HIPAA compliant.",
+      "Webflow is HIPAA compliant.",
+    ),
+    { allowContextEvidenceReconciliation: true },
+  ).some((error) => error.startsWith("Safety error:")),
+  "Context reconciliation must not disable the general sensitive-claim validator",
+);
 
 const installedStatus = renderOnboardingStatus([
   {

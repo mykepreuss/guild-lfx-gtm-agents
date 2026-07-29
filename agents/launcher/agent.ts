@@ -631,7 +631,8 @@ async function run(
   let nextAttemptKind: "initial" | "format_repair" =
     nextAttemptNumber === 1 ? "initial" : "format_repair";
   let finalAttemptCount = currentRun.attempts.length;
-  const expectedHipaaConstraint = /\bHIPAA\b|\bPHI\b/i.test(requestText)
+  const expectedHipaaConstraint = route !== "company_context" &&
+    /\bHIPAA\b|\bPHI\b/i.test(requestText)
     ? extractApprovedHipaaConstraint(context.compiled)
     : undefined;
   let delegatedInput = specialistInput(
@@ -781,6 +782,7 @@ async function run(
     const errors = attemptText
       ? validateSpecialistOutput(attemptText, {
           allowContextPublicationPhrase: route === "company_context",
+          allowContextEvidenceReconciliation: route === "company_context",
           expectedHipaaConstraint,
         })
       : ["Empty or unsupported specialist output."];

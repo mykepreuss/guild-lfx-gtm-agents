@@ -121,8 +121,9 @@ All trust and compliance statements are
   SCCs, and the UK IDTA for transfer mechanisms.
 - Supplied material references SOC 2 Type II, ISO 27001, ISO 27017, PCI DSS,
   encryption in transit and at rest, SSO, SCIM, JIT, and an audit log API.
-- Preserve this exact nuance: Webflow may not be HIPAA compliant, and customers
-  should not provide Protected Health Information / PHI through the platform.
+- Preserve this exact approved sentence: Webflow’s official terms explicitly
+  state that the platform may not be HIPAA compliant and that customers do not
+  provide Protected Health Information (PHI) through the platform.
   Never rewrite this as “is HIPAA compliant,” “is not HIPAA compliant,” or “not
   HIPAA out of the box.”
 

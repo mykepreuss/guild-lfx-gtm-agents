@@ -183,6 +183,31 @@ function guildChatEnvelope(text) {
   assert.match(draft.output.text, /saved_to_workspace_context: false/);
   assert.match(draft.output.text, /saved_to_context_artifacts: true/);
   assert.match(draft.output.text, /retained in this Guild Chat/);
+  const evidenceSection = draft.output.text
+    .split("## Assumptions And Missing Evidence")[1]
+    .split("## Approval Gate")[0];
+  assert.equal(
+    evidenceSection.match(
+      /\b(?:source_supplied|connected_read_only|live_monitoring)\b/g,
+    )?.length,
+    1,
+    "Builder should state exactly one evidence mode in the shared evidence section",
+  );
+  const statusJson = draft.output.text
+    .split("## Status Payload")[1]
+    .split("## Downstream Handoff")[0]
+    .match(/```json\s*([\s\S]*?)```/i)?.[1];
+  assert.ok(statusJson, "Builder should render one shared status JSON block");
+  assert.equal(
+    JSON.parse(statusJson).status,
+    harness.readState().lastOutput.status,
+    "Builder should expose its shared artifact status in Status Payload",
+  );
+  assert.ok(
+    draft.output.text.lastIndexOf("## Downstream Handoff") >
+      draft.output.text.lastIndexOf("\n## "),
+    "Downstream Handoff should be the final top-level artifact section",
+  );
   assert.equal(harness.readState().lastSourceText, fixture);
   assert.equal(
     harness.readState().durableContextArtifactStatus,
