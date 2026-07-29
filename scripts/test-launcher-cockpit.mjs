@@ -328,7 +328,7 @@ function launcherInput(request, context = managedContext) {
     chat.installationAgentIds(),
     launcherCore.suiteInstallOrder.map((entry) => entry.agentId),
   );
-  assert.match(result.text, /All eight capability packages are installed/);
+  assert.match(result.text, /All eight marketing specialists are installed/);
   assert.match(result.text, /8 missing capability packages were installed/);
   assert.match(
     result.text,
@@ -362,7 +362,7 @@ function launcherInput(request, context = managedContext) {
     chat.task,
   );
   assert.equal(chat.installationCallCount(), 9);
-  assert.match(resumed.text, /All eight capability packages are installed/);
+  assert.match(resumed.text, /All eight marketing specialists are installed/);
   assert.match(resumed.text, /6 missing capability packages were installed/);
 }
 

@@ -252,6 +252,18 @@ assert.match(
 );
 assert.match(summarizedResult, /## Complete validated draft/);
 assert.match(summarizedResult, /## Status Payload/);
+const onboardingStatus = renderOnboardingStatus(
+  Object.entries(suitePackageBindings).map(([route, binding], index) => ({
+    packageName: binding.packageName,
+    versionId: `version-${route}-${index}`,
+  })),
+);
+assert.match(onboardingStatus, /# Marketing OS is ready/);
+assert.match(onboardingStatus, /Tell Launcher the outcome you need in normal language/);
+assert.match(onboardingStatus, /Create a presentation or pitch deck/);
+assert.match(onboardingStatus, /Create an integrated campaign/);
+assert.match(onboardingStatus, /You do not need to name an agent/);
+assert.doesNotMatch(onboardingStatus, /canonical|cockpit|artifact revision/i);
 const summarizedBuilderResult = renderDelegatedResult(
   "Company Context Builder",
   validArtifact

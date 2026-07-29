@@ -8,6 +8,10 @@ artifacts.
 Public V1 does not require an external database, cloud account, private Skill,
 CLI, CRM, publishing credential, or advertising credential.
 
+New to the product? Read the marketer-facing
+[Start Here guide](docs/start-here.md) before the architecture and development
+details below.
+
 ## Product Shape
 
 The suite contains one front door and eight capability packages:

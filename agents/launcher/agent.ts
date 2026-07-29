@@ -379,7 +379,7 @@ async function run(
           : "No capability package installation was needed.",
         "Each installation required its own explicit approval.",
         "",
-        "This Chat is your canonical Marketing OS cockpit. Resume this Chat for durable artifacts, approvals, workstreams, and handoffs.",
+        "Keep using this Chat so Marketing OS can remember your drafts, approvals, progress, and next steps.",
       ].join("\n"),
     };
   }
