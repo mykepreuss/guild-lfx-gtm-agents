@@ -58,7 +58,7 @@ export default createValidatedSpecialistAgent({
     const requiredAllocations: Array<[string, RegExp]> = [
       [
         "creative and content at 30%",
-        /\bcreative(?:\s+and|[ /&-])content\b[^\n%]{0,80}\b30\s*%/i,
+        /\bcreative(?:\s+and\s+|[\/&-]\s*)content\b[^\n%]{0,80}\b30\s*%/i,
       ],
       [
         "landing-page production at 25%",
