@@ -732,17 +732,105 @@ export function renderOnboardingStatus(
   ].join("\n");
 }
 
-export function renderDelegatedResult(displayName: string, specialistText: string): string {
+export type DelegatedResultOptions = {
+  artifactRevision?: number;
+  status?: "needs_input" | "ready_for_review";
+  nextAction?: string;
+};
+
+export function renderDelegatedResult(
+  displayName: string,
+  specialistText: string,
+  options: DelegatedResultOptions = {},
+): string {
+  const presentation = specialistPresentationMetadata(
+    specialistText,
+    displayName,
+  );
+  const status =
+    options.status ??
+    specialistResultStatus(specialistText) ??
+    "ready_for_review";
+  const statusLabel =
+    status === "needs_input" ? "Needs input" : "Ready for review";
+  const nextAction =
+    options.nextAction ??
+    (status === "needs_input"
+      ? "Provide the focused missing inputs listed in the draft, then resume this workstream."
+      : "Review the complete draft below.");
+  const savedRevision = options.artifactRevision
+    ? `Revision ${options.artifactRevision}`
+    : "Saved in this cockpit";
+
   return [
     "# Marketing OS",
     "",
     `Handled by: ${displayName}`,
-    "Status: ready for review",
+    `Status: ${status === "needs_input" ? "needs input" : "ready for review"}`,
+    "",
+    "## At a glance",
+    "",
+    "| | |",
+    "| --- | --- |",
+    `| Draft | ${escapeTableCell(presentation.title)} |`,
+    `| Review state | ${statusLabel} |`,
+    `| Evidence | ${escapeTableCell(presentation.evidenceMode)} |`,
+    `| Includes | ${escapeTableCell(presentation.includedSections)} |`,
+    `| Saved artifact | ${escapeTableCell(savedRevision)} |`,
+    "",
+    `**Next action:** ${nextAction}`,
+    "",
+    "The complete validated draft and audit details follow.",
     "",
     "---",
     "",
+    "## Complete validated draft",
+    "",
     specialistText,
   ].join("\n");
+}
+
+function specialistPresentationMetadata(
+  specialistText: string,
+  displayName: string,
+): {
+  title: string;
+  evidenceMode: string;
+  includedSections: string;
+} {
+  const producedArtifact = specialistSection(
+    specialistText,
+    "## Produced Artifact",
+    "## Assumptions And Missing Evidence",
+  );
+  const headings = [
+    ...producedArtifact.matchAll(/^#{1,3}\s+(.+?)\s*$/gm),
+  ]
+    .map((match) => match[1].trim())
+    .filter(Boolean);
+  const title = headings[0] ?? `${displayName} draft`;
+  const included = [...new Set(headings.slice(1))]
+    .slice(0, 6)
+    .join(" · ");
+  const evidenceSection = specialistSection(
+    specialistText,
+    "## Assumptions And Missing Evidence",
+    "## Approval Gate",
+  );
+  const evidenceMode =
+    evidenceSection.match(
+      /\b(source_supplied|connected_read_only|live_monitoring)\b/,
+    )?.[1] ?? "not stated";
+
+  return {
+    title,
+    evidenceMode: evidenceMode.replaceAll("_", " "),
+    includedSections: included || "Complete validated draft",
+  };
+}
+
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
 }
 
 export function renderGuide(message: string, status = "needs clarification"): string {

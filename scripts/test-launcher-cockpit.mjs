@@ -248,6 +248,13 @@ function launcherInput(request, context = managedContext) {
     chat.task,
   );
   assert.match(result.text, /Handled by: Messaging/);
+  assert.match(result.text, /## At a glance/);
+  assert.match(result.text, /\| Draft \| Messaging draft \|/);
+  assert.match(result.text, /\| Review state \| Ready for review \|/);
+  assert.match(result.text, /\| Evidence \| source supplied \|/);
+  assert.match(result.text, /\| Saved artifact \| Revision 1 \|/);
+  assert.match(result.text, /## Complete validated draft/);
+  assert.match(result.text, /Draft positioning and message pillars/);
   assert.match(result.text, /Cockpit record:/);
   assert.match(result.text, /Installed version ID: version-5/);
   assert.equal(chat.specialistCallCount(), 2);

@@ -21,6 +21,7 @@ const {
   extractApprovedHipaaConstraint,
   parseArtifactApprovalRequest,
   removeCompiledWorkspaceContext,
+  renderDelegatedResult,
   renderOnboardingStatus,
   specialistInput,
   specialistResultStatus,
@@ -169,6 +170,21 @@ assert.equal(
   "needs_input",
   "Launcher should retain the specialist status for workstream state",
 );
+const summarizedResult = renderDelegatedResult("Messaging", validArtifact, {
+  artifactRevision: 2,
+  status: "ready_for_review",
+  nextAction: "Review Messaging artifact revision 2.",
+});
+assert.match(summarizedResult, /## At a glance/);
+assert.match(summarizedResult, /\| Draft \| Messaging draft \|/);
+assert.match(summarizedResult, /\| Evidence \| source supplied \|/);
+assert.match(summarizedResult, /\| Saved artifact \| Revision 2 \|/);
+assert.match(
+  summarizedResult,
+  /\*\*Next action:\*\* Review Messaging artifact revision 2\./,
+);
+assert.match(summarizedResult, /## Complete validated draft/);
+assert.match(summarizedResult, /## Status Payload/);
 assert.ok(
   validateSpecialistOutput(
     validArtifact.replace(

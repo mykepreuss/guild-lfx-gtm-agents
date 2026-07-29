@@ -535,7 +535,11 @@ async function run(
       return {
         type: "text",
         text: [
-          renderDelegatedResult(config.displayName, completedText),
+          renderDelegatedResult(config.displayName, completedText, {
+            artifactRevision: currentRun.artifact_revision,
+            status: "ready_for_review",
+            nextAction: currentRun.next_action ?? undefined,
+          }),
           "",
           renderCockpitReceipt({
             artifactId: currentRun.artifact_id,
@@ -967,7 +971,11 @@ async function run(
     return {
       type: "text",
       text: [
-        renderDelegatedResult(config.displayName, completedText),
+        renderDelegatedResult(config.displayName, completedText, {
+          artifactRevision: artifact.revision,
+          status: needsInput ? "needs_input" : "ready_for_review",
+          nextAction,
+        }),
         "",
         needsInput
           ? "The complete draft is saved in this cockpit and marked Needs input. Add the focused missing inputs listed above, then resume this workstream."
