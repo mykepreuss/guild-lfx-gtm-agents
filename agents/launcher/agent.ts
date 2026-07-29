@@ -3,7 +3,6 @@
 import {
   agent,
   guildAgentTool,
-  guildServiceTool,
   guildTools,
   pick,
   type Task,
@@ -73,45 +72,10 @@ export {
   validateSpecialistOutput,
 } from "./launcher-core.js";
 
-const workspaceContextStatusSchema = z.enum(["DRAFT", "PUBLISHED"]);
-const workspaceContextSchema = z
-  .object({
-    id: z.string(),
-    status: workspaceContextStatusSchema,
-    manual_context: z.string().default(""),
-    summary: z.string().nullable().optional(),
-    created_at: z.string().optional(),
-    updated_at: z.string().optional(),
-  })
-  .passthrough();
-
-const workspaceContextsListInputSchema = z.object({
-  workspace_id: z.string(),
-  limit: z.number().int().positive().max(100).default(100),
-  offset: z.number().int().nonnegative().default(0),
-});
-const workspaceContextsListOutputSchema = z
-  .object({
-    items: z.array(workspaceContextSchema),
-  })
-  .passthrough();
-const workspaceContextCreateInputSchema = z.object({
-  workspace_id: z.string(),
-  status: z.literal("DRAFT"),
-  context: z.string().min(1),
-  summary: z.string().nullable(),
-});
-const workspaceContextPublishInputSchema = z.object({
-  context_id: z.string(),
-  status: z.literal("PUBLISHED"),
-});
-
 const tools = {
   ...pick(guildTools, [
     "guild_agent_install_request",
-    "guild_get_session",
     "guild_get_task_workspace_agents",
-    "guild_get_workspace",
   ]),
   marketing_os_company_context_builder: guildAgentTool({
     inputSchema: specialistInputSchema,
@@ -153,102 +117,6 @@ const tools = {
     outputSchema: specialistOutputSchema,
     calls: suitePackageBindings.campaigns_paid_media.qualifiedName,
   }),
-  guild_workspace_contexts_list: guildServiceTool("guild", {
-    description:
-      "Read versioned Guild workspace context so Marketing OS can preserve unmanaged text and detect idempotent publication.",
-    inputSchema: workspaceContextsListInputSchema,
-    outputSchema: workspaceContextsListOutputSchema,
-    endpoint: {
-      method: "GET",
-      path: "/api/workspaces/{workspace_id}/contexts",
-      description: "List Guild workspace context versions",
-      format: "application/json",
-      parameters: [
-        {
-          name: "workspace_id",
-          type: "path",
-          schema: workspaceContextsListInputSchema.shape.workspace_id,
-        },
-        {
-          name: "limit",
-          type: "query",
-          schema: workspaceContextsListInputSchema.shape.limit,
-        },
-        {
-          name: "offset",
-          type: "query",
-          schema: workspaceContextsListInputSchema.shape.offset,
-        },
-      ],
-      parameterSchema: workspaceContextsListInputSchema,
-      responseSchema: workspaceContextsListOutputSchema,
-      errors: [],
-    },
-  }),
-  guild_workspace_context_create: guildServiceTool("guild", {
-    description:
-      "Create a draft Guild workspace context version after the exact Marketing OS publication confirmation.",
-    inputSchema: workspaceContextCreateInputSchema,
-    outputSchema: workspaceContextSchema,
-    endpoint: {
-      method: "POST",
-      path: "/api/workspaces/{workspace_id}/contexts",
-      description: "Create a Guild workspace context version",
-      format: "application/json",
-      parameters: [
-        {
-          name: "workspace_id",
-          type: "path",
-          schema: workspaceContextCreateInputSchema.shape.workspace_id,
-        },
-        {
-          name: "status",
-          type: "body",
-          schema: workspaceContextCreateInputSchema.shape.status,
-        },
-        {
-          name: "context",
-          type: "body",
-          schema: workspaceContextCreateInputSchema.shape.context,
-        },
-        {
-          name: "summary",
-          type: "body",
-          schema: workspaceContextCreateInputSchema.shape.summary,
-        },
-      ],
-      parameterSchema: workspaceContextCreateInputSchema,
-      responseSchema: workspaceContextSchema,
-      errors: [],
-    },
-  }),
-  guild_workspace_context_publish: guildServiceTool("guild", {
-    description:
-      "Publish the exact prepared Guild workspace context draft after the Marketing OS publication confirmation.",
-    inputSchema: workspaceContextPublishInputSchema,
-    outputSchema: workspaceContextSchema,
-    endpoint: {
-      method: "PATCH",
-      path: "/api/contexts/{context_id}",
-      description: "Publish a Guild workspace context draft",
-      format: "application/json",
-      parameters: [
-        {
-          name: "context_id",
-          type: "path",
-          schema: workspaceContextPublishInputSchema.shape.context_id,
-        },
-        {
-          name: "status",
-          type: "body",
-          schema: workspaceContextPublishInputSchema.shape.status,
-        },
-      ],
-      parameterSchema: workspaceContextPublishInputSchema,
-      responseSchema: workspaceContextSchema,
-      errors: [],
-    },
-  }),
 };
 
 type Tools = typeof tools;
@@ -271,7 +139,6 @@ async function run(
   if (isExactContextPublishConfirmation(userText)) {
     const output = await publishApprovedCompanyContext(
       userText,
-      task,
       cockpit,
     );
     await task.save(cockpit.state);
@@ -1265,7 +1132,6 @@ function approveCockpitArtifact(
 
 async function publishApprovedCompanyContext(
   exactText: string,
-  task: LauncherTask,
   cockpit: SerializableSessionCockpit,
 ): Promise<z.infer<typeof outputSchema>> {
   if (exactText.trim().toLowerCase() !== exactContextPublishPhrase) {
@@ -1306,153 +1172,54 @@ async function publishApprovedCompanyContext(
       throw new Error("The selected Company Context artifact is not approved.");
     }
 
-    const session = await task.tools.guild_get_session({
-      session_id: task.sessionId,
-    });
-    const workspaceId = session.workspace.id;
-    const workspace = await task.tools.guild_get_workspace({
-      workspace_id: workspaceId,
-    });
-    const contexts = workspaceContextsListOutputSchema.parse(
-      await task.tools.guild_workspace_contexts_list({
-        workspace_id: workspaceId,
-        limit: 100,
-        offset: 0,
-      }),
-    ).items;
-    const currentPublished =
-      contexts.find((candidate) => candidate.status === "PUBLISHED") ??
-      contexts[0];
     const managedBlock = renderManagedContextBlock({
       artifactBody: artifact.markdown_body,
       artifactId: artifact.artifact_id,
       artifactRevision: artifact.revision,
       canonicalSessionId:
-        cockpit.state.canonical_session_id ?? task.sessionId,
+        cockpit.state.canonical_session_id ?? "this Marketing OS Chat",
     });
-    const alreadyPublished = contexts.find(
-      (candidate) =>
-        candidate.status === "PUBLISHED" &&
-        candidate.manual_context.includes(
-          `Artifact: ${artifact.artifact_id} revision ${artifact.revision}`,
-        ),
-    );
-    if (alreadyPublished) {
-      applyCockpitOperation(
-        cockpit,
-        "recordContextPublication",
-        {
-        contextId: alreadyPublished.id,
-        contextRevision: alreadyPublished.id,
-        artifactId: artifact.artifact_id,
-        artifactRevision: artifact.revision,
-        },
-      );
-      return renderContextPublicationReceipt({
-        contextId: alreadyPublished.id,
-        artifactId: artifact.artifact_id,
-        artifactRevision: artifact.revision,
-        previousContextId: currentPublished
-          ? currentPublished.id
-          : undefined,
-        alreadyPublished: true,
-      });
-    }
 
-    const currentManual = currentPublished
-      ? currentPublished.manual_context
-      : workspace.context && "manual" in workspace.context
-        ? String(workspace.context["manual"] ?? "")
-        : "";
-    const mergedContext = mergeManagedContext(currentManual, managedBlock);
-    const existingDraft = contexts.find(
-      (candidate) =>
-        candidate.status === "DRAFT" &&
-        candidate.manual_context.includes(
-          `Artifact: ${artifact.artifact_id} revision ${artifact.revision}`,
-        ),
-    );
-    const draft =
-      existingDraft ??
-      workspaceContextSchema.parse(
-        await task.tools.guild_workspace_context_create({
-          workspace_id: workspaceId,
-          status: "DRAFT",
-          context: mergedContext,
-          summary: `Guild Marketing OS compact company context from approved artifact ${artifact.artifact_id} revision ${artifact.revision}.`,
-        }),
-      );
-    const published = workspaceContextSchema.parse(
-      await task.tools.guild_workspace_context_publish({
-        context_id: draft.id,
-        status: "PUBLISHED",
-      }),
-    );
-    applyCockpitOperation(
-      cockpit,
-      "recordContextPublication",
-      {
-        contextId: published.id,
-        contextRevision: published.id,
-        artifactId: artifact.artifact_id,
-        artifactRevision: artifact.revision,
-      },
-    );
-    return renderContextPublicationReceipt({
-      contextId: published.id,
-      artifactId: artifact.artifact_id,
-      artifactRevision: artifact.revision,
-      previousContextId: currentPublished
-        ? currentPublished.id
-        : undefined,
-      alreadyPublished: false,
-    });
+    return {
+      type: "text",
+      text: [
+        "# Publish Company Context in Guild",
+        "",
+        "Your approved compact company brief is ready. Guild requires the final publish action in the workspace Context screen, so Workspace Context is still unchanged.",
+        "",
+        "## Finish in Guild",
+        "",
+        "1. Open the workspace sidebar and select **Context**.",
+        "2. Keep any existing workspace notes.",
+        "3. Append the approved block below.",
+        "4. Click **Publish**.",
+        "5. Start a new Chat and ask for marketing work in ordinary language. The specialists will receive this context automatically.",
+        "",
+        "## Approved compact context",
+        "",
+        "```markdown",
+        managedBlock,
+        "```",
+        "",
+        `Approved artifact: ${artifact.artifact_id} revision ${artifact.revision}`,
+        "Status: ready for Guild Context publication",
+        "No workspace context, publishing, scheduling, spend, CRM data, or other external system changed in this step.",
+      ].join("\n"),
+    };
   } catch (error) {
     return {
       type: "text",
       text: [
         "# Marketing OS Workspace Context",
         "",
-        "The exact publication confirmation was received, but Guild did not confirm a published context version.",
+        "The exact publication confirmation was received, but the approved compact context could not be prepared.",
         `Details: ${safeError(error)}`,
-        "Status: publication blocked safely",
+        "Status: context preparation blocked safely",
         "The approved Company Context artifact remains in this canonical Chat for retry.",
         "No publishing, scheduling, spend, CRM mutation, or other external marketing action occurred.",
       ].join("\n"),
     };
   }
-}
-
-function renderContextPublicationReceipt({
-  contextId,
-  artifactId,
-  artifactRevision,
-  previousContextId,
-  alreadyPublished,
-}: {
-  contextId: string;
-  artifactId: string;
-  artifactRevision: number;
-  previousContextId?: string;
-  alreadyPublished: boolean;
-}): z.infer<typeof outputSchema> {
-  return {
-    type: "text",
-    text: [
-      "# Marketing OS Workspace Context",
-      "",
-      alreadyPublished
-        ? "The approved compact company context was already published in Guild."
-        : "The approved compact company context is now published in Guild.",
-      "",
-      `Guild context version: ${contextId}`,
-      `Approved artifact: ${artifactId} revision ${artifactRevision}`,
-      `Previous published context: ${previousContextId ?? "none"}`,
-      "Status: published",
-      "Unmanaged workspace context was preserved.",
-      "No publishing, scheduling, spend, CRM mutation, or other external marketing action occurred.",
-    ].join("\n"),
-  };
 }
 
 function renderManagedContextBlock({
@@ -1505,19 +1272,6 @@ function renderManagedContextBlock({
     "- Do not publish, schedule, change spend, mutate CRM data, configure credentials, or grant legal approval.",
     "<!-- guild-marketing-os-context:end -->",
   ].join("\n");
-}
-
-function mergeManagedContext(
-  currentManualContext: string,
-  managedBlock: string,
-): string {
-  const withoutManaged = currentManualContext
-    .replace(
-      /<!-- guild-marketing-os-context:start -->[\s\S]*?<!-- guild-marketing-os-context:end -->/gi,
-      "",
-    )
-    .trim();
-  return [withoutManaged, managedBlock].filter(Boolean).join("\n\n").trim();
 }
 
 function extractFencedSection(text: string, heading: string): string {

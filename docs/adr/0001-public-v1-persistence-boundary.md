@@ -11,7 +11,7 @@ Public V1 is Guild-only.
 Marketing OS uses one continuing Launcher Chat as the canonical cockpit. The
 Launcher stores structured workflow runs, every specialist attempt, artifact
 revisions, exact-text approvals, workstream status, handoffs, context
-publication provenance, and an append-only audit trail with Guild task state
+publication handoff provenance, and an append-only audit trail with Guild task state
 through `task.save()` and `task.restore()`.
 
 Guild Workspace Context stores only the latest approved compact company brief
@@ -61,7 +61,7 @@ or previously published Workspace Context.
 | Approvals | Exact user text stored on the exact artifact revision |
 | Workstreams and handoffs | Stored and rendered by Launcher |
 | Shared approved company context | Versioned Guild Workspace Context |
-| Context publication | Direct authenticated Guild service endpoint from the interactive Launcher task |
+| Context publication | Approved compact block prepared by Launcher and published by the marketer in Guild's native Context screen |
 | Export | Complete structured state returned as a JSON Chat artifact |
 | Deletion | Exact-confirmation purge of structured Launcher state |
 | Tenant boundary | Guild organization, workspace, session, task, and authenticated interactive-user boundaries |
@@ -90,16 +90,19 @@ Publication requires:
 2. approval of the exact artifact revision;
 3. the exact second phrase
    `publish approved context to workspace context`;
-4. a live read of the current Guild workspace and its context versions;
-5. preservation of all unmanaged manual context;
-6. idempotent detection of an already-published artifact revision; and
-7. a saved context-version receipt in the cockpit audit trail.
+4. a compact managed block containing only the approved artifact;
+5. explicit instruction to keep all unmanaged manual context;
+6. publication by the marketer through the native Guild Context screen; and
+7. verification in a new Chat that the published managed block is injected.
 
-The Launcher uses Guild's authenticated `guild` service boundary with explicit
-workspace-context endpoint schemas. This intentionally exercises the context
-surface documented online even though generated SDK 0.4.2 types lag behind it.
-Public release still requires a live proof of this exact call from a private
-Launcher version.
+Live private acceptance proved that Guild SDK 0.4.2's interactive `/api/*`
+tools do not receive a delegated user identity in the clean organization Chat:
+`guild_get_session` returned `Unauthorized — Not authenticated`. The runtime
+surface provides installed-agent reads but no workspace-context write. Launcher
+therefore fails closed and uses the native Context screen instead of requesting
+a customer token, embedding a maintainer token, or depending on an external
+service. This preserves the Guild-only product boundary and makes the final
+mutation visible and user controlled.
 
 Direct Company Context Builder sessions remain outside the canonical cockpit.
 They retain their own draft and approval state in that Guild Chat, but they
@@ -150,7 +153,8 @@ worth the cross-Chat persistence it provides.
 The private alpha can now advance without provisioning external
 infrastructure. Public release remains blocked until:
 
-- Guild-native context publication passes live private browser testing;
+- Guild-native Context-screen publication and new-Chat reuse pass live private
+  browser testing;
 - canonical-Chat resume, approval, export, and deletion pass in the browser;
 - all specialist versions pass claim-safety and context-quality gates;
 - clean-organization onboarding passes without CLI intervention;

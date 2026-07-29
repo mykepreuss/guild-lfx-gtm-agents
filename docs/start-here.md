@@ -82,10 +82,19 @@ goal, channel scope, and constraints—the baseline is ready to approve. Missing
 case studies, proof points, brand guidance, or other useful detail appears as
 an optional improvement, not homework that prevents you from starting.
 
-Review the summary, use the exact approval command shown by Launcher, and then
-publish the compact brief to the workspace. You can add or revise company
-context later as the work evolves. Marketing OS keeps artifact approval
-separate from publishing that brief to the workspace.
+Review the summary and use the exact approval command shown by Launcher. Then
+send the separate context-publication phrase. Launcher returns one compact,
+copyable approved block and these final Guild steps:
+
+1. Open **Context** from the workspace sidebar.
+2. Keep any existing workspace notes.
+3. Append the approved block.
+4. Click **Publish**.
+
+Guild currently requires that last publish action in the Context screen; the
+agent does not ask for a token or publish with a maintainer credential. You can
+add or revise company context later as the work evolves. Marketing OS keeps
+artifact approval separate from publishing that brief to the workspace.
 
 ## Request Marketing Work
 

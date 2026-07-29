@@ -180,44 +180,6 @@ function createChat({
         });
         return { id: `workspace-agent-${installationCalls}` };
       },
-      async guild_get_session() {
-        return {
-          id: sessionId,
-          workspace: { id: "workspace-test" },
-          context_id: contexts.find((item) => item.status === "PUBLISHED")?.id,
-        };
-      },
-      async guild_get_workspace() {
-        return {
-          id: "workspace-test",
-          full_name: "test/marketing-os",
-          context: {
-            id: contexts.find((item) => item.status === "PUBLISHED")?.id,
-            compiled: managedContext,
-          },
-        };
-      },
-      async guild_workspace_contexts_list() {
-        return { items: [...contexts] };
-      },
-      async guild_workspace_context_create(request) {
-        const created = {
-          id: `context-${contexts.length + 1}`,
-          status: request.status,
-          manual_context: request.context,
-          summary: request.summary,
-        };
-        contexts.unshift(created);
-        return created;
-      },
-      async guild_workspace_context_publish(request) {
-        const context = contexts.find(
-          (candidate) => candidate.id === request.context_id,
-        );
-        if (!context) throw new Error("context draft not found");
-        context.status = request.status;
-        return context;
-      },
       marketing_os_company_context_builder: specialistTool,
       marketing_os_market_signal: specialistTool,
       marketing_os_icp: specialistTool,
@@ -654,23 +616,26 @@ function launcherInput(request, context = managedContext) {
   );
   assert.match(approved.text, /Workspace Context is still unchanged/);
 
-  const published = await launcher.run(
+  const prepared = await launcher.run(
     launcherInput(
       "publish approved context to workspace context",
       runtimeEnvelope,
     ),
     chat.task,
   );
-  assert.match(published.text, /is now published in Guild/);
-  assert.match(published.text, /Status: published/);
-  assert.equal(chat.contexts.length, 2);
+  assert.match(prepared.text, /# Publish Company Context in Guild/);
+  assert.match(prepared.text, /Open the workspace sidebar and select \*\*Context\*\*/);
+  assert.match(prepared.text, /Status: ready for Guild Context publication/);
+  assert.match(prepared.text, /# Guild Marketing OS Managed Company Context/);
+  assert.match(prepared.text, /Company: Example Co/);
+  assert.doesNotMatch(prepared.text, /is now published in Guild/);
+  assert.equal(chat.contexts.length, 1);
   assert.match(chat.contexts[0].manual_context, /# Unmanaged workspace note/);
-  assert.match(
+  assert.doesNotMatch(
     chat.contexts[0].manual_context,
     /# Guild Marketing OS Managed Company Context/,
   );
-  assert.match(chat.contexts[0].manual_context, /Company: Example Co/);
-  assert.equal(chat.readState().published_context_id, "context-2");
+  assert.equal(chat.readState().published_context_id, undefined);
 
   const repeated = await launcher.run(
     launcherInput(
@@ -679,8 +644,8 @@ function launcherInput(request, context = managedContext) {
     ),
     chat.task,
   );
-  assert.match(repeated.text, /was already published in Guild/);
-  assert.equal(chat.contexts.length, 2);
+  assert.match(repeated.text, /# Publish Company Context in Guild/);
+  assert.equal(chat.contexts.length, 1);
 }
 
 {
@@ -731,5 +696,5 @@ function launcherInput(request, context = managedContext) {
 }
 
 console.log(
-  "Launcher Guild-native canonical cockpit, approval, publication, export, deletion, resume, repair, and fail-closed tests OK.",
+  "Launcher Guild-native canonical cockpit, approval, Context UI handoff, export, deletion, resume, repair, and fail-closed tests OK.",
 );

@@ -23,8 +23,9 @@ continuing Launcher Chat is the canonical cockpit.
   error, and audit event.
 - Allows one formatting repair and no silent substantive or safety retry.
 - Returns the complete specialist artifact in the originating Chat.
-- Publishes approved compact company context through the separate exact-phrase
-  gate while preserving unmanaged Workspace Context.
+- Prepares approved compact company context through the separate exact-phrase
+  gate, then guides the marketer through Guild's native Context screen without
+  requesting a token or maintainer credential.
 - Exports the structured cockpit and supports confirmed deletion of its
   structured task state.
 

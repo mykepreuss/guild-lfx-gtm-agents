@@ -73,8 +73,10 @@ Public onboarding is designed to work entirely in Guild:
    Packet.
 8. Approve the exact artifact revision.
 9. Send exactly `publish approved context to workspace context` to pass the
-   separate Workspace Context publication gate.
-10. Ask Launcher for specialist work, resume workstreams, approve revisions,
+   separate Workspace Context preparation gate.
+10. Open **Context** from the workspace sidebar, keep existing notes, append
+    the approved compact block returned by Launcher, and click **Publish**.
+11. Ask Launcher for specialist work, resume workstreams, approve revisions,
     inspect status, or export the cockpit without repasting earlier results.
 
 Denied or unavailable package installations stay visibly blocked and
@@ -95,16 +97,12 @@ Workspace Context publication is intentionally two-step:
 1. Approve the exact Company Context artifact revision.
 2. Send exactly `publish approved context to workspace context`.
 
-Launcher then:
-
-- resolves the current Guild session and workspace;
-- reads the existing Workspace Context;
-- preserves unmanaged manual text;
-- compacts only the approved Company Context artifact into the managed block;
-- creates a published Workspace Context revision through the workspace-scoped
-  Guild service surface;
-- records the published context ID and artifact provenance in cockpit state;
-- handles a repeated publication request idempotently.
+Launcher then prepares only the approved Company Context artifact as one compact
+managed block. Guild currently requires the final publish action in the native
+Context screen, so Launcher gives the marketer a copyable block and tells them
+to keep existing workspace notes, append the block, and click **Publish**.
+Launcher does not request a Guild token, use a maintainer credential, or claim
+that context changed before Guild shows the published version.
 
 Direct Builder Chat remains useful for expert context drafting, but it routes
 publication back to Launcher so that approval and publication provenance stay
@@ -165,8 +163,8 @@ Supported:
 - Mark unknown facts `TBD`.
 - Separate supplied evidence, inference, and recommendation.
 - Track review and artifact approval.
-- Publish the approved compact company brief to Guild Workspace Context through
-  the exact two-step gate.
+- Prepare the approved compact company brief through the exact two-step gate
+  for the marketer to publish in Guild's native Context screen.
 - Guide one-at-a-time, user-approved suite installation.
 
 Blocked in V1:
