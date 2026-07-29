@@ -539,7 +539,7 @@ export function validateSpecialistOutput(
       [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
       [/\bscales? safely\b/i, "safety-and-scale claim"],
       [
-        /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*(?:%|x)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i,
+        /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i,
         "sensitive pricing, proof, scale, trust, or performance claim",
       ],
     ] as const) {

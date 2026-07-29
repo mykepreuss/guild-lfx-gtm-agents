@@ -35,7 +35,7 @@ const approvedHipaaConstraintPattern =
   /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant,\s+and customers\s+should not provide Protected Health Information\s*\/\s*PHI\s+through the platform\./gi;
 
 const sensitiveGeneratedClaimPattern =
-  /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*(?:%|x)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i;
+  /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i;
 
 const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
   [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],

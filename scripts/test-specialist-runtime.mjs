@@ -265,7 +265,7 @@ assert.match(
 
 const unqualifiedProofArtifact = validArtifact.replace(
   "Draft positioning for Marketing Owner review.",
-  "Orangetheory realized $6M in annual savings and 6x faster delivery.",
+  "Retool reported 70% more demo bookings.",
 );
 const unqualifiedProofValidation = validateSpecialistArtifact(
   unqualifiedProofArtifact,
@@ -286,7 +286,7 @@ assert.equal(
 );
 const qualifiedProofArtifact = validArtifact.replace(
   "Draft positioning for Marketing Owner review.",
-  "Claim status: source_supplied_review_required — Orangetheory realized $6M in annual savings and 6x faster delivery; exact source evidence and Marketing Owner review are required before reuse.",
+  "Claim status: source_supplied_review_required — Retool reported 70% more demo bookings; exact source evidence and Marketing Owner review are required before reuse.",
 );
 assert.equal(
   validateSpecialistArtifact(qualifiedProofArtifact).valid,

@@ -18,6 +18,7 @@ const artifact = `## Produced Artifact
 - Approved reusable proof: Wave reported a 3x improvement.
 - Product Marketing Verification: Confirm the Team Plan at $2,500/month.
 - The website is positioned as a revenue engine.
+- This draft claims 70% more demo bookings.
 - This draft launches 4x faster.
 - This is secure and compliant.
 
@@ -27,10 +28,11 @@ Evidence mode: source_supplied
 `;
 
 assert.deepEqual(unqualifiedSensitiveClaimLines(artifact), [
+  "- This draft claims 70% more demo bookings.",
   "- This draft launches 4x faster.",
   "- This is secure and compliant.",
 ]);
-assert.equal(countUnqualifiedSensitiveClaims(artifact), 2);
+assert.equal(countUnqualifiedSensitiveClaims(artifact), 3);
 assert.equal(
   countUnqualifiedSensitiveClaims(
     "## Produced Artifact\n\nGeneral draft copy.\n\n## Assumptions And Missing Evidence",

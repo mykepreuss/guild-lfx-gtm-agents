@@ -204,7 +204,7 @@ assert.ok(
   validateSpecialistOutput(
     validArtifact.replace(
       "Draft artifact.",
-      "Orangetheory realized $6M in annual savings and 6x faster delivery.",
+      "Retool reported 70% more demo bookings.",
     ),
   ).some((error) => error.includes("sensitive pricing, proof")),
 );
@@ -212,7 +212,7 @@ assert.deepEqual(
   validateSpecialistOutput(
     validArtifact.replace(
       "Draft artifact.",
-      "Claim status: source_supplied_review_required — Orangetheory realized $6M in annual savings and 6x faster delivery; exact source evidence and Marketing Owner review are required before reuse.",
+      "Claim status: source_supplied_review_required — Retool reported 70% more demo bookings; exact source evidence and Marketing Owner review are required before reuse.",
     ),
   ),
   [],
