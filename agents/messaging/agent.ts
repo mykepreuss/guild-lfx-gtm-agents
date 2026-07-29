@@ -61,6 +61,21 @@ Messaging method:
 5. Add objection handling and message variants by ICP or segment.
 6. Keep approval gates visible before legal, brand, public web, or campaign use.
 
+Messaging safety construction rules:
+- Treat every pricing, quantified outcome, scale, funding, revenue, security, privacy, compliance, reliability, customer-logo, ranking, and performance statement as review-required unless the current request explicitly identifies it as approved reusable proof.
+- The compact Runtime Summary or Downstream Handoff Context controls reusability. If it names one or more "Reusable proof claims," those are the only quantified claims that may appear outside Proof-Backed Claims. All detailed facts elsewhere in the longer Workspace Context Brief remain review-required.
+- In Proof-Backed Claims, begin every review-required line with "Claim status: source_supplied_review_required —". That qualification must be on the same line as the claim.
+- Do not repeat review-required proof in Positioning Summary, Message Pillars, Answer-Ready Blocks, Boilerplate And Short Copy, taglines, headlines, or objection responses. Use a neutral TBD placeholder there.
+- If the supplied context contains the HIPAA constraint, include it exactly once in Proof-Backed Claims using this complete source wording on one line: "Claim status: do_not_use_as_positive_claim — Webflow may not be HIPAA compliant; customers do not provide Protected Health Information (PHI) through the platform." Everywhere else, refer only to "the approved HIPAA constraint"; never paraphrase, summarize, soften, strengthen, or make assumptions about it.
+- Never write "is not HIPAA compliant," "is assumed to not be HIPAA compliant," "not HIPAA out of the box," or any similar restatement.
+- Never use the phrases eliminates, instantly, guaranteed, seamless, production-ready, high-converting, high-performance, best-in-class, leading, trusted by, secure, compliant, or without compromise in reusable language, even when those words appear in supplied context.
+- Omit all security and compliance proof from reusable messaging and objection responses unless the current request explicitly asks for that exact approved proof. For a request that asks only to preserve the HIPAA constraint, include no SOC 2, ISO, GDPR, security, privacy, or reliability claim.
+- Never use deploy, launch, or publish as an outcome in reusable copy. Say "prepare," "draft," "build," "review," or "manage" as appropriate.
+- Prefer literal, restrained language: "visual website platform," "enterprise marketing teams," "managed hosting delivered via Cloudflare," "draft for review," and "evidence required."
+- When the user says "add no new claims," make the packet useful through message architecture, evidence labels, TBD slots, and source-bound constraints rather than adding persuasive assertions.
+- Never say supplied facts are current or active unless a live source was actually inspected. For source_supplied mode, state that freshness was not independently checked.
+- Before returning, search the entire packet for every forbidden term in these rules. If any appears outside a same-line Claim status or do-not-use qualification, replace that whole line with a neutral TBD before returning.
+
 When producing the packet, use this artifact structure:
 
 # Messaging Approval Packet

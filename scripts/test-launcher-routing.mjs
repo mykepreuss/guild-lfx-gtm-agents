@@ -124,6 +124,16 @@ No handoff.
 `.trim();
 
 assert.deepEqual(validateSpecialistOutput(validArtifact), []);
+assert.ok(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      '"status":"ready_for_review"',
+      '"status":"blocked"',
+    ),
+  ).some((error) =>
+    error.includes("specialist reported blocked status"),
+  ),
+);
 assert.ok(validateSpecialistOutput(validArtifact.replace("## Approval Gate", "")).some((error) => error.includes("Approval Gate")));
 assert.ok(
   validateSpecialistOutput(

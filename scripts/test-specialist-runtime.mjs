@@ -20,6 +20,7 @@ const {
   default: messagingAgent,
 } = await import(path.join(messagingDir, "dist/agent.js"));
 const {
+  redactUnsafeGeneratedLines,
   validateSpecialistArtifact,
 } = await import(path.join(messagingDir, "dist/specialist-runtime.js"));
 
@@ -87,6 +88,19 @@ assert.ok(
   unsafeValidation.issues.some((issue) => issue.kind === "safety"),
   "unsafe claim should produce a safety issue",
 );
+const directlyFiltered = redactUnsafeGeneratedLines(
+  unsafeArtifact,
+  unsafeValidation.issues,
+);
+assert.equal(directlyFiltered.changed, true, "unsafe line should be redacted");
+const directlyFilteredValidation = validateSpecialistArtifact(
+  directlyFiltered.text,
+);
+assert.equal(
+  directlyFilteredValidation.valid,
+  true,
+  JSON.stringify(directlyFilteredValidation.issues),
+);
 
 const strengthenedHipaaArtifact = validArtifact.replace(
   "Draft positioning for Marketing Owner review.",
@@ -124,21 +138,32 @@ task.llm.generateText = async () => {
   calls += 1;
   return { text: unsafeArtifact };
 };
-const blocked = await messagingAgent.run(
+const safetyFiltered = await messagingAgent.run(
   { type: "text", text: "Draft messaging." },
   task,
 );
-assert.equal(calls, 1, "safety failures must not be silently repaired");
-assert.match(blocked.text, /status": "blocked"/, "safety failure returns a blocked receipt");
+assert.equal(calls, 1, "safety filtering never triggers a second LLM attempt");
+assert.match(
+  safetyFiltered.text,
+  /Safety filter disclosure:/,
+  "deterministic withholding is disclosed",
+);
+assert.match(
+  safetyFiltered.text,
+  /This generated line was withheld by deterministic safety validation/,
+  "unsafe line is replaced with a reviewable TBD",
+);
 assert.doesNotMatch(
-  blocked.text,
+  safetyFiltered.text
+    .split("## Produced Artifact")[1]
+    .split("## Assumptions And Missing Evidence")[0],
   /instantly eliminates/,
-  "unsafe source artifact is not exposed as a usable draft",
+  "unsafe source artifact is not exposed in the usable draft",
 );
 assert.equal(
-  validateSpecialistArtifact(blocked.text).valid,
+  validateSpecialistArtifact(safetyFiltered.text).valid,
   true,
-  "blocked receipt itself satisfies the shared contract",
+  "safety-filtered artifact satisfies the shared contract",
 );
 
 console.log("Validated specialist runtime tests passed.");

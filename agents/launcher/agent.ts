@@ -38,19 +38,20 @@ import {
   allocateRunIdentity,
   artifactResponseSchema,
   completeRunState,
-  createSessionCockpit,
+  createSerializableSessionCockpit,
   evidenceModeFromArtifact,
   handoffRationale,
   handoffResponseSchema,
   launcherAgentStateSchema,
   readLauncherAgentState,
+  reduceSessionCockpitOperation,
   renderArtifactApprovalReceipt,
   renderCockpitReceipt,
   renderCockpitStatus,
   resumeRequested,
   workflowRunResponseSchema,
   workstreamResponseSchema,
-  type SessionCockpit,
+  type SerializableSessionCockpit,
   type WorkflowRun,
   type WorkstreamRecord,
 } from "./launcher-state.js";
@@ -100,7 +101,6 @@ const workspaceContextPublishInputSchema = z.object({
 const tools = {
   ...pick(guildTools, [
     "guild_agent_install_request",
-    "guild_get_agent_version",
     "guild_get_session",
     "guild_get_task_workspace_agents",
     "guild_get_workspace",
@@ -258,10 +258,16 @@ async function run(
   const context = readContextSnapshot(input.text);
   const userText = removeCompiledWorkspaceContext(input.text, context.compiled);
   const initialState = readLauncherAgentState(await task.restore(), task.sessionId);
-  const cockpit = createSessionCockpit(initialState, task);
+  const cockpit = createSerializableSessionCockpit(initialState);
 
   if (isExactContextPublishConfirmation(userText)) {
-    return publishApprovedCompanyContext(userText, task, cockpit);
+    const output = await publishApprovedCompanyContext(
+      userText,
+      task,
+      cockpit,
+    );
+    await task.save(cockpit.state);
+    return output;
   }
   if (isCockpitExportRequest(userText)) {
     return {
@@ -271,8 +277,9 @@ async function run(
   }
   if (isExactCockpitDeleteConfirmation(userText)) {
     const deletedSessionId =
-      cockpit.current().canonical_session_id ?? task.sessionId;
-    await cockpit.deleteCockpit();
+      cockpit.state.canonical_session_id ?? task.sessionId;
+    applyCockpitOperation(cockpit, "deleteCockpit");
+    await task.save(cockpit.state);
     return {
       type: "text",
       text: [
@@ -368,13 +375,15 @@ async function run(
   if (classification["route"] === "cockpit") {
     const approval = parseArtifactApprovalRequest(userText);
     if (approval.requested) {
-      return approveCockpitArtifact(userText, approval, cockpit);
+      const output = approveCockpitArtifact(userText, approval, cockpit);
+      await task.save(cockpit.state);
+      return output;
     }
     return {
       type: "text",
       text: renderCockpitStatus(
-        cockpit.current().workstreams,
-        cockpit.current().runs,
+        cockpit.state.workstreams,
+        cockpit.state.runs,
       ),
     };
   }
@@ -405,30 +414,14 @@ async function run(
     };
   }
 
-  let packageVersion = installedAgent.versionId;
-  try {
-    const version = await task.tools.guild_get_agent_version({
-      agent_id: config.agentId,
-      version_id: installedAgent.versionId,
-    });
-    if (
-      typeof version.version_number === "string" &&
-      version.version_number.trim()
-    ) {
-      packageVersion = version.version_number.trim();
-    }
-  } catch {
-    // The immutable installed version ID remains sufficient provenance.
-  }
+  const packageVersion = installedAgent.versionId;
 
   let currentRun: WorkflowRun | undefined;
   let idempotencyPrefix = "";
   let requestText = userText;
 
   if (resumeRequested(userText)) {
-    currentRun = cockpit
-      .current()
-      .runs.find(
+    currentRun = cockpit.state.runs.find(
         (candidate) =>
           candidate["route"] === route &&
           ["running", "needs_input", "ready_for_review"].includes(
@@ -446,7 +439,7 @@ async function run(
 
   if (!currentRun) {
     const allocation = allocateRunIdentity(
-      cockpit.current(),
+      cockpit.state,
       task.sessionId,
       route,
       requestText,
@@ -454,7 +447,7 @@ async function run(
     );
     idempotencyPrefix = allocation["idempotencyPrefix"];
     try {
-      await cockpit.setState(allocation.state);
+      applyCockpitOperation(cockpit, "setState", allocation.state);
     } catch (error) {
       return {
         type: "text",
@@ -467,7 +460,9 @@ async function run(
     if (allocation.reused) {
       try {
         currentRun = workflowRunResponseSchema.parse(
-          await cockpit.runGet({ runId: allocation.runId }),
+          applyCockpitOperation(cockpit, "runGet", {
+            runId: allocation.runId,
+          }),
         ).data;
       } catch {
         currentRun = undefined;
@@ -477,7 +472,7 @@ async function run(
     if (!currentRun) {
       try {
         currentRun = workflowRunResponseSchema.parse(
-          await cockpit.runCreate({
+          applyCockpitOperation(cockpit, "runCreate", {
             idempotency_key: `${idempotencyPrefix}-create`,
             run_id: allocation.runId,
             route,
@@ -530,7 +525,8 @@ async function run(
       currentRun.artifact_id &&
       currentRun.artifact_revision
     ) {
-      await completeCockpitRun(cockpit, currentRun.run_id);
+      completeCockpitRun(cockpit, currentRun.run_id);
+      await task.save(cockpit.state);
       return {
         type: "text",
         text: [
@@ -549,7 +545,8 @@ async function run(
   }
 
   if (["blocked", "failed", "approved"].includes(currentRun.status)) {
-    await completeCockpitRun(cockpit, currentRun.run_id);
+    completeCockpitRun(cockpit, currentRun.run_id);
+    await task.save(cockpit.state);
     return {
       type: "text",
       text: renderSpecialistBlocked(
@@ -564,7 +561,7 @@ async function run(
   if (currentRun.status === "needs_input") {
     try {
       currentRun = workflowRunResponseSchema.parse(
-        await cockpit.runUpdate({
+        applyCockpitOperation(cockpit, "runUpdate", {
           runId: currentRun.run_id,
           idempotency_key: `${idempotencyPrefix}-resume-r${currentRun.revision}`,
           expected_revision: currentRun.revision,
@@ -587,12 +584,12 @@ async function run(
   try {
     workstream =
       workstreamResponseSchema.parse(
-        await cockpit.workstreamRead({
+        applyCockpitOperation(cockpit, "workstreamRead", {
           specialist: config.displayName,
         }),
       ).data ?? undefined;
     const updatedWorkstream = workstreamResponseSchema.parse(
-      await cockpit.workstreamUpdate({
+      applyCockpitOperation(cockpit, "workstreamUpdate", {
         specialist: config.displayName,
         idempotency_key: `${idempotencyPrefix}-workstream-running-${
           workstream ? workstream.revision : 0
@@ -650,7 +647,7 @@ async function run(
         (previousAttempt.validation_errors.join("; ") ||
           "The prior specialist attempt cannot be retried automatically.");
       if (previousAttempt.status === "safety_failed") {
-        await finishBlockedRun(
+        finishBlockedRun(
           cockpit,
           currentRun,
           workstream,
@@ -658,7 +655,7 @@ async function run(
           reason,
         );
       } else {
-        await finishFailedRun(
+        finishFailedRun(
           cockpit,
           currentRun,
           workstream,
@@ -666,7 +663,8 @@ async function run(
           reason,
         );
       }
-      await completeCockpitRun(cockpit, currentRun.run_id);
+      completeCockpitRun(cockpit, currentRun.run_id);
+      await task.save(cockpit.state);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -677,11 +675,53 @@ async function run(
   while (!completedText) {
     let attemptOutput: z.infer<typeof specialistOutputSchema>;
     try {
-      attemptOutput = await invokeSpecialist(route, delegatedInput, task);
+      switch (route) {
+        case "company_context":
+          attemptOutput =
+            await task.tools.marketing_os_company_context_builder(
+              delegatedInput,
+            );
+          break;
+        case "market_signal":
+          attemptOutput =
+            await task.tools.marketing_os_market_signal(delegatedInput);
+          break;
+        case "icp":
+          attemptOutput = await task.tools.marketing_os_icp(delegatedInput);
+          break;
+        case "audience_segmentation":
+          attemptOutput =
+            await task.tools.marketing_os_audience_segmentation(
+              delegatedInput,
+            );
+          break;
+        case "messaging":
+          attemptOutput =
+            await task.tools.marketing_os_messaging(delegatedInput);
+          break;
+        case "branding_pitch_deck":
+          attemptOutput =
+            await task.tools.marketing_os_branding_pitch_deck(
+              delegatedInput,
+            );
+          break;
+        case "social_monitoring_content":
+          attemptOutput =
+            await task.tools.marketing_os_social_monitoring_content(
+              delegatedInput,
+            );
+          break;
+        case "campaigns_paid_media":
+          attemptOutput =
+            await task.tools.marketing_os_campaigns_paid_media(
+              delegatedInput,
+            );
+          break;
+      }
     } catch (error) {
       const message = safeError(error);
       try {
-        await cockpit.attemptRecord({
+        applyCockpitOperation(cockpit, "attemptRecord", {
           runId: currentRun.run_id,
           idempotency_key: `${idempotencyPrefix}-attempt-${nextAttemptNumber}`,
           attempt_number: nextAttemptNumber,
@@ -695,13 +735,15 @@ async function run(
           error_code: "specialist_tool_failed",
           error_message: message,
         });
-        await finishFailedRun(
+        finishFailedRun(
           cockpit,
           currentRun,
           workstream,
           idempotencyPrefix,
           `Specialist failed: ${message}`,
         );
+        completeCockpitRun(cockpit, currentRun.run_id);
+        await task.save(cockpit.state);
       } catch (stateError) {
         return {
           type: "text",
@@ -712,7 +754,6 @@ async function run(
           ),
         };
       }
-      await completeCockpitRun(cockpit, currentRun.run_id);
       return {
         type: "text",
         text: renderSpecialistBlocked(
@@ -736,7 +777,7 @@ async function run(
           : "safety_failed";
 
     try {
-      await cockpit.attemptRecord({
+      applyCockpitOperation(cockpit, "attemptRecord", {
         runId: currentRun.run_id,
         idempotency_key: `${idempotencyPrefix}-attempt-${nextAttemptNumber}`,
         attempt_number: nextAttemptNumber,
@@ -768,14 +809,15 @@ async function run(
 
     if (attemptStatus === "safety_failed") {
       const reason = `Specialist output failed safety validation: ${errors.join("; ")}`;
-      await finishBlockedRun(
+      finishBlockedRun(
         cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
-      await completeCockpitRun(cockpit, currentRun.run_id);
+      completeCockpitRun(cockpit, currentRun.run_id);
+      await task.save(cockpit.state);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -784,14 +826,15 @@ async function run(
 
     if (nextAttemptNumber === 2) {
       const reason = `Specialist format repair failed validation: ${errors.join("; ")}`;
-      await finishFailedRun(
+      finishFailedRun(
         cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
-      await completeCockpitRun(cockpit, currentRun.run_id);
+      completeCockpitRun(cockpit, currentRun.run_id);
+      await task.save(cockpit.state);
       return {
         type: "text",
         text: renderSpecialistBlocked(reason, currentRun.run_id),
@@ -820,7 +863,7 @@ async function run(
 
   try {
     const artifact = artifactResponseSchema.parse(
-      await cockpit.artifactStore({
+      applyCockpitOperation(cockpit, "artifactStore", {
         idempotency_key: `${idempotencyPrefix}-artifact`,
         artifact_type: route,
         markdown_body: completedText,
@@ -855,7 +898,7 @@ async function run(
       }),
     ).data;
     const handoff = handoffResponseSchema.parse(
-      await cockpit.handoffCreate({
+      applyCockpitOperation(cockpit, "handoffCreate", {
         idempotency_key: `${idempotencyPrefix}-handoff`,
         source_agent: config.displayName,
         target_agent: "Marketing OS Launcher",
@@ -871,7 +914,7 @@ async function run(
       }),
     ).data;
     const readyRun = workflowRunResponseSchema.parse(
-      await cockpit.runUpdate({
+      applyCockpitOperation(cockpit, "runUpdate", {
         runId: currentRun.run_id,
         idempotency_key: `${idempotencyPrefix}-ready`,
         expected_revision: currentRun.revision,
@@ -883,7 +926,7 @@ async function run(
         next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
       }),
     ).data;
-    await cockpit.workstreamUpdate({
+    applyCockpitOperation(cockpit, "workstreamUpdate", {
       specialist: config.displayName,
       idempotency_key: `${idempotencyPrefix}-workstream-ready`,
       expected_revision: workstream.revision,
@@ -894,7 +937,8 @@ async function run(
       next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
       handoff_id: handoff.handoff_id,
     });
-    await completeCockpitRun(cockpit, currentRun.run_id);
+    completeCockpitRun(cockpit, currentRun.run_id);
+    await task.save(cockpit.state);
     return {
       type: "text",
       text: [
@@ -911,29 +955,37 @@ async function run(
     };
   } catch (error) {
     const reason = `Validated specialist output could not be finalized in the Guild cockpit: ${safeError(error)}`;
+    let failureRetained = false;
     try {
-      await finishFailedRun(
+      finishFailedRun(
         cockpit,
         currentRun,
         workstream,
         idempotencyPrefix,
         reason,
       );
+      completeCockpitRun(cockpit, currentRun.run_id);
+      await task.save(cockpit.state);
+      failureRetained = true;
     } catch {
       // Preserve the original cockpit failure in the user-visible result.
     }
     return {
       type: "text",
-      text: renderSpecialistBlocked(reason, currentRun.run_id),
+      text: renderSpecialistBlocked(
+        reason,
+        currentRun.run_id,
+        failureRetained,
+      ),
     };
   }
 }
 
-async function approveCockpitArtifact(
+function approveCockpitArtifact(
   exactApprovalText: string,
   approval: ReturnType<typeof parseArtifactApprovalRequest>,
-  cockpit: SessionCockpit,
-): Promise<z.infer<typeof outputSchema>> {
+  cockpit: SerializableSessionCockpit,
+): z.infer<typeof outputSchema> {
   if (!approval.revision) {
     return {
       type: "text",
@@ -953,7 +1005,7 @@ async function approveCockpitArtifact(
     };
   }
 
-  const candidates = cockpit.current().runs.filter(
+  const candidates = cockpit.state.runs.filter(
     (candidate) =>
       ["ready_for_review", "approved"].includes(candidate.status) &&
       candidate.artifact_id &&
@@ -1006,7 +1058,7 @@ async function approveCockpitArtifact(
 
   try {
     let artifact = artifactResponseSchema.parse(
-      await cockpit.artifactGet({
+      applyCockpitOperation(cockpit, "artifactGet", {
         artifactId,
         revision: artifactRevision,
       }),
@@ -1023,14 +1075,14 @@ async function approveCockpitArtifact(
 
     const workstream =
       workstreamResponseSchema.parse(
-        await cockpit.workstreamRead({
+        applyCockpitOperation(cockpit, "workstreamRead", {
           specialist: target.specialist,
         }),
       ).data ?? undefined;
 
     if (artifact.status === "ready_for_review") {
       artifact = artifactResponseSchema.parse(
-        await cockpit.artifactApprove({
+        applyCockpitOperation(cockpit, "artifactApprove", {
           artifactId,
           idempotency_key: `${idempotencyPrefix}-artifact`,
           revision: artifactRevision,
@@ -1049,7 +1101,7 @@ async function approveCockpitArtifact(
       : exactApprovalText;
 
     if (target.status !== "approved") {
-      await cockpit.runUpdate({
+      applyCockpitOperation(cockpit, "runUpdate", {
         runId: target.run_id,
         idempotency_key: `${idempotencyPrefix}-run`,
         expected_revision: target.revision,
@@ -1065,13 +1117,11 @@ async function approveCockpitArtifact(
       });
     }
 
-    const handoff = cockpit
-      .current()
-      .handoffs.find(
+    const handoff = cockpit.state.handoffs.find(
         (candidate) => candidate.handoff_id === target.handoff_id,
       );
     if (handoff && handoff.completion_state !== "completed") {
-      await cockpit.handoffUpdate({
+      applyCockpitOperation(cockpit, "handoffUpdate", {
         handoffId: target.handoff_id,
         idempotency_key: `${idempotencyPrefix}-handoff`,
         expected_revision: handoff.revision,
@@ -1085,7 +1135,7 @@ async function approveCockpitArtifact(
       workstream.latest_artifact_revision === artifactRevision &&
       workstream.status !== "approved"
     ) {
-      await cockpit.workstreamUpdate({
+      applyCockpitOperation(cockpit, "workstreamUpdate", {
         specialist: target.specialist,
         idempotency_key: `${idempotencyPrefix}-workstream`,
         expected_revision: workstream.revision,
@@ -1143,7 +1193,7 @@ async function approveCockpitArtifact(
 async function publishApprovedCompanyContext(
   exactText: string,
   task: LauncherTask,
-  cockpit: SessionCockpit,
+  cockpit: SerializableSessionCockpit,
 ): Promise<z.infer<typeof outputSchema>> {
   if (exactText.trim().toLowerCase() !== exactContextPublishPhrase) {
     return {
@@ -1155,9 +1205,7 @@ async function publishApprovedCompanyContext(
     };
   }
 
-  const target = cockpit
-    .current()
-    .runs.find(
+  const target = cockpit.state.runs.find(
       (candidate) =>
         candidate.route === "company_context" &&
         candidate.status === "approved" &&
@@ -1176,7 +1224,7 @@ async function publishApprovedCompanyContext(
 
   try {
     const artifact = artifactResponseSchema.parse(
-      await cockpit.artifactGet({
+      applyCockpitOperation(cockpit, "artifactGet", {
         artifactId: target.artifact_id,
         revision: target.artifact_revision,
       }),
@@ -1207,7 +1255,7 @@ async function publishApprovedCompanyContext(
       artifactId: artifact.artifact_id,
       artifactRevision: artifact.revision,
       canonicalSessionId:
-        cockpit.current().canonical_session_id ?? task.sessionId,
+        cockpit.state.canonical_session_id ?? task.sessionId,
     });
     const alreadyPublished = contexts.find(
       (candidate) =>
@@ -1217,12 +1265,16 @@ async function publishApprovedCompanyContext(
         ),
     );
     if (alreadyPublished) {
-      await cockpit.recordContextPublication({
+      applyCockpitOperation(
+        cockpit,
+        "recordContextPublication",
+        {
         contextId: alreadyPublished.id,
         contextRevision: alreadyPublished.id,
         artifactId: artifact.artifact_id,
         artifactRevision: artifact.revision,
-      });
+        },
+      );
       return renderContextPublicationReceipt({
         contextId: alreadyPublished.id,
         artifactId: artifact.artifact_id,
@@ -1263,12 +1315,16 @@ async function publishApprovedCompanyContext(
         status: "PUBLISHED",
       }),
     );
-    await cockpit.recordContextPublication({
-      contextId: published.id,
-      contextRevision: published.id,
-      artifactId: artifact.artifact_id,
-      artifactRevision: artifact.revision,
-    });
+    applyCockpitOperation(
+      cockpit,
+      "recordContextPublication",
+      {
+        contextId: published.id,
+        contextRevision: published.id,
+        artifactId: artifact.artifact_id,
+        artifactRevision: artifact.revision,
+      },
+    );
     return renderContextPublicationReceipt({
       contextId: published.id,
       artifactId: artifact.artifact_id,
@@ -1405,8 +1461,8 @@ function extractSection(text: string, heading: string): string {
   return match && match[1] ? match[1].trim() : "";
 }
 
-function renderCockpitExport(cockpit: SessionCockpit): string {
-  const state = cockpit.current();
+function renderCockpitExport(cockpit: SerializableSessionCockpit): string {
+  const state = cockpit.state;
   const exported = {
     format: "guild-marketing-os-cockpit",
     format_version: 1,
@@ -1453,14 +1509,28 @@ function formatRepairInput(
   );
 }
 
-async function finishBlockedRun(
-  cockpit: SessionCockpit,
+function applyCockpitOperation(
+  cockpit: SerializableSessionCockpit,
+  operation: Parameters<typeof reduceSessionCockpitOperation>[1],
+  input?: unknown,
+): unknown {
+  const result = reduceSessionCockpitOperation(
+    cockpit.state,
+    operation,
+    input,
+  );
+  cockpit.state = result.state;
+  return result.response;
+}
+
+function finishBlockedRun(
+  cockpit: SerializableSessionCockpit,
   run: WorkflowRun,
   workstream: WorkstreamRecord,
   idempotencyPrefix: string,
   reason: string,
-): Promise<void> {
-  await cockpit.runUpdate({
+): void {
+  applyCockpitOperation(cockpit, "runUpdate", {
     runId: run.run_id,
     idempotency_key: `${idempotencyPrefix}-blocked`,
     expected_revision: run.revision,
@@ -1468,7 +1538,7 @@ async function finishBlockedRun(
     blockers: [reason],
     next_action: "Review the retained specialist attempt and resolve the blocker.",
   });
-  await cockpit.workstreamUpdate({
+  applyCockpitOperation(cockpit, "workstreamUpdate", {
     specialist: run.specialist,
     idempotency_key: `${idempotencyPrefix}-workstream-blocked`,
     expected_revision: workstream.revision,
@@ -1478,14 +1548,14 @@ async function finishBlockedRun(
   });
 }
 
-async function finishFailedRun(
-  cockpit: SessionCockpit,
+function finishFailedRun(
+  cockpit: SerializableSessionCockpit,
   run: WorkflowRun,
   workstream: WorkstreamRecord,
   idempotencyPrefix: string,
   reason: string,
-): Promise<void> {
-  await cockpit.runUpdate({
+): void {
+  applyCockpitOperation(cockpit, "runUpdate", {
     runId: run.run_id,
     idempotency_key: `${idempotencyPrefix}-failed`,
     expected_revision: run.revision,
@@ -1494,7 +1564,7 @@ async function finishFailedRun(
     next_action: "Inspect the retained attempt and start a new run after correction.",
     error_summary: reason,
   });
-  await cockpit.workstreamUpdate({
+  applyCockpitOperation(cockpit, "workstreamUpdate", {
     specialist: run.specialist,
     idempotency_key: `${idempotencyPrefix}-workstream-failed`,
     expected_revision: workstream.revision,
@@ -1504,36 +1574,15 @@ async function finishFailedRun(
   });
 }
 
-async function completeCockpitRun(
-  cockpit: SessionCockpit,
+function completeCockpitRun(
+  cockpit: SerializableSessionCockpit,
   runId: string,
-): Promise<void> {
-  await cockpit.setState(completeRunState(cockpit.current(), runId));
-}
-
-async function invokeSpecialist(
-  route: DelegatedRoute,
-  input: z.infer<typeof specialistInputSchema>,
-  task: LauncherTask,
-): Promise<z.infer<typeof specialistOutputSchema>> {
-  switch (route) {
-    case "company_context":
-      return task.tools.marketing_os_company_context_builder(input);
-    case "market_signal":
-      return task.tools.marketing_os_market_signal(input);
-    case "icp":
-      return task.tools.marketing_os_icp(input);
-    case "audience_segmentation":
-      return task.tools.marketing_os_audience_segmentation(input);
-    case "messaging":
-      return task.tools.marketing_os_messaging(input);
-    case "branding_pitch_deck":
-      return task.tools.marketing_os_branding_pitch_deck(input);
-    case "social_monitoring_content":
-      return task.tools.marketing_os_social_monitoring_content(input);
-    case "campaigns_paid_media":
-      return task.tools.marketing_os_campaigns_paid_media(input);
-  }
+): void {
+  applyCockpitOperation(
+    cockpit,
+    "setState",
+    completeRunState(cockpit.state, runId),
+  );
 }
 
 function isExactContextPublishConfirmation(text: string): boolean {

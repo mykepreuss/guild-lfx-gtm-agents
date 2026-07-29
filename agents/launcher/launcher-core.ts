@@ -478,6 +478,11 @@ export function validateSpecialistOutput(
       "Evidence error: connected or live evidence requires observed_at and inspected-source coverage.",
     );
   }
+  if (statusPayload && statusPayload.status !== "ready_for_review") {
+    errors.push(
+      `Safety error: specialist reported ${statusPayload.status} status; only a ready_for_review artifact may enter the review queue.`,
+    );
+  }
 
   const safetyNarrative = [
     specialistSection(

@@ -357,6 +357,9 @@ export type WorkstreamRecord = z.infer<typeof workstreamRecordSchema>;
 export type ArtifactRecord = z.infer<typeof artifactRecordSchema>;
 export type HandoffRecord = z.infer<typeof handoffRecordSchema>;
 export type SessionCockpit = ReturnType<typeof createSessionCockpit>;
+export type SerializableSessionCockpit = {
+  state: LauncherAgentState;
+};
 
 export function readLauncherAgentState(
   value: unknown,
@@ -945,6 +948,702 @@ export function createSessionCockpit(
   };
 }
 
+export function createSerializableSessionCockpit(
+  initialState: LauncherAgentState,
+): SerializableSessionCockpit {
+  return {
+    state: launcherAgentStateSchema.parse(initialState),
+  };
+}
+
+export async function applySessionCockpitOperation(
+  initialState: LauncherAgentState,
+  stateStore: {
+    save(state: LauncherAgentState): Promise<void>;
+  },
+  operation:
+    | "setState"
+    | "runsList"
+    | "runGet"
+    | "runCreate"
+    | "attemptRecord"
+    | "runUpdate"
+    | "artifactStore"
+    | "artifactGet"
+    | "artifactApprove"
+    | "handoffCreate"
+    | "handoffUpdate"
+    | "workstreamRead"
+    | "workstreamUpdate"
+    | "recordContextPublication"
+    | "deleteCockpit",
+  input?: unknown,
+): Promise<{
+  response: unknown;
+  state: LauncherAgentState;
+}> {
+  const transient = createSessionCockpit(initialState, stateStore);
+  let response: unknown;
+  if (operation === "setState") {
+    response = await transient.setState(
+      launcherAgentStateSchema.parse(input),
+    );
+  } else if (operation === "runsList") {
+    response = await transient.runsList();
+  } else if (operation === "runGet") {
+    response = await transient.runGet(
+      readWorkflowRunRequestSchema.parse(input),
+    );
+  } else if (operation === "runCreate") {
+    response = await transient.runCreate(
+      createWorkflowRunRequestSchema.parse(input),
+    );
+  } else if (operation === "attemptRecord") {
+    response = await transient.attemptRecord(
+      recordWorkflowAttemptRequestSchema.parse(input),
+    );
+  } else if (operation === "runUpdate") {
+    response = await transient.runUpdate(
+      updateWorkflowRunRequestSchema.parse(input),
+    );
+  } else if (operation === "artifactStore") {
+    response = await transient.artifactStore(
+      storeArtifactRequestSchema.parse(input),
+    );
+  } else if (operation === "artifactGet") {
+    response = await transient.artifactGet(
+      readArtifactRequestSchema.parse(input),
+    );
+  } else if (operation === "artifactApprove") {
+    response = await transient.artifactApprove(
+      approveArtifactRequestSchema.parse(input),
+    );
+  } else if (operation === "handoffCreate") {
+    response = await transient.handoffCreate(
+      createHandoffRequestSchema.parse(input),
+    );
+  } else if (operation === "handoffUpdate") {
+    response = await transient.handoffUpdate(
+      updateHandoffRequestSchema.parse(input),
+    );
+  } else if (operation === "workstreamRead") {
+    response = await transient.workstreamRead(
+      readWorkstreamRequestSchema.parse(input),
+    );
+  } else if (operation === "workstreamUpdate") {
+    response = await transient.workstreamUpdate(
+      updateWorkstreamRequestSchema.parse(input),
+    );
+  } else if (operation === "recordContextPublication") {
+    const publication = z
+      .object({
+        contextId: z.string(),
+        contextRevision: z.string(),
+        artifactId: z.string(),
+        artifactRevision: z.number().int().positive(),
+      })
+      .parse(input);
+    response = await transient.recordContextPublication(publication);
+  } else {
+    response = await transient.deleteCockpit();
+  }
+  return {
+    response,
+    state: transient.current(),
+  };
+}
+
+export function reduceSessionCockpitOperation(
+  initialState: LauncherAgentState,
+  operation:
+    | "setState"
+    | "runsList"
+    | "runGet"
+    | "runCreate"
+    | "attemptRecord"
+    | "runUpdate"
+    | "artifactStore"
+    | "artifactGet"
+    | "artifactApprove"
+    | "handoffCreate"
+    | "handoffUpdate"
+    | "workstreamRead"
+    | "workstreamUpdate"
+    | "recordContextPublication"
+    | "deleteCockpit",
+  input?: unknown,
+): {
+  response: unknown;
+  state: LauncherAgentState;
+} {
+  let state = launcherAgentStateSchema.parse(initialState);
+  let response: unknown;
+
+  const commit = (
+    nextState: LauncherAgentState,
+    event?: {
+      action: string;
+      entityType: string;
+      entityId: string;
+      revision: number;
+      status: string;
+      details?: Record<string, unknown>;
+    },
+  ): LauncherAgentState => {
+    let candidate = launcherAgentStateSchema.parse(nextState);
+    if (event) {
+      const sequence = candidate.next_audit_sequence + 1;
+      candidate = launcherAgentStateSchema.parse({
+        ...candidate,
+        next_audit_sequence: sequence,
+        audit_trail: [
+          ...candidate.audit_trail,
+          {
+            sequence,
+            occurred_at: new Date().toISOString(),
+            action: event.action,
+            entity_type: event.entityType,
+            entity_id: event.entityId,
+            revision: event.revision,
+            status: event.status,
+            details: event.details ?? {},
+          },
+        ],
+      });
+    }
+    const size = cockpitStateSizeBytes(candidate);
+    if (size > cockpitStateSoftLimitBytes) {
+      throw new Error(
+        `Canonical cockpit state reached ${size} bytes, above the 6 MiB safety ceiling. Export or delete older work before adding another artifact.`,
+      );
+    }
+    state = candidate;
+    return state;
+  };
+
+  if (operation === "setState") {
+    response = commit(launcherAgentStateSchema.parse(input));
+  } else if (operation === "runsList") {
+    response = {
+      data: [...state.runs].sort((left, right) =>
+        (right.updated_at ?? "").localeCompare(left.updated_at ?? ""),
+      ),
+    };
+  } else if (operation === "runGet") {
+    const request = readWorkflowRunRequestSchema.parse(input);
+    const run = state.runs.find(
+      (candidate) => candidate.run_id === request.runId,
+    );
+    if (!run) {
+      throw new Error(
+        `Workflow run ${request.runId} was not found in this cockpit Chat.`,
+      );
+    }
+    response = { data: run };
+  } else if (operation === "runCreate") {
+    const request = createWorkflowRunRequestSchema.parse(input);
+    const existing = state.runs.find(
+      (candidate) => candidate.run_id === request.run_id,
+    );
+    if (state.idempotency[request.idempotency_key] && existing) {
+      response = { data: existing };
+    } else {
+      if (existing) {
+        throw new Error(`Workflow run ${request.run_id} already exists.`);
+      }
+      const now = new Date().toISOString();
+      const run = workflowRunSchema.parse({
+        run_id: request.run_id,
+        revision: 1,
+        route: request.route,
+        specialist: request.specialist,
+        context_revision: request.context_revision,
+        package_name: request.package_name,
+        package_version: request.package_version,
+        input_envelope: request.input_envelope,
+        status: request.status ?? "running",
+        blockers: request.blockers ?? [],
+        next_action: request.next_action,
+        attempts: [],
+        created_at: now,
+        updated_at: now,
+      });
+      commit(
+        {
+          ...state,
+          runs: [run, ...state.runs],
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]: `run:${run.run_id}`,
+          },
+        },
+        {
+          action: "workflow_run_created",
+          entityType: "workflow_run",
+          entityId: run.run_id,
+          revision: run.revision,
+          status: run.status,
+          details: { route: run.route, specialist: run.specialist },
+        },
+      );
+      response = { data: run };
+    }
+  } else if (operation === "attemptRecord") {
+    const request = recordWorkflowAttemptRequestSchema.parse(input);
+    const runIndex = state.runs.findIndex(
+      (candidate) => candidate.run_id === request.runId,
+    );
+    if (runIndex < 0) {
+      throw new Error(`Workflow run ${request.runId} was not found.`);
+    }
+    const currentRun = state.runs[runIndex]!;
+    const existing = currentRun.attempts.find(
+      (attempt) => attempt.attempt_number === request.attempt_number,
+    );
+    if (state.idempotency[request.idempotency_key] && existing) {
+      response = { data: existing };
+    } else {
+      if (existing) {
+        throw new Error(
+          `Attempt ${request.attempt_number} already exists for ${request.runId}.`,
+        );
+      }
+      const attempt = workflowAttemptSchema.parse({
+        run_id: request.runId,
+        attempt_number: request.attempt_number,
+        attempt_kind: request.attempt_kind,
+        package_name: request.package_name,
+        package_version: request.package_version,
+        context_revision: request.context_revision,
+        input_envelope: request.input_envelope,
+        output_body: request.output_body,
+        validation_errors: request.validation_errors ?? [],
+        status: request.status,
+        error_code: request.error_code,
+        error_message: request.error_message,
+        created_at: new Date().toISOString(),
+      });
+      const updatedRun = workflowRunSchema.parse({
+        ...currentRun,
+        attempts: [...currentRun.attempts, attempt],
+        updated_at: new Date().toISOString(),
+      });
+      const runs = [...state.runs];
+      runs[runIndex] = updatedRun;
+      commit(
+        {
+          ...state,
+          runs,
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]:
+              `attempt:${request.runId}:${request.attempt_number}`,
+          },
+        },
+        {
+          action: "workflow_attempt_recorded",
+          entityType: "workflow_attempt",
+          entityId: `${request.runId}:${request.attempt_number}`,
+          revision: request.attempt_number,
+          status: attempt.status,
+          details: {
+            attempt_kind: attempt.attempt_kind,
+            validation_error_count: attempt.validation_errors.length,
+          },
+        },
+      );
+      response = { data: attempt };
+    }
+  } else if (operation === "runUpdate") {
+    const request = updateWorkflowRunRequestSchema.parse(input);
+    const index = state.runs.findIndex(
+      (candidate) => candidate.run_id === request.runId,
+    );
+    if (index < 0) {
+      throw new Error(`Workflow run ${request.runId} was not found.`);
+    }
+    const currentRun = state.runs[index]!;
+    if (state.idempotency[request.idempotency_key]) {
+      response = { data: currentRun };
+    } else {
+      if (currentRun.revision !== request.expected_revision) {
+        throw new Error(
+          `Workflow run revision conflict: expected ${request.expected_revision}, found ${currentRun.revision}.`,
+        );
+      }
+      const updated = workflowRunSchema.parse({
+        ...currentRun,
+        revision: currentRun.revision + 1,
+        status: request.status,
+        artifact_id: request.artifact_id ?? currentRun.artifact_id,
+        artifact_revision:
+          request.artifact_revision ?? currentRun.artifact_revision,
+        handoff_id: request.handoff_id ?? currentRun.handoff_id,
+        blockers: request.blockers ?? currentRun.blockers,
+        next_action: request.next_action ?? currentRun.next_action,
+        error_summary: request.error_summary ?? currentRun.error_summary,
+        updated_at: new Date().toISOString(),
+      });
+      const runs = [...state.runs];
+      runs[index] = updated;
+      commit(
+        {
+          ...state,
+          runs,
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]: `run:${updated.run_id}`,
+          },
+        },
+        {
+          action: "workflow_run_updated",
+          entityType: "workflow_run",
+          entityId: updated.run_id,
+          revision: updated.revision,
+          status: updated.status,
+        },
+      );
+      response = { data: updated };
+    }
+  } else if (operation === "artifactStore") {
+    const request = storeArtifactRequestSchema.parse(input);
+    const existingRef = state.idempotency[request.idempotency_key];
+    const existing = existingRef?.startsWith("artifact:")
+      ? state.artifacts.find(
+          (candidate) =>
+            `artifact:${candidate.artifact_id}:${candidate.revision}` ===
+            existingRef,
+        )
+      : undefined;
+    if (existing) {
+      response = { data: existing };
+    } else {
+      const artifactId = uuidFromSeed(
+        `${state.canonical_session_id ?? "session"}:${request.idempotency_key}`,
+      );
+      const revision =
+        state.artifacts.filter(
+          (candidate) => candidate.artifact_id === artifactId,
+        ).length + 1;
+      const now = new Date().toISOString();
+      const artifact = artifactRecordSchema.parse({
+        artifact_id: artifactId,
+        revision,
+        artifact_type: request.artifact_type,
+        markdown_body: request.markdown_body,
+        consumed_context_revision: request.consumed_context_revision,
+        consumed_source_revisions: request.consumed_source_revisions ?? [],
+        evidence: request.evidence ?? [],
+        status: request.status ?? "draft",
+        approvals: [],
+        safety: request.safety,
+        metadata: request.metadata ?? {},
+        created_at: now,
+        updated_at: now,
+      });
+      commit(
+        {
+          ...state,
+          artifacts: [...state.artifacts, artifact],
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]:
+              `artifact:${artifact.artifact_id}:${artifact.revision}`,
+          },
+        },
+        {
+          action: "artifact_revision_stored",
+          entityType: "artifact",
+          entityId: artifact.artifact_id,
+          revision: artifact.revision,
+          status: artifact.status,
+          details: { artifact_type: artifact.artifact_type },
+        },
+      );
+      response = { data: artifact };
+    }
+  } else if (operation === "artifactGet") {
+    const request = readArtifactRequestSchema.parse(input);
+    const artifact = state.artifacts
+      .filter(
+        (candidate) =>
+          candidate.artifact_id === request.artifactId &&
+          (request.revision === undefined ||
+            candidate.revision === request.revision),
+      )
+      .sort((left, right) => right.revision - left.revision)[0];
+    if (!artifact) {
+      throw new Error(
+        `Artifact ${request.artifactId} was not found in this cockpit Chat.`,
+      );
+    }
+    response = { data: artifact };
+  } else if (operation === "artifactApprove") {
+    const request = approveArtifactRequestSchema.parse(input);
+    const index = state.artifacts.findIndex(
+      (candidate) =>
+        candidate.artifact_id === request.artifactId &&
+        candidate.revision === request.revision,
+    );
+    if (index < 0) {
+      throw new Error(
+        `Artifact ${request.artifactId} revision ${request.revision} was not found.`,
+      );
+    }
+    const currentArtifact = state.artifacts[index]!;
+    if (state.idempotency[request.idempotency_key]) {
+      response = { data: currentArtifact };
+    } else {
+      if (currentArtifact.revision !== request.expected_revision) {
+        throw new Error(
+          `Artifact revision conflict: expected ${request.expected_revision}, found ${currentArtifact.revision}.`,
+        );
+      }
+      if (currentArtifact.status !== "ready_for_review") {
+        throw new Error(
+          `Artifact is ${currentArtifact.status}, not ready_for_review.`,
+        );
+      }
+      const updated = artifactRecordSchema.parse({
+        ...currentArtifact,
+        status: "approved",
+        approvals: [
+          ...currentArtifact.approvals,
+          {
+            exact_approval_text: request.approval_text,
+            actor: "workspace_user",
+            approved_at: new Date().toISOString(),
+          },
+        ],
+        updated_at: new Date().toISOString(),
+      });
+      const artifacts = [...state.artifacts];
+      artifacts[index] = updated;
+      commit(
+        {
+          ...state,
+          artifacts,
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]:
+              `artifact:${updated.artifact_id}:${updated.revision}`,
+          },
+        },
+        {
+          action: "artifact_revision_approved",
+          entityType: "artifact",
+          entityId: updated.artifact_id,
+          revision: updated.revision,
+          status: updated.status,
+          details: { exact_approval_text: request.approval_text },
+        },
+      );
+      response = { data: updated };
+    }
+  } else if (operation === "handoffCreate") {
+    const request = createHandoffRequestSchema.parse(input);
+    const existingRef = state.idempotency[request.idempotency_key];
+    const existing = existingRef?.startsWith("handoff:")
+      ? state.handoffs.find(
+          (candidate) => `handoff:${candidate.handoff_id}` === existingRef,
+        )
+      : undefined;
+    if (existing) {
+      response = { data: existing };
+    } else {
+      const now = new Date().toISOString();
+      const handoff = handoffRecordSchema.parse({
+        handoff_id: uuidFromSeed(
+          `${state.canonical_session_id ?? "session"}:${request.idempotency_key}`,
+        ),
+        revision: 1,
+        source_agent: request.source_agent,
+        target_agent: request.target_agent,
+        artifact_references: request.artifact_references ?? [],
+        context_revision: request.context_revision,
+        rationale: request.rationale,
+        completion_state: request.completion_state ?? "pending",
+        created_at: now,
+        updated_at: now,
+      });
+      commit(
+        {
+          ...state,
+          handoffs: [...state.handoffs, handoff],
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]: `handoff:${handoff.handoff_id}`,
+          },
+        },
+        {
+          action: "handoff_created",
+          entityType: "handoff",
+          entityId: handoff.handoff_id,
+          revision: handoff.revision,
+          status: handoff.completion_state,
+        },
+      );
+      response = { data: handoff };
+    }
+  } else if (operation === "handoffUpdate") {
+    const request = updateHandoffRequestSchema.parse(input);
+    const index = state.handoffs.findIndex(
+      (candidate) => candidate.handoff_id === request.handoffId,
+    );
+    if (index < 0) {
+      throw new Error(`Handoff ${request.handoffId} was not found.`);
+    }
+    const currentHandoff = state.handoffs[index]!;
+    if (state.idempotency[request.idempotency_key]) {
+      response = { data: currentHandoff };
+    } else {
+      if (currentHandoff.revision !== request.expected_revision) {
+        throw new Error(
+          `Handoff revision conflict: expected ${request.expected_revision}, found ${currentHandoff.revision}.`,
+        );
+      }
+      const updated = handoffRecordSchema.parse({
+        ...currentHandoff,
+        revision: currentHandoff.revision + 1,
+        completion_state: request.completion_state,
+        updated_at: new Date().toISOString(),
+      });
+      const handoffs = [...state.handoffs];
+      handoffs[index] = updated;
+      commit(
+        {
+          ...state,
+          handoffs,
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]: `handoff:${updated.handoff_id}`,
+          },
+        },
+        {
+          action: "handoff_updated",
+          entityType: "handoff",
+          entityId: updated.handoff_id,
+          revision: updated.revision,
+          status: updated.completion_state,
+        },
+      );
+      response = { data: updated };
+    }
+  } else if (operation === "workstreamRead") {
+    const request = readWorkstreamRequestSchema.parse(input);
+    response = {
+      data:
+        state.workstreams.find(
+          (candidate) => candidate.specialist === request.specialist,
+        ) ?? null,
+    };
+  } else if (operation === "workstreamUpdate") {
+    const request = updateWorkstreamRequestSchema.parse(input);
+    const index = state.workstreams.findIndex(
+      (candidate) => candidate.specialist === request.specialist,
+    );
+    const currentWorkstream =
+      index >= 0 ? state.workstreams[index] : undefined;
+    if (state.idempotency[request.idempotency_key] && currentWorkstream) {
+      response = { data: currentWorkstream };
+    } else {
+      const currentRevision = currentWorkstream?.revision ?? 0;
+      if (currentRevision !== request.expected_revision) {
+        throw new Error(
+          `Workstream revision conflict: expected ${request.expected_revision}, found ${currentRevision}.`,
+        );
+      }
+      const now = new Date().toISOString();
+      const updated = workstreamRecordSchema.parse({
+        specialist: request.specialist,
+        revision: currentRevision + 1,
+        status: request.status,
+        latest_artifact_id:
+          request.latest_artifact_id ??
+          currentWorkstream?.latest_artifact_id,
+        latest_artifact_revision:
+          request.latest_artifact_revision ??
+          currentWorkstream?.latest_artifact_revision,
+        blockers: request.blockers ?? currentWorkstream?.blockers ?? [],
+        next_action:
+          request.next_action ?? currentWorkstream?.next_action,
+        handoff_id: request.handoff_id ?? currentWorkstream?.handoff_id,
+        created_at: currentWorkstream?.created_at ?? now,
+        updated_at: now,
+      });
+      const workstreams = [...state.workstreams];
+      if (index >= 0) workstreams[index] = updated;
+      else workstreams.push(updated);
+      commit(
+        {
+          ...state,
+          workstreams,
+          idempotency: {
+            ...state.idempotency,
+            [request.idempotency_key]:
+              `workstream:${updated.specialist}`,
+          },
+        },
+        {
+          action: "workstream_updated",
+          entityType: "workstream",
+          entityId: updated.specialist,
+          revision: updated.revision,
+          status: updated.status,
+        },
+      );
+      response = { data: updated };
+    }
+  } else if (operation === "recordContextPublication") {
+    const request = z
+      .object({
+        contextId: z.string(),
+        contextRevision: z.string(),
+        artifactId: z.string(),
+        artifactRevision: z.number().int().positive(),
+      })
+      .parse(input);
+    commit(
+      {
+        ...state,
+        published_context_id: request.contextId,
+        published_context_revision: request.contextRevision,
+      },
+      {
+        action: "workspace_context_published",
+        entityType: "workspace_context",
+        entityId: request.contextId,
+        revision: request.artifactRevision,
+        status: "published",
+        details: {
+          artifact_id: request.artifactId,
+          artifact_revision: request.artifactRevision,
+        },
+      },
+    );
+  } else {
+    const now = new Date().toISOString();
+    const cleared = readLauncherAgentState(
+      {
+        schema_version: 1,
+        canonical_session_id: state.canonical_session_id,
+        canonical_session_created_at: state.canonical_session_created_at,
+        deleted_at: now,
+      },
+      state.canonical_session_id,
+    );
+    commit(cleared, {
+      action: "cockpit_state_deleted",
+      entityType: "cockpit",
+      entityId: state.canonical_session_id ?? "current-session",
+      revision: 1,
+      status: "deleted",
+    });
+  }
+
+  return { response, state };
+}
+
 export function allocateRunIdentity(
   state: LauncherAgentState,
   sessionId: string,
@@ -1144,7 +1843,7 @@ export function renderCockpitReceipt({
     "Cockpit record:",
     `- Artifact: ${artifactId} revision ${artifactRevision}`,
     `- Workflow run: ${runId}`,
-    `- Specialist version: ${packageVersion}`,
+    `- Installed version ID: ${packageVersion}`,
     `- Context revision: ${contextRevision}`,
   ].join("\n");
 }

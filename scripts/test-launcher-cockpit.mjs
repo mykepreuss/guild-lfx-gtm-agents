@@ -249,7 +249,7 @@ function launcherInput(request, context = managedContext) {
   );
   assert.match(result.text, /Handled by: Messaging/);
   assert.match(result.text, /Cockpit record:/);
-  assert.match(result.text, /Specialist version: 1\.3\.0/);
+  assert.match(result.text, /Installed version ID: version-5/);
   assert.equal(chat.specialistCallCount(), 2);
   assert.match(chat.specialistInputs[1].text, /FORMAT REPAIR ONLY\./);
 
@@ -468,9 +468,12 @@ function launcherInput(request, context = managedContext) {
     launcherInput("Create messaging."),
     chat.task,
   );
-  assert.match(result.text, /Canonical cockpit initialization failed/);
-  assert.match(result.text, /No specialist was started/);
-  assert.equal(specialistCalls, 0);
+  assert.match(
+    result.text,
+    /Validated specialist output could not be finalized in the Guild cockpit/,
+  );
+  assert.match(result.text, /durable retention could not be confirmed/);
+  assert.equal(specialistCalls, 1);
 }
 
 console.log(

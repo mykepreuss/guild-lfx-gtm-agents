@@ -31,6 +31,25 @@ const evidenceModes = [
   "live_monitoring",
 ] as const;
 
+const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
+  [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],
+  [/\bautomatically (?:publish|schedule|pause|scale|sync|activate)\b/i, "automatic external action"],
+  [/\b(?:eliminate|eliminates|eliminated)\b/i, "absolute eliminate claim"],
+  [/\binstantly\b/i, "instant-result claim"],
+  [/\bproduction-ready\b/i, "production-readiness claim"],
+  [/\bhigh-converting\b/i, "conversion-performance claim"],
+  [/\bhigh-performance\b/i, "performance claim"],
+  [/\bscales? securely\b/i, "security-and-scale claim"],
+  [/\bwithout compromises?\b/i, "absolute no-compromise claim"],
+  [/\btrusted by\b/i, "trust/scale claim"],
+  [/\bbest-in-class\b|\bmarket[- ]leading\b|\bindustry[- ]leading\b/i, "ranking claim"],
+  [/\bcontinuous experiments?\b/i, "continuous-execution claim"],
+  [/\bis not HIPAA compliant\b/i, "incorrectly strengthened HIPAA claim"],
+  [/\bis HIPAA compliant\b/i, "unsupported HIPAA compliance claim"],
+  [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
+  [/\bscales? safely\b/i, "safety-and-scale claim"],
+];
+
 const statusPayloadSchema = z.object({
   evidence_mode: z.enum(evidenceModes),
   observed_at: z.string().nullable(),
@@ -122,6 +141,22 @@ export function createValidatedSpecialistAgent(
       }
 
       if (!initialValidation.formatOnly) {
+        if (
+          initialValidation.issues.every(
+            (issue) => issue.kind === "safety",
+          )
+        ) {
+          const redacted = redactUnsafeGeneratedLines(
+            initialText,
+            initialValidation.issues,
+          );
+          if (
+            redacted.changed &&
+            validateSpecialistArtifact(redacted.text).valid
+          ) {
+            return { type: "text", text: redacted.text };
+          }
+        }
         return {
           type: "text",
           text: renderBlockedArtifact(initialValidation.issues),
@@ -262,6 +297,17 @@ export function validateSpecialistArtifact(
     extractSection(text, "## Downstream Handoff", "\u0000"),
   ].join("\n");
   issues.push(...validateProducedArtifactSafety(safetyNarrative));
+  if (
+    /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
+      text,
+    )
+  ) {
+    issues.push({
+      kind: "safety",
+      message:
+        'The HIPAA constraint was strengthened or paraphrased. Preserve only the exact "may not be HIPAA compliant" wording.',
+    });
+  }
 
   const formatOnly =
     issues.length > 0 && issues.every((issue) => issue.kind === "format");
@@ -272,6 +318,99 @@ export function validateSpecialistArtifact(
   };
 }
 
+export function redactUnsafeGeneratedLines(
+  text: string,
+  issues: ValidationIssue[],
+): { changed: boolean; text: string } {
+  const lines = text.split("\n");
+  const redactedExcerpts: string[] = [];
+  let inspectSection = false;
+  const redactedLines = lines.map((line) => {
+    const trimmed = line.trim();
+    if (/^## /.test(trimmed)) {
+      inspectSection = [
+        "## Produced Artifact",
+        "## Approval Gate",
+        "## AEO / AI-Readiness Contribution",
+        "## Downstream Handoff",
+      ].includes(trimmed);
+    }
+    const strengthensHipaa =
+      /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
+        trimmed,
+      );
+    const sentenceParts = trimmed.split(
+      /(?<=[.!?])\s+(?=[A-Z])/,
+    );
+    const unsafe =
+      inspectSection &&
+      sentenceParts.some(
+        (sentence) =>
+          !isExplicitlyQualifiedLine(sentence) &&
+          unsafeGeneratedLinePatterns.some(([pattern]) =>
+            pattern.test(sentence),
+          ),
+      );
+    if (!strengthensHipaa && !unsafe) return line;
+
+    redactedExcerpts.push(trimmed.replace(/\s+/g, " ").slice(0, 180));
+    const indentation = line.match(/^\s*/)?.[0] ?? "";
+    return `${indentation}- TBD — This generated line was withheld by deterministic safety validation; source evidence and owner approval are required.`;
+  });
+
+  if (redactedExcerpts.length === 0) {
+    return { changed: false, text };
+  }
+
+  let redactedText = redactedLines.join("\n");
+  const statusSection = extractSection(
+    redactedText,
+    "## Status Payload",
+    "## Downstream Handoff",
+  );
+  const statusJson = extractJsonFence(statusSection);
+  if (statusJson === undefined) {
+    return { changed: false, text };
+  }
+
+  try {
+    const parsed = statusPayloadSchema.parse(JSON.parse(statusJson));
+    const limitation =
+      `Deterministic safety validation withheld ${redactedExcerpts.length} generated line(s) before review.`;
+    const revisedPayload = {
+      ...parsed,
+      coverage_limitations: [
+        ...parsed.coverage_limitations,
+        limitation,
+      ],
+      safety: {
+        ...parsed.safety,
+        unsupported_claims: [
+          ...parsed.safety.unsupported_claims,
+          ...redactedExcerpts.map(
+            (excerpt) => `Withheld generated line: ${excerpt}`,
+          ),
+        ],
+        evidence_gaps: [
+          ...parsed.safety.evidence_gaps,
+          ...issues.map((issue) => issue.message),
+        ],
+      },
+    };
+    redactedText = redactedText.replace(
+      statusJson,
+      JSON.stringify(revisedPayload, null, 2),
+    );
+    redactedText = redactedText.replace(
+      /(## Assumptions And Missing Evidence[\s\S]*?Evidence mode:\s*(?:source_supplied|connected_read_only|live_monitoring)[^\n]*\n)/,
+      `$1\nSafety filter disclosure: ${limitation}\n`,
+    );
+    return { changed: true, text: redactedText };
+  } catch {
+    return { changed: false, text };
+  }
+}
+
 function validateProducedArtifactSafety(
   producedArtifact: string,
 ): ValidationIssue[] {
@@ -279,33 +418,16 @@ function validateProducedArtifactSafety(
   const lines = producedArtifact
     .split("\n")
     .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z])/));
-  const unsafePatterns: Array<[RegExp, string]> = [
-    [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],
-    [/\bautomatically (?:publish|schedule|pause|scale|sync|activate)\b/i, "automatic external action"],
-    [/\b(?:eliminate|eliminates|eliminated)\b/i, "absolute eliminate claim"],
-    [/\binstantly\b/i, "instant-result claim"],
-    [/\bproduction-ready\b/i, "production-readiness claim"],
-    [/\bhigh-converting\b/i, "conversion-performance claim"],
-    [/\bhigh-performance\b/i, "performance claim"],
-    [/\bscales? securely\b/i, "security-and-scale claim"],
-    [/\bwithout compromises?\b/i, "absolute no-compromise claim"],
-    [/\btrusted by\b/i, "trust/scale claim"],
-    [/\bbest-in-class\b|\bmarket[- ]leading\b|\bindustry[- ]leading\b/i, "ranking claim"],
-    [/\bcontinuous experiments?\b/i, "continuous-execution claim"],
-    [/\bis not HIPAA compliant\b/i, "incorrectly strengthened HIPAA claim"],
-    [/\bis HIPAA compliant\b/i, "unsupported HIPAA compliance claim"],
-    [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
-    [/\bscales? safely\b/i, "safety-and-scale claim"],
-  ];
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || isExplicitlyQualifiedLine(line)) continue;
-    for (const [pattern, label] of unsafePatterns) {
+    for (const [pattern, label] of unsafeGeneratedLinePatterns) {
       if (pattern.test(line)) {
+        const excerpt = line.replace(/\s+/g, " ").slice(0, 220);
         issues.push({
           kind: "safety",
-          message: `Produced Artifact contains an unqualified ${label}.`,
+          message: `Produced Artifact contains an unqualified ${label}. Rejected line: "${excerpt}"`,
         });
       }
     }
