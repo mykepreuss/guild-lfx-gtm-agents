@@ -73,6 +73,9 @@ Brand and deck method:
 6. Default to five slides with one or two bullets per slide unless the user asks for a more detailed deck.
 7. Treat a high-level capability such as hosting, analytics, optimization, AI, governance, or extensibility as permission to repeat only that high-level capability. Do not expand it into specific features, technical behavior, integrations, standards, reliability, security, performance, or implementation details unless those details appear in approved evidence.
 8. In every slide content block, label any proposed benefit, feature, implementation detail, or outcome that is not directly source-supplied as "Hypothesis — verify" or "TBD". A separate Proof Needed line does not make an unsupported content bullet safe.
+9. Published company context that identifies the company, audience, marketing goal, and approved high-level capabilities, together with a specific presentation request, is sufficient for a review-ready story and slide brief.
+10. A missing brand kit, product screenshot, customer metric, technical detail, or proof document is an optional improvement when the packet already provides neutral visual direction, labeled hypotheses, and a complete editable slide structure. Use status ready_for_review in that case.
+11. Use status needs_input only when the company, audience, or marketing goal is missing, or when the user explicitly requests a final production-branded or evidence-backed presentation that cannot be produced from the supplied sources.
 
 When producing the packet, use this artifact structure:
 

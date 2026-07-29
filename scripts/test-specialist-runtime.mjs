@@ -54,6 +54,21 @@ assert.match(
   "unsupported slide bullets must be labeled where they appear",
 );
 assert.match(
+  brandingPitchDeckSource,
+  /is sufficient for a review-ready story and slide brief\./,
+  "published context and a specific presentation request should support a review-ready deck",
+);
+assert.match(
+  brandingPitchDeckSource,
+  /A missing brand kit, product screenshot, customer metric, technical detail, or proof document is an optional improvement/,
+  "optional production inputs should not block an editable deck",
+);
+assert.match(
+  brandingPitchDeckSource,
+  /Use status needs_input only when the company, audience, or marketing goal is missing/,
+  "Branding should reserve needs_input for missing essential context",
+);
+assert.match(
   socialMonitoringContentSource,
   /Do not name LinkedIn, X\/Twitter, Reddit, forums, or another platform unless that platform is supplied by the user or approved context\./,
   "content planning should not invent a specific social platform",
