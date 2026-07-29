@@ -2,7 +2,8 @@
 
 > This record retains every failed and passing browser attempt from the July 28
 > private alpha. The final section records the fresh Guild-only acceptance pass
-> on Launcher `0.3.8` and specialists `1.2.6`.
+> on Launcher `0.3.13`, Company Context Builder `1.2.4`, and specialists
+> `1.2.6`.
 
 ## Scope
 
@@ -19,8 +20,8 @@ legal approval, or perform any other external marketing action.
 
 | Package | Live version | Default |
 | --- | --- | --- |
-| Marketing OS Launcher | 0.3.8 | yes |
-| Company Context Builder | 1.2.0 | no |
+| Marketing OS Launcher | 0.3.13 | yes |
+| Company Context Builder | 1.2.4 | no |
 | Market Signal | 1.2.6 | no |
 | ICP | 1.2.6 | no |
 | Audience Segmentation | 1.2.6 | no |
@@ -36,8 +37,8 @@ The exact final version IDs are:
 
 | Package | Version ID |
 | --- | --- |
-| Marketing OS Launcher | `019fabb0-276c-cf83-0000-46121049f608` |
-| Company Context Builder | `019fab14-9c9b-cf83-0000-3019218b1897` |
+| Marketing OS Launcher | `019fabef-671c-cf83-0000-ce3df809571b` |
+| Company Context Builder | `019fabeb-f817-cf83-0000-3614a4e6697d` |
 | Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
 | ICP | `019faba1-1977-cf83-0000-3278fc178485` |
 | Audience Segmentation | `019faba2-01fe-cf83-0000-e915b775cfb9` |
@@ -45,6 +46,49 @@ The exact final version IDs are:
 | Branding And Pitch Deck | `019faba3-ed73-cf83-0000-c94902c06d34` |
 | Social Monitoring And Content | `019faba4-d92c-cf83-0000-98b5272b5c31` |
 | Campaigns And Paid Media | `019faba5-c8da-cf83-0000-503fce919ad3` |
+
+## Company Context staging in ordinary Chat
+
+Session `019fabed-94ba-351a-0000-c6a378215553` is the passing normal-Chat
+Company Context lifecycle through Launcher `0.3.12` and Builder `1.2.4`.
+Launcher routed only to Company Context Builder, returned the complete
+validated Company Context Approval Packet in the originating Chat, and saved
+cockpit artifact `3c889861-0603-4328-8424-13d5f24d5009` revision 1 from
+workflow run `d86c9301-8a40-47c8-9cfe-289756d25441`.
+
+The result was correctly staged as `needs_input` with:
+
+- `evidence_mode: source_supplied`;
+- `action_mode: draft_only`;
+- `external_mutation_requested: false`;
+- `approved_in_session: false`;
+- `saved_to_context_artifacts: true`;
+- `saved_to_workspace_context: false`; and
+- `workspace_context_status: not_requested`.
+
+The selected compressed benchmark brief was supplied with explicit evidence
+labels. Builder allowed only `[approved_reusable]` material into reusable
+context and retained review-required, secondary-estimate, unknown, and blocked
+material behind review gates. The exact approved HIPAA wording was preserved.
+
+The live Guild Workspace Context remained revision
+`019f10b8-0faa-9b1f-0000-0f14b2f84fea` before and after the run. No approval
+phrase was sent and no context publication occurred.
+
+The passing run follows four retained failed attempts. Each failed closed
+without context publication or another external mutation:
+
+| Session | Version | Retained failure |
+| --- | --- | --- |
+| `019fabdd-5262-351a-0000-644a9b99d45f` | Launcher 0.3.11 | Embedded `[blocked_action]` source text was mistaken for a requested external action. |
+| `019fabe1-0fb8-351a-0000-b5c0fcbd7215` | Launcher 0.3.12 / Builder 1.2.1 | Legal-review approval wording was not explicitly review-qualified. |
+| `019fabe5-138a-351a-0000-210232c2ef31` | Builder 1.2.2 | Review-required facts and multiline blocked claims were promoted into unqualified lines. |
+| `019fabea-4876-351a-0000-4ab46eb8dc29` | Builder 1.2.3 | One claim inside the blocked collection retained a non-blocked model status. |
+
+Launcher `0.3.13` then made a presentation-only improvement: the summary uses
+the artifact title `Company Context Approval Packet` and omits the internal
+`Save And Approval State` subsection from the customer-facing included-section
+list. The complete automated suite passed after this change.
 
 ## Final Guild-only acceptance
 
@@ -228,9 +272,9 @@ action.
 - The final deterministic cleanup removes repeated redaction placeholders and
   leaves one concise disclosure. The structured Status Payload is useful for
   auditability but still makes the rendered packet feel technical.
-- Builder’s context-readiness packet remains significantly longer and noisier
-  than a user needs for a readiness check. This is acceptable for private
-  evidence but should be summarized in the public cockpit view.
+- Builder’s complete context artifact remains intentionally detailed, but the
+  public-facing cockpit view now puts the artifact name, review state,
+  evidence mode, included sections, saved revision, and next action first.
 - Ambiguous routing uses the strict LLM classifier and took about 19 seconds to
   return a clarification. Clear deterministic routes do not pay that
   classification cost.

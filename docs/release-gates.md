@@ -16,12 +16,12 @@ may be made public while any blocking row below remains open.
 | Guild-only canonical cockpit | Launcher retains runs, attempts, artifacts, approvals, workstreams, handoffs, and audit entries in Guild task state, with a 6 MiB safety ceiling; session `019fabb1-c08e-351a-0000-bdc23f1e166c` restored state after browser reload | Pass locally and in private browser |
 | Same-Chat resume | Canonical-Chat tests resume work without repasting or duplicating the run; browser reload restored Campaigns revision 1 | Pass locally and in private browser |
 | New-Chat boundary is honest | A brand-new Chat renders a fresh cockpit and does not claim to reconstruct detailed state | Pass locally and in private browser |
-| Summary-first result | Launcher 0.3.8 renders draft, state, evidence, included sections, saved revision, and next action before the unchanged complete specialist artifact | Pass locally and in private browser |
+| Summary-first result | Launcher 0.3.13 renders artifact title, state, evidence, relevant included sections, saved revision, and next action before the unchanged complete specialist artifact | Pass locally and in private browser |
 | Artifact approval | Exact artifact revision and exact user approval text transition artifact, run, handoff, and latest workstream idempotently; Campaigns revision 1 approved in session `019fabb1-c08e-351a-0000-bdc23f1e166c` | Pass locally and in private browser |
 | Cockpit export | Launcher returns the complete structured cockpit as a JSON Chat artifact | Pass locally and in private browser |
 | Confirmed cockpit deletion | Two-step exact phrase deletes runs, attempts, artifact bodies, approvals, workstreams, handoffs, and their local index; receipt discloses that Guild history and published context are not deleted | Pass locally; private browser proof pending |
-| Company Context lifecycle | Builder retains supplied source and draft in Guild Chat state; Launcher imports the validated artifact and owns approval and publication | Pass locally; private browser proof pending |
-| Guild Workspace Context publication | Launcher uses authenticated Guild context list/create endpoints, preserves unmanaged context, detects an already-published artifact, and records the context version | Pass in fake-endpoint integration tests; **blocked on live private Guild proof** |
+| Company Context lifecycle | Builder retains supplied source and draft in Guild Chat state; Launcher imported validated artifact `3c889861-0603-4328-8424-13d5f24d5009` revision 1 in normal Chat `019fabed-94ba-351a-0000-c6a378215553`; approval and publication remain separate | Pass locally and in private browser |
+| Guild Workspace Context publication | Launcher uses authenticated Guild context list/create endpoints, preserves unmanaged context, detects an already-published artifact, and records the context version. The staging run left live context revision `019f10b8-0faa-9b1f-0000-0f14b2f84fea` unchanged. | Pass in fake-endpoint integration tests; **blocked on exact user approval and live private Guild proof** |
 | Shared specialist contract and claim safety | All seven specialist 1.2.6 packages use one coded validator; Launcher independently validates; safety failures are never silently repaired; final live routes and the 21-run benchmark passed the hardened contract | Pass locally and in private live acceptance |
 | Evidence mode | Market Signal and Social Monitoring disclose `source_supplied`, `connected_read_only`, or `live_monitoring`, coverage, observation time, and limitations | Pass locally and in prior private browser runs |
 | Draft-only safety | No publishing, scheduling, spend, CRM mutation, credentials, or legal approval; Workspace Context publication is the only supported Guild product mutation and needs the exact second phrase | Pass locally and in prior private browser runs |
@@ -29,7 +29,7 @@ may be made public while any blocking row below remains open.
 | Default Launcher | Private workspace already uses Launcher as default; customer UI instruction remains required because SDK exposes only default reads | Pass privately; clean-org UI proof pending |
 | No private Skills dependency | Capability packages are self-contained; private skills remain maintainer assets only | Pass |
 | No external runtime service | Launcher and Builder declare no Cloud, database, bridge, or Marketing OS integration tools; `npm run verify` excludes contingency-service tests | Pass locally |
-| Context-size benchmark | Final 21-run benchmark selected compressed at ~1,789 tokens: 7/7 complete, no lost golden facts, zero unqualified sensitive claims, conflict recall 1; current was 5/7 and pointer minimum lost six required facts | Pass; exact approval/publication to working Workspace Context pending |
+| Context-size benchmark | Final serial confirmation selected compressed at ~1,805 tokens: 7/7 complete, no lost golden facts, zero unqualified sensitive claims, and zero validation errors; the candidate is staged as an unapproved cockpit artifact | Pass; exact approval/publication to working Workspace Context pending |
 | Clean separate-organization rehearsal | Created empty `developers-at-guild/marketing-os-clean-rehearsal-20260728` and opened it in Guild. Private user-owned Launcher returned zero Agent Hub results and cross-owner installation was rejected by the Guild service. Production packages remained private. | **Blocked on supported organization-private sharing, organization-owned rehearsal copies, or staged public visibility** |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
 | Public Agent Hub visibility | All packages remain private | **Blocked until every prior gate passes** |
@@ -49,8 +49,8 @@ The explicit suite-binding decision is recorded in
    resume, handoff, export, confirmed deletion in a disposable Chat, missing
    package, timeout, malformed output, stale context, hostile request, and
    ambiguity.
-4. Prepare the selected compressed brief as an approved Company Context
-   artifact and publish it only after the exact two-step user gate.
+4. Review the staged compressed Company Context artifact, approve its exact
+   revision, and publish it only after the separate exact confirmation phrase.
 5. Resolve private cross-owner package availability, then complete the
    existing empty `developers-at-guild/marketing-os-clean-rehearsal-20260728`
    rehearsal through the normal Agent Hub and Launcher onboarding path.

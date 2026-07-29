@@ -131,3 +131,41 @@ The selected brief is
 `scripts/fixtures/context-benchmark/compressed.md`. The working-alpha Workspace
 Context was not changed. Publication still requires an approved Company
 Context artifact revision and the exact second-step user confirmation.
+
+## Final serial confirmation and staged draft
+
+The candidate was revised to preserve the exact approved HIPAA sentence and
+rerun from the final hardened sources. A parallel compressed-only attempt in
+`_private/context-benchmark/2026-07-29T02-57-49-493Z` returned six complete
+routes; Branding did not start because the Guild CLI timed out while waiting
+for input. That infrastructure failure remains retained and was not counted as
+a product pass.
+
+The serial rerun in
+`_private/context-benchmark/2026-07-29T03-01-15-148Z` removed that concurrency
+variable:
+
+| Metric | Result |
+| --- | --- |
+| Approximate tokens | 1,805 |
+| Contract-complete routes | 7/7 |
+| Lost golden facts | None |
+| Unqualified sensitive claims | 0 |
+| Validation errors | 0 |
+
+The seven final session IDs are:
+
+- Market Signal: `019fabd2-01de-f268-0000-cd260576d02b`
+- ICP: `019fabd2-db26-f268-0000-e78b22065c9f`
+- Audience Segmentation: `019fabd3-cbc8-f268-0000-28857c857e56`
+- Messaging: `019fabd4-a6c9-f268-0000-6515f1fcdde7`
+- Branding And Pitch Deck: `019fabd6-03df-f268-0000-c2a3bc72cf15`
+- Social Monitoring And Content: `019fabd6-f27c-f268-0000-3f15611ea5b5`
+- Campaigns And Paid Media: `019fabd8-3139-f268-0000-766272b0a8c0`
+
+The selected brief was then submitted through Launcher in ordinary Guild Chat
+as a draft-only Company Context review request. Session
+`019fabed-94ba-351a-0000-c6a378215553` stored artifact
+`3c889861-0603-4328-8424-13d5f24d5009` revision 1 and left it
+`needs_input`. It did not approve or publish the candidate. The working
+Workspace Context revision remained unchanged.

@@ -70,8 +70,8 @@ Builder runtime dependency on those integrations.
 
 All packages remained private during validation:
 
-- Launcher `0.3.8` is the workspace default.
-- Company Context Builder is `1.2.0`.
+- Launcher `0.3.13` is the workspace default.
+- Company Context Builder is `1.2.4`.
 - All seven specialists are `1.2.6`.
 - Every package has automatic updates enabled.
 
@@ -100,6 +100,19 @@ router table, state transitions, repair retention, approval, export, deletion,
 context publication, safety policy, evidence modes, catalog shape, and legacy
 compatibility checks.
 
+Company Context staging then passed in a fresh normal Chat,
+`019fabed-94ba-351a-0000-c6a378215553`. Launcher invoked only Builder
+`1.2.4`, returned the complete validated packet to the originating Chat, and
+stored cockpit artifact `3c889861-0603-4328-8424-13d5f24d5009` revision 1.
+The result was `needs_input`, `source_supplied`, and `draft_only`; it recorded
+`approved_in_session: false`, `saved_to_context_artifacts: true`, and
+`saved_to_workspace_context: false`.
+
+The live Workspace Context revision remained
+`019f10b8-0faa-9b1f-0000-0f14b2f84fea`. This proves the browser-visible draft
+and import portion of the Company Context lifecycle without exercising the
+separate approval/publication mutation.
+
 ## Architecture Decision
 
 Guild-only is the selected public V1 architecture, subject to the honest
@@ -119,7 +132,9 @@ Before any package becomes public:
    separate-organization installation and concurrency rehearsal;
 2. complete unaffiliated design-partner acceptance with no maintainer CLI
    intervention;
-3. select the compact Workspace Context variant and run its exact two-step
-   approval/publication gate;
+3. approve the staged compact Workspace Context artifact and run its exact
+   second-step publication gate;
 4. complete the customer-facing confirmed-deletion rehearsal;
-5. rerun the complete public release evidence matrix in those organizations.
+5. prove live Workspace Context publication and rollback with a deliberately
+   approved artifact; and
+6. rerun the complete public release evidence matrix in those organizations.
