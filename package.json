@@ -19,6 +19,7 @@
     "test:agent-builds": "node scripts/test-agent-builds.mjs",
     "test:launcher-routing": "node scripts/test-launcher-routing.mjs",
     "test:launcher-cockpit": "node scripts/test-launcher-cockpit.mjs",
+    "bootstrap:guild-private-rehearsal": "node scripts/bootstrap-guild-private-rehearsal.mjs",
     "test:state-adapter": "npm test --prefix services/guild-marketing-os-state",
     "test:state-postgres": "npm run test:postgres:integration --prefix services/guild-marketing-os-state",
     "test:foundation-state": "node scripts/test-foundation-state.mjs",

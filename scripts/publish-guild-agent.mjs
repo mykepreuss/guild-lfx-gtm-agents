@@ -267,7 +267,7 @@ function assertGuildReady() {
 }
 
 function resolveTargets(catalog) {
-  const packages = dedupePackages([catalog.entrypoint, ...(catalog.agents ?? [])].filter(Boolean));
+  const packages = dedupePackages([...(catalog.agents ?? []), catalog.entrypoint].filter(Boolean));
   if (args.all) return packages;
 
   const selector = args.agent;
