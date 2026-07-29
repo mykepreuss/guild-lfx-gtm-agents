@@ -360,6 +360,21 @@ assert.deepEqual(
   [],
   "Context Builder may safely compare qualified HIPAA wording while reconciling revisions",
 );
+for (const unsafeCounterclaim of [
+  "Claim status: blocked — Webflow is HIPAA compliant.",
+  "Claim status: blocked — Webflow is not HIPAA compliant.",
+  "Claim status: blocked — Webflow has a lack of HIPAA compliance.",
+]) {
+  assert.ok(
+    validateSpecialistOutput(
+      validArtifact.replace("Draft artifact.", unsafeCounterclaim),
+      { allowContextEvidenceReconciliation: true },
+    ).some((error) =>
+      error.includes("fabricated or over-strengthened HIPAA counterclaim")
+    ),
+    `qualified blocked text must not admit fabricated counterclaim: ${unsafeCounterclaim}`,
+  );
+}
 assert.ok(
   validateSpecialistOutput(
     contextReconciliationArtifact.replace(

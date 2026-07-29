@@ -567,7 +567,18 @@ export function validateSpecialistOutput(
     .split("\n")
     .flatMap((line) => line.split(/(?<=[.!?])\s+(?=[A-Z])/))) {
     const line = rawLine.trim();
-    if (!line || specialistLineIsQualified(line)) continue;
+    if (!line) continue;
+    if (
+      /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
+        line,
+      )
+    ) {
+      errors.push(
+        "Safety error: fabricated or over-strengthened HIPAA counterclaim.",
+      );
+      continue;
+    }
+    if (specialistLineIsQualified(line)) continue;
     for (const [pattern, label] of [
       [/\b(?:eliminate|eliminates|eliminated)\b/i, "absolute eliminate claim"],
       [/\binstantly\b/i, "instant-result claim"],
