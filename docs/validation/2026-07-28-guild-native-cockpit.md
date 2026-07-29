@@ -71,7 +71,7 @@ Builder runtime dependency on those integrations.
 All packages remained private during validation:
 
 - Launcher `0.3.13` is the workspace default.
-- Company Context Builder is `1.2.4`.
+- Company Context Builder is `1.2.5`.
 - All seven specialists are `1.2.6`.
 - Every package has automatic updates enabled.
 
@@ -112,6 +112,18 @@ The live Workspace Context revision remained
 `019f10b8-0faa-9b1f-0000-0f14b2f84fea`. This proves the browser-visible draft
 and import portion of the Company Context lifecycle without exercising the
 separate approval/publication mutation.
+
+A later final-presentation check retained one fail-closed run,
+`019fabf5-671b-351a-0000-1774f946f252`, where an unqualified trust/ISO
+research-input line tripped Launcher safety. Builder `1.2.5` now makes all
+unapproved AEO/entity language conservative and labels recommended web inputs
+as review inputs.
+
+The exact fresh rerun `019fabfd-dfb0-351a-0000-185605586cc2` passed through
+Launcher `0.3.13` and Builder `1.2.5`. It displayed the corrected summary
+before the complete packet and stored artifact
+`945ceece-2a87-41cd-b7ee-5c5056ee26d4` revision 1 as `ready_for_review`.
+Workspace Context remained unchanged.
 
 ## Architecture Decision
 

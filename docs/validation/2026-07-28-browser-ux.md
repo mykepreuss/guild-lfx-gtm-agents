@@ -2,7 +2,7 @@
 
 > This record retains every failed and passing browser attempt from the July 28
 > private alpha. The final section records the fresh Guild-only acceptance pass
-> on Launcher `0.3.13`, Company Context Builder `1.2.4`, and specialists
+> on Launcher `0.3.13`, Company Context Builder `1.2.5`, and specialists
 > `1.2.6`.
 
 ## Scope
@@ -21,7 +21,7 @@ legal approval, or perform any other external marketing action.
 | Package | Live version | Default |
 | --- | --- | --- |
 | Marketing OS Launcher | 0.3.13 | yes |
-| Company Context Builder | 1.2.4 | no |
+| Company Context Builder | 1.2.5 | no |
 | Market Signal | 1.2.6 | no |
 | ICP | 1.2.6 | no |
 | Audience Segmentation | 1.2.6 | no |
@@ -38,7 +38,7 @@ The exact final version IDs are:
 | Package | Version ID |
 | --- | --- |
 | Marketing OS Launcher | `019fabef-671c-cf83-0000-ce3df809571b` |
-| Company Context Builder | `019fabeb-f817-cf83-0000-3614a4e6697d` |
+| Company Context Builder | `019fabf9-6502-cf83-0000-84c2dd6a04a9` |
 | Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
 | ICP | `019faba1-1977-cf83-0000-3278fc178485` |
 | Audience Segmentation | `019faba2-01fe-cf83-0000-e915b775cfb9` |
@@ -49,7 +49,7 @@ The exact final version IDs are:
 
 ## Company Context staging in ordinary Chat
 
-Session `019fabed-94ba-351a-0000-c6a378215553` is the passing normal-Chat
+Session `019fabed-94ba-351a-0000-c6a378215553` is the first passing normal-Chat
 Company Context lifecycle through Launcher `0.3.12` and Builder `1.2.4`.
 Launcher routed only to Company Context Builder, returned the complete
 validated Company Context Approval Packet in the originating Chat, and saved
@@ -84,11 +84,34 @@ without context publication or another external mutation:
 | `019fabe1-0fb8-351a-0000-b5c0fcbd7215` | Launcher 0.3.12 / Builder 1.2.1 | Legal-review approval wording was not explicitly review-qualified. |
 | `019fabe5-138a-351a-0000-210232c2ef31` | Builder 1.2.2 | Review-required facts and multiline blocked claims were promoted into unqualified lines. |
 | `019fabea-4876-351a-0000-4ab46eb8dc29` | Builder 1.2.3 | One claim inside the blocked collection retained a non-blocked model status. |
+| `019fabf5-671b-351a-0000-1774f946f252` | Launcher 0.3.13 / Builder 1.2.4 | A suggested trust/ISO research input was rendered without an explicit review qualifier and therefore failed Launcher safety validation. |
 
-Launcher `0.3.13` then made a presentation-only improvement: the summary uses
-the artifact title `Company Context Approval Packet` and omits the internal
+Launcher `0.3.13` made the summary use the artifact title
+`Company Context Approval Packet` and omit the internal
 `Save And Approval State` subsection from the customer-facing included-section
-list. The complete automated suite passed after this change.
+list. Builder `1.2.5` made unapproved AEO/entity language conservative and
+rendered recommended web inputs explicitly `for review`.
+
+The final fresh normal-Chat rerun,
+`019fabfd-dfb0-351a-0000-185605586cc2`, passed with Launcher `0.3.13` and
+Builder `1.2.5`. Its summary showed:
+
+- `Draft: Company Context Approval Packet`;
+- `Review state: Ready for review`;
+- `Evidence: source supplied`;
+- the six relevant included artifact sections;
+- `Saved artifact: Revision 1`; and
+- one next action to review Builder artifact revision 1.
+
+The old summary label was absent. The complete validated packet retained
+`Recommended web inputs for review` and
+`Entity clarity: Draft entity clarity pending approved evidence.` It saved
+artifact `945ceece-2a87-41cd-b7ee-5c5056ee26d4` revision 1 from workflow run
+`ec946679-f3dc-450a-bcbf-71c49f8889dc`.
+
+The live Workspace Context was still
+`019f10b8-0faa-9b1f-0000-0f14b2f84fea` after this final rerun. No approval or
+publication occurred.
 
 ## Final Guild-only acceptance
 

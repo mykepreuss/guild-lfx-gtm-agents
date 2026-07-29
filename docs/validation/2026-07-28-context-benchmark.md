@@ -169,3 +169,9 @@ as a draft-only Company Context review request. Session
 `3c889861-0603-4328-8424-13d5f24d5009` revision 1 and left it
 `needs_input`. It did not approve or publish the candidate. The working
 Workspace Context revision remained unchanged.
+
+The final UX-verification rerun on Builder `1.2.5`,
+`019fabfd-dfb0-351a-0000-185605586cc2`, staged the same candidate as
+artifact `945ceece-2a87-41cd-b7ee-5c5056ee26d4` revision 1 with
+`ready_for_review` status. It still did not approve or publish the candidate,
+and the working Workspace Context revision remained unchanged.
