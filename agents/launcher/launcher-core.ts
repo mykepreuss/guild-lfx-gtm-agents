@@ -598,10 +598,30 @@ export function validateSpecialistOutput(
 export function extractApprovedHipaaConstraint(
   compiledContext: string,
 ): string | undefined {
-  const match = compiledContext.match(
-    new RegExp(approvedHipaaConstraintPattern.source, "i"),
-  );
-  return match?.[0]?.replace(/\s+/g, " ").trim() || undefined;
+  const normalized = compiledContext.replace(/\s+/g, " ").trim();
+  const markerIndex = normalized
+    .toLowerCase()
+    .indexOf("may not be hipaa compliant");
+  if (markerIndex < 0) return undefined;
+
+  const priorPeriod = normalized.lastIndexOf(". ", markerIndex);
+  const priorColon = normalized.lastIndexOf(": ", markerIndex);
+  const boundaryIndex = Math.max(priorPeriod, priorColon);
+  const sentenceStart = boundaryIndex >= 0 ? boundaryIndex + 2 : 0;
+  const sentenceEnd = normalized.indexOf(".", markerIndex);
+  if (sentenceEnd < 0) return undefined;
+
+  const candidate = normalized
+    .slice(sentenceStart, sentenceEnd + 1)
+    .replace(/^[-*]\s*/, "")
+    .trim();
+  if (
+    !/\bmay not be HIPAA compliant\b/i.test(candidate) ||
+    !/\bProtected Health Information\b|\bPHI\b/i.test(candidate)
+  ) {
+    return undefined;
+  }
+  return candidate;
 }
 
 export function onlyFormatErrors(errors: string[]): boolean {

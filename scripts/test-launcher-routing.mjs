@@ -50,13 +50,15 @@ const routingCases = [
 ];
 
 const expectedHipaaConstraint =
-  "Webflow may not be HIPAA compliant, and customers should not provide Protected Health Information / PHI through the platform.";
+  "Webflow’s official terms explicitly state that the platform may not be HIPAA compliant and that customers do not provide Protected Health Information (PHI) through the platform.";
 const compiledHipaaContext = `
 <!-- guild-marketing-os-context:start -->
 Status: published
 ## Workspace Context Brief
-Preserve this exact nuance: Webflow may not be HIPAA compliant, and customers
-should not provide Protected Health Information / PHI through the platform.
+- HIPAA Constraint (Critical Nuance): Webflow’s official terms explicitly state
+  that the platform may not be HIPAA compliant and that customers do not provide
+  Protected Health Information (PHI) through the platform. Downstream workflows
+  must preserve this exact wording.
 <!-- guild-marketing-os-context:end -->
 `;
 assert.equal(
