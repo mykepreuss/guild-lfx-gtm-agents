@@ -1445,7 +1445,13 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     }
   }
 
-  output.approvalGates = mergeApprovalGates(output.approvalGates);
+  output.approvalGates = mergeApprovalGates(
+    output.approvalGates.filter((gate) =>
+      [gate.decision, gate.requiredBefore].every((value) =>
+        preservesQualifiedHipaaNuance(value, rawContext)
+      )
+    ),
+  );
   for (const claim of collectSensitiveOutputClaims(output)) {
     blockedClaims.push(sensitiveClaimGuardrail(claim));
     claimsNeedingApproval.push(sensitiveClaimNeedsApproval(claim));
@@ -3324,7 +3330,7 @@ export function preservesQualifiedHipaaNuance(
   if (!/\bmay not be HIPAA compliant\b/i.test(rawContext)) {
     return true;
   }
-  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
+  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA (?:compliance|compatibility|certification)\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA (?:compliant|compatible|certified)\b|\bnot HIPAA (?:compliant|compatible|certified)\b|\bHIPAA[- ](?:noncompliant|incompatible)\b/i.test(
     claim,
   );
 }
@@ -3360,6 +3366,7 @@ function mergeDefaultConstraints(values: readonly string[]): string[] {
     if (!trimmed) continue;
     const key = trimmed
       .toLowerCase()
+      .replace(/^no\s+/, "")
       .replace(/[.!?]+$/, "")
       .replace(/\s+/g, " ");
     if (normalized.has(key)) continue;

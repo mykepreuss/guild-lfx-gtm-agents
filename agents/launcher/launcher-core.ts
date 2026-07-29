@@ -569,7 +569,7 @@ export function validateSpecialistOutput(
     const line = rawLine.trim();
     if (!line) continue;
     if (
-      /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i.test(
+      /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA (?:compliance|compatibility|certification)\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA (?:compliant|compatible|certified)\b|\bnot HIPAA (?:compliant|compatible|certified)\b|\bHIPAA[- ](?:noncompliant|incompatible)\b/i.test(
         line,
       )
     ) {

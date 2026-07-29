@@ -364,6 +364,7 @@ for (const unsafeCounterclaim of [
   "Claim status: blocked — Webflow is HIPAA compliant.",
   "Claim status: blocked — Webflow is not HIPAA compliant.",
   "Claim status: blocked — Webflow has a lack of HIPAA compliance.",
+  "Claim status: blocked — Review the lack of HIPAA compatibility warning.",
 ]) {
   assert.ok(
     validateSpecialistOutput(

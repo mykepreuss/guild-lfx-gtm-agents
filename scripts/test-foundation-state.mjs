@@ -388,12 +388,53 @@ function guildChatEnvelope(text) {
   const blockedActionKeys =
     harness.readState().lastOutput.contextArtifacts.channelRegistry.blockedActions
       .map((value) =>
-        value.toLowerCase().replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+        value.toLowerCase().replace(/^no\s+/, "").replace(/[.!?]+$/, "").replace(/\s+/g, " ")
       );
   assert.equal(
     new Set(blockedActionKeys).size,
     blockedActionKeys.length,
-    "blocked actions should not repeat because of punctuation variants",
+    "blocked actions should not repeat because of punctuation, casing, or a leading No variant",
+  );
+
+  const unsafeGeneratedOutput = structuredClone(harness.readState().lastOutput);
+  unsafeGeneratedOutput.approvalGates.unshift({
+    ownerRole: "Marketing Compliance Officer",
+    decision:
+      "Approve pricing claims and lack of HIPAA compatibility warning before reuse.",
+    requiredBefore: "Downstream draft creation.",
+    status: "needed",
+  });
+  unsafeGeneratedOutput.contextArtifacts.channelRegistry.blockedActions.push(
+    "live publishing",
+    "scheduling",
+    "paid media spend",
+    "CRM activation",
+    "credential setup",
+  );
+  const hardenedHarness = createTask({
+    sessionId: "foundation-hardened-generated-output",
+    workspaceReadMode: "missing",
+    llmText: JSON.stringify(unsafeGeneratedOutput),
+  });
+  const hardenedDraft = await foundationAgent.start(
+    { type: "text", text: source },
+    hardenedHarness.task,
+  );
+  assert.equal(hardenedDraft.type, "output");
+  assert.doesNotMatch(
+    hardenedDraft.output.text,
+    /lack of HIPAA compatibility/i,
+    "Builder must remove over-strengthened HIPAA wording from generated approval gates",
+  );
+  const hardenedBlockedActionKeys =
+    hardenedHarness.readState().lastOutput.contextArtifacts.channelRegistry.blockedActions
+      .map((value) =>
+        value.toLowerCase().replace(/^no\s+/, "").replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+      );
+  assert.equal(
+    new Set(hardenedBlockedActionKeys).size,
+    hardenedBlockedActionKeys.length,
+    "Builder must collapse affirmative and leading-No forms of the same blocked action",
   );
 
   const prematureApproval = await foundationAgent.start(
@@ -520,8 +561,10 @@ for (const strengthenedClaim of [
   "Webflow is HIPAA compliant.",
   "Webflow is explicitly not HIPAA compliant.",
   "Key constraints include lack of HIPAA compliance.",
+  "Review the lack of HIPAA compatibility warning.",
   "Protected Health Information is prohibited (not HIPAA compliant).",
   "Webflow is HIPAA-noncompliant.",
+  "Webflow is HIPAA-incompatible.",
 ]) {
   assert.equal(
     preservesQualifiedHipaaNuance(
