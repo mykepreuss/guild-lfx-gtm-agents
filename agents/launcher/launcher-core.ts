@@ -224,6 +224,26 @@ function deterministicRouteDecision(
     return { route: "company_context", reason: "clear_context_setup_intent" };
   }
 
+  const suppliedContextFieldCount = [
+    /\bcompany description\s*:/i,
+    /\bprimary audiences?\s*:/i,
+    /\b(?:current )?marketing goals?\s*:/i,
+    /\bapproved claims?\s*:/i,
+    /\bchannels? in scope\s*:/i,
+    /\bimportant constraints?\s*:/i,
+  ].filter((pattern) => pattern.test(routingText)).length;
+  if (
+    suppliedContextFieldCount >= 2 ||
+    /\b(?:set up|setup|configure|prepare|initialize)\s+(?:the\s+)?marketing os\s+for\s+(?!(?:this|our|my|the|a)\s+workspace\b|onboarding\b|installation\b)\S/i.test(
+      routingText,
+    )
+  ) {
+    return {
+      route: "company_context",
+      reason: "company_context_for_company_intent",
+    };
+  }
+
   if (
     /\b(?:marketing os|workstreams?|cockpit)\b[\s\S]{0,80}\b(?:status|progress|resume|next action|what(?:'s| is) next)\b/i.test(
       routingText,

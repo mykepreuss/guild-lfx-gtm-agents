@@ -58,6 +58,19 @@ const routingCases = [
   ["Show cockpit progress", "cockpit"],
   ["Approve Messaging artifact revision 1", "cockpit"],
   ["Set up the Marketing OS company context", "company_context"],
+  ["Set up Marketing OS for Webflow.", "company_context"],
+  [
+    [
+      "Set up Marketing OS for Webflow.",
+      "",
+      "Company description:",
+      "Webflow helps teams build and manage websites.",
+      "",
+      "Primary audiences:",
+      "Enterprise marketing leaders and web teams.",
+    ].join("\n"),
+    "company_context",
+  ],
   [
     "Prepare a new Company Context Approval Packet from this candidate brief.",
     "company_context",
