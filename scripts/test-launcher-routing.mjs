@@ -213,6 +213,32 @@ assert.equal(
   "messaging",
   "compiled context safety language must not be classified as the user's requested action",
 );
+const guildRuntimeEnvelope = [
+  "* This session was started at 20:14:00 UTC.",
+  "* The current Guild workspace is named `marketing-os`.",
+  "* Guild frontend URL: https://app.guild.ai",
+  "* The current user with whom you're interacting has Guild username `marketer`.",
+  "",
+  "```json",
+  '{"workspace_capabilities":{"configured_integrations":[]}}',
+  "```",
+].join("\n");
+assert.equal(
+  removeCompiledWorkspaceContext(
+    `${guildRuntimeEnvelope}\n\npublish approved context to workspace context`,
+    "",
+  ),
+  "publish approved context to workspace context",
+  "Guild runtime metadata must be removed before exact publication confirmation checks",
+);
+assert.equal(
+  removeCompiledWorkspaceContext(
+    `${guildRuntimeEnvelope}\n\nSet up Marketing OS for Webflow.`,
+    "",
+  ),
+  "Set up Marketing OS for Webflow.",
+  "Guild runtime metadata must be removed before ordinary routing and delegation",
+);
 
 const validArtifact = `
 ## Consumed Context

@@ -402,11 +402,39 @@ export function removeCompiledWorkspaceContext(text: string, compiled: string): 
           /<!-- guild-marketing-os-context:start -->[\s\S]*?<!-- guild-marketing-os-context:end -->/gi,
           "\n",
         );
-  if (!compiled.trim()) return withoutManagedBlock.trim();
-  return withoutManagedBlock
-    .split(compiled)
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
+  const withoutCompiledContext = compiled.trim()
+    ? withoutManagedBlock
+        .split(compiled)
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+    : withoutManagedBlock;
+  return stripGuildRuntimeEnvelope(withoutCompiledContext);
+}
+
+function stripGuildRuntimeEnvelope(text: string): string {
+  const trimmed = text.trim();
+  if (!/^\* This session was started at\b/i.test(trimmed)) {
+    return trimmed;
+  }
+  const capabilityFence =
+    /```json\s*\{\s*"workspace_capabilities"\s*:[\s\S]*?```\s*/i.exec(
+      trimmed,
+    );
+  if (!capabilityFence || capabilityFence.index === undefined) {
+    return trimmed;
+  }
+  const runtimePrefix = trimmed.slice(0, capabilityFence.index);
+  const runtimeSignals = [
+    /\* This session was started at\b/i,
+    /\* The current Guild workspace is named\b/i,
+    /\* Guild frontend URL:/i,
+    /\* The current user with whom you're interacting\b/i,
+  ].filter((pattern) => pattern.test(runtimePrefix)).length;
+  if (runtimeSignals < 2) {
+    return trimmed;
+  }
+  return trimmed
+    .slice(capabilityFence.index + capabilityFence[0].length)
     .trim();
 }
 

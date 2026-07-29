@@ -45,7 +45,7 @@ Current private package versions:
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.26` |
+| Marketing OS Launcher | `0.3.27` |
 | Company Context Builder | `1.2.15` |
 | Market Signal | `1.2.6` |
 | ICP | `1.2.6` |
@@ -95,7 +95,7 @@ the marketer journey.
 | Progressive-disclosure rerun | Fixed; rerun required | Session `019faf77-6990-351a-0000-960d21298474` produced a review-ready Builder packet, but Launcher `0.3.24` treated the word “faster” inside four explicitly labeled marketing-goal fields as an unqualified performance claim. Launcher `0.3.25` keeps ordinary specialist safety strict while treating goal fields as intentions only during Company Context reconciliation. |
 | Launcher `0.3.25` rerun | Pass | Session `019faf7d-5e2f-351a-0000-9235c84b9d47` returned the unchanged Webflow packet as `Ready for review`, said the baseline is complete enough to power specialist drafts, preserved the goal and constraints, retained artifact `33bf29ac-41cf-4def-994b-36b600a8114f` revision 1, and presented the exact approval command prominently. |
 | Artifact approval | Pass with receipt fix | The exact command approved artifact `33bf29ac-41cf-4def-994b-36b600a8114f` revision 1 in session `019faf7d-5e2f-351a-0000-9235c84b9d47`; the response explicitly authorized only the stored draft and confirmed Workspace Context was unchanged. Launcher `0.3.25` included Guild runtime metadata in the displayed/stored “Exact approval text.” Launcher `0.3.26` extracts only the user’s approval line, with a regression test using the live runtime envelope. The valid approval is retained; the marketer is not asked to redo it. |
-| Workspace Context publication | Pending | Publish only the approved compact brief with the existing exact phrase. |
+| Workspace Context publication | Fixed; fresh-flow rerun required | Two exact-phrase attempts in session `019faf7d-5e2f-351a-0000-9235c84b9d47` were safely delegated to Builder instead of publishing because the session remained pinned to Launcher `0.3.25` and Guild’s runtime envelope prevented exact-command recognition. The published Workspace Context remained `019fabb4-22bf-ea2d-0000-e54c726628eb`. Launcher `0.3.27` strips the verified Guild runtime envelope before every exact-command, routing, approval, or delegation decision. A full publication regression test uses the live envelope shape and preserves the unmanaged context. Repeat the straightforward context flow once in a fresh Chat pinned to `0.3.27`. |
 | Specialist reuse without repaste | Pending | Prove in the seven representative specialist requests. |
 
 ### Specialist workflows
@@ -127,6 +127,8 @@ event records for every attempt, including failures:
   `_private/evidence/2026-07-29T20-08-16-913Z-019faf7d-5e2f-351a-0000-9235c84b9d47.json`
 - Artifact approval pass and technical receipt defect:
   `_private/evidence/2026-07-29T20-09-56-687Z-019faf7d-5e2f-351a-0000-9235c84b9d47.json`
+- Two safely rejected publication attempts:
+  `_private/evidence/2026-07-29T20-14-40-028Z-019faf7d-5e2f-351a-0000-9235c84b9d47.json`
 
 These evidence files are intentionally not committed because they contain
 private workspace transcripts. This record keeps the session IDs and the
@@ -148,6 +150,8 @@ Marketer acceptance is in progress. The setup and orientation journey passes.
 Three material Company Context usability problems were found and fixed. The
 unchanged progressive-disclosure rerun now passes in the browser. Artifact
 approval also passed; its technical receipt noise is fixed in Launcher
-`0.3.26` without requiring the marketer to redo the valid approval. Workspace
-Context publication, context reuse, and all seven specialist workflows remain
-required before this record can be marked complete.
+`0.3.26`. The same runtime-envelope defect also prevented the exact publication
+phrase from being recognized in the version-pinned Chat; Launcher `0.3.27`
+fixes the shared input boundary. A single fresh context flow, Workspace Context
+publication, context reuse, and all seven specialist workflows remain required
+before this record can be marked complete.

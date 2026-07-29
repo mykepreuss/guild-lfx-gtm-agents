@@ -616,6 +616,16 @@ function launcherInput(request, context = managedContext) {
 }
 
 {
+  const runtimeEnvelope = [
+    "* This session was started at 20:14:00 UTC.",
+    "* The current Guild workspace is named `marketing-os`.",
+    "* Guild frontend URL: https://app.guild.ai",
+    "* The current user with whom you're interacting has Guild username `marketer`.",
+    "",
+    "```json",
+    '{"workspace_capabilities":{"configured_integrations":[]}}',
+    "```",
+  ].join("\n");
   const chat = createChat({
     sessionId: "canonical-context-publication",
     specialist: async () => ({
@@ -626,20 +636,29 @@ function launcherInput(request, context = managedContext) {
   const generated = await launcher.run(
     launcherInput(
       "Set up the Marketing OS company context from the supplied Example Co packet.",
+      runtimeEnvelope,
     ),
     chat.task,
   );
   assert.match(generated.text, /Handled by: Company Context Builder/);
+  assert.doesNotMatch(
+    chat.specialistInputs[0].text,
+    /This session was started/,
+  );
   const approved = await launcher.run(
     launcherInput(
       "Approve Company Context Builder artifact revision 1.",
+      runtimeEnvelope,
     ),
     chat.task,
   );
   assert.match(approved.text, /Workspace Context is still unchanged/);
 
   const published = await launcher.run(
-    launcherInput("publish approved context to workspace context"),
+    launcherInput(
+      "publish approved context to workspace context",
+      runtimeEnvelope,
+    ),
     chat.task,
   );
   assert.match(published.text, /is now published in Guild/);
@@ -654,7 +673,10 @@ function launcherInput(request, context = managedContext) {
   assert.equal(chat.readState().published_context_id, "context-2");
 
   const repeated = await launcher.run(
-    launcherInput("publish approved context to workspace context"),
+    launcherInput(
+      "publish approved context to workspace context",
+      runtimeEnvelope,
+    ),
     chat.task,
   );
   assert.match(repeated.text, /was already published in Guild/);
