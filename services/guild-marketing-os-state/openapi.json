@@ -1,0 +1,1428 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Guild Marketing OS State Service",
+    "version": "1.0.0",
+    "description": "Tenant-bound durable state for the draft-only Guild Marketing OS cockpit. Organization, workspace, actor, session, task, and scopes are derived only from a verified Guild delegated-identity JWT. Request bodies must not be trusted as a tenant source.",
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://replace-after-managed-deployment.example",
+      "description": "Replace only after the managed deployment passes its security gates."
+    }
+  ],
+  "security": [
+    {
+      "guildDelegatedIdentity": []
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthCheck",
+        "summary": "Read process health",
+        "security": [],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "readinessCheck",
+        "summary": "Read database readiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/context": {
+      "get": {
+        "operationId": "getContextSnapshot",
+        "summary": "Read the current published context snapshot",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/context/publish": {
+      "post": {
+        "operationId": "publishContextSnapshot",
+        "summary": "Publish an approved compact context revision",
+        "description": "Requires the separate marketing_os.context.publish delegated scope. The server validates the approved artifact, expected current revision, idempotency key, and exact approval phrase before invoking a workspace-scoped Guild publisher.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishContextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/sources": {
+      "post": {
+        "operationId": "storeSource",
+        "summary": "Store an encrypted raw-source revision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/sources/{sourceId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SourceId"
+        }
+      ],
+      "get": {
+        "operationId": "getSource",
+        "summary": "Read one source revision",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Revision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSource",
+        "summary": "Purge every encrypted revision of one source",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/sources/{sourceId}/revisions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SourceId"
+        }
+      ],
+      "post": {
+        "operationId": "reviseSource",
+        "summary": "Create a new encrypted revision of a source",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/artifacts": {
+      "post": {
+        "operationId": "storeArtifact",
+        "summary": "Store the first revision of a draft-only artifact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreArtifactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{artifactId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ArtifactId"
+        }
+      ],
+      "get": {
+        "operationId": "getArtifact",
+        "summary": "Read one artifact revision",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Revision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{artifactId}/revisions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ArtifactId"
+        }
+      ],
+      "post": {
+        "operationId": "reviseArtifact",
+        "summary": "Create a new artifact revision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseArtifactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{artifactId}/status": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ArtifactId"
+        }
+      ],
+      "post": {
+        "operationId": "setArtifactStatus",
+        "summary": "Apply a valid non-approval artifact status transition",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{artifactId}/approve": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ArtifactId"
+        }
+      ],
+      "post": {
+        "operationId": "approveArtifact",
+        "summary": "Approve a ready-for-review artifact revision",
+        "description": "The approval actor is taken from the verified JWT, never the request body.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveArtifactRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/workstreams/{specialist}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/Specialist"
+        }
+      ],
+      "get": {
+        "operationId": "getWorkstream",
+        "summary": "Read one specialist workstream",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateWorkstream",
+        "summary": "Create or revise one specialist workstream",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkstreamRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/handoffs": {
+      "post": {
+        "operationId": "createHandoff",
+        "summary": "Create an explicit cross-agent handoff",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/handoffs/{handoffId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/HandoffId"
+        }
+      ],
+      "put": {
+        "operationId": "updateHandoff",
+        "summary": "Revise a handoff completion state",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHandoffRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/runs": {
+      "post": {
+        "operationId": "createWorkflowRun",
+        "summary": "Create a durable Launcher workflow run",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkflowRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listWorkflowRuns",
+        "summary": "List durable Launcher workflow runs",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/runs/{runId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/RunId"
+        }
+      ],
+      "get": {
+        "operationId": "getWorkflowRun",
+        "summary": "Read a workflow run with every invocation attempt",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateWorkflowRun",
+        "summary": "Update workflow status, artifact, error, and handoff state",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkflowRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/runs/{runId}/attempts": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/RunId"
+        }
+      ],
+      "post": {
+        "operationId": "recordWorkflowAttempt",
+        "summary": "Append an immutable initial or format-repair invocation attempt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordWorkflowAttemptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/Success"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "operationId": "getAuditTrail",
+        "summary": "Read the immutable tenant audit trail",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/export": {
+      "get": {
+        "operationId": "exportWorkspace",
+        "summary": "Export all retained Marketing OS workspace data",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/workspace": {
+      "delete": {
+        "operationId": "deleteWorkspace",
+        "summary": "Purge Marketing OS workspace data and return a deletion receipt",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteWorkspaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Success"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "guildDelegatedIdentity": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "A short-lived Guild-signed delegated identity JWT whose verified claims bind organization, workspace, actor, session, task, and scopes."
+      }
+    },
+    "parameters": {
+      "SourceId": {
+        "name": "sourceId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ArtifactId": {
+        "name": "artifactId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "HandoffId": {
+        "name": "handoffId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "RunId": {
+        "name": "runId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "Specialist": {
+        "name": "specialist",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "Revision": {
+        "name": "revision",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "responses": {
+      "Success": {
+        "description": "Successful operation",
+        "headers": {
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "no-store"
+              ]
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "Error": {
+        "description": "Fail-closed error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "IdempotencyKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255
+      },
+      "PositiveRevision": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "EvidenceEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "source_supplied",
+              "connected_read_only",
+              "live_monitoring"
+            ]
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source_coverage": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_revision_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SafetyEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "action_mode": {
+            "type": "string",
+            "enum": [
+              "draft_only"
+            ],
+            "default": "draft_only"
+          },
+          "external_mutation_requested": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "default": false
+          },
+          "blocked_actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unsupported_claims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PublishContextRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "artifact_id",
+          "artifact_revision",
+          "expected_current_revision",
+          "approval_text",
+          "compiled_brief"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "expected_current_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          },
+          "approval_text": {
+            "type": "string",
+            "enum": [
+              "publish approved context to workspace context"
+            ]
+          },
+          "compiled_brief": {
+            "type": "string",
+            "minLength": 1
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "source_references": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "freshness": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "StoreSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "raw_source"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "raw_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/EvidenceEntry"
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ReviseSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "raw_source"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "raw_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/EvidenceEntry"
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "DeleteSourceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "confirmation_text"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "confirmation_text": {
+            "type": "string",
+            "description": "Must equal: delete source {sourceId}"
+          }
+        }
+      },
+      "StoreArtifactRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "artifact_type",
+          "markdown_body"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "artifact_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "markdown_body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "consumed_context_revision": {
+            "type": "string"
+          },
+          "consumed_source_revisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceEntry"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready_for_review",
+              "blocked"
+            ],
+            "default": "draft"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ReviseArtifactRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "artifact_type",
+          "markdown_body"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "artifact_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "markdown_body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "consumed_context_revision": {
+            "type": "string"
+          },
+          "consumed_source_revisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceEntry"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready_for_review",
+              "blocked"
+            ],
+            "default": "draft"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/SafetyEnvelope"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ArtifactStatusRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "revision",
+          "expected_revision",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "ready_for_review",
+              "superseded",
+              "blocked"
+            ]
+          }
+        }
+      },
+      "ApproveArtifactRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "revision",
+          "expected_revision",
+          "approval_text"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "approval_text": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "UpdateWorkstreamRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "running",
+              "needs_input",
+              "ready_for_review",
+              "approved",
+              "blocked",
+              "failed"
+            ]
+          },
+          "latest_artifact_id": {
+            "type": "string"
+          },
+          "latest_artifact_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          },
+          "handoff_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateHandoffRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "source_agent",
+          "target_agent",
+          "rationale"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "handoff_id": {
+            "type": "string"
+          },
+          "source_agent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_agent": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_references": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "context_revision": {
+            "type": "string",
+            "nullable": true
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "completion_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "blocked",
+              "failed"
+            ],
+            "default": "pending"
+          }
+        }
+      },
+      "UpdateHandoffRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "completion_state"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "completion_state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "blocked",
+              "failed"
+            ]
+          }
+        }
+      },
+      "CreateWorkflowRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "route",
+          "specialist",
+          "package_name",
+          "package_version",
+          "input_envelope"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "route": {
+            "type": "string",
+            "minLength": 1
+          },
+          "specialist": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context_revision": {
+            "type": "string"
+          },
+          "package_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running"
+          ],
+          "default": "running"
+        },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          }
+        }
+      },
+      "RecordWorkflowAttemptRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "attempt_number",
+          "attempt_kind",
+          "package_name",
+          "package_version",
+          "input_envelope",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "attempt_number": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "attempt_kind": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "format_repair"
+            ]
+          },
+          "package_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "package_version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "context_revision": {
+            "type": "string"
+          },
+          "input_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "output_body": {
+            "type": "string"
+          },
+          "validation_errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "format_invalid",
+              "safety_failed",
+              "tool_failed"
+            ]
+          },
+          "error_code": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateWorkflowRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "expected_revision",
+          "status"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "$ref": "#/components/schemas/IdempotencyKey"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRunStatus"
+          },
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "artifact_revision": {
+            "$ref": "#/components/schemas/PositiveRevision"
+          },
+          "handoff_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "next_action": {
+            "type": "string"
+          },
+          "error_summary": {
+            "type": "string"
+          }
+        }
+      },
+      "WorkflowRunStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "needs_input",
+          "ready_for_review",
+          "approved",
+          "blocked",
+          "failed"
+        ],
+        "default": "running"
+      },
+      "DeleteWorkspaceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirmation_text"
+        ],
+        "properties": {
+          "confirmation_text": {
+            "type": "string",
+            "enum": [
+              "delete marketing os workspace data"
+            ]
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

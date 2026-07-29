@@ -52,6 +52,7 @@ function publishTarget(target, message) {
     console.log(`\n== ${target.guildName} ==`);
     run("guild", ["agent", "clone", `${owner}~${target.guildName}`, "--directory", tempDir], { cwd: rootDir });
     syncPackageFiles(target.packageDir, tempDir);
+    applyTargetOwnerBinding(target, tempDir);
 
     run("npm", ["install"], { cwd: tempDir });
     run("npm", ["run", "build"], { cwd: tempDir });
@@ -79,6 +80,74 @@ function publishTarget(target, message) {
   }
 }
 
+function applyTargetOwnerBinding(target, tempDir) {
+  const packageJsonPath = path.join(tempDir, "package.json");
+  const packageJson = readJson(packageJsonPath);
+  packageJson.name = `@guildai/${owner}~${target.guildName}`;
+  fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  run("git", ["add", "--", "package.json"], { cwd: tempDir });
+
+  if (target.id !== "launcher") return;
+
+  const catalog = readCatalog();
+  const capabilityPackages = (catalog.agents ?? []).map((candidate) => {
+    const output = run(
+      "guild",
+      ["agent", "get", `${owner}~${candidate.guildName}`],
+      { cwd: rootDir, quiet: true },
+    ).stdout;
+    const remoteAgent = JSON.parse(output);
+    if (!remoteAgent.id || !remoteAgent.viewer_can_edit) {
+      throw new Error(
+        `Cannot bind Launcher to ${owner}~${candidate.guildName}: editable organization package not found.`,
+      );
+    }
+    return {
+      ...candidate,
+      agentId: remoteAgent.id,
+    };
+  });
+
+  const bindingPath = path.join(tempDir, "suite-binding.ts");
+  fs.writeFileSync(
+    bindingPath,
+    renderLauncherSuiteBinding(owner, capabilityPackages),
+  );
+  run("git", ["add", "--", "suite-binding.ts"], { cwd: tempDir });
+}
+
+function renderLauncherSuiteBinding(bindingOwner, capabilityPackages) {
+  const routeById = {
+    "foundation-setup": "company_context",
+    "market-signal": "market_signal",
+    icp: "icp",
+    "audience-segmentation": "audience_segmentation",
+    messaging: "messaging",
+    "branding-pitch-deck": "branding_pitch_deck",
+    "social-monitoring-content": "social_monitoring_content",
+    "campaigns-paid-media": "campaigns_paid_media",
+  };
+  const records = capabilityPackages.map((candidate) => {
+    const route = routeById[candidate.id];
+    if (!route) {
+      throw new Error(`No Launcher route binding exists for ${candidate.id}.`);
+    }
+    return [
+      `  ${route}: {`,
+      `    packageName: ${JSON.stringify(candidate.guildName)},`,
+      `    qualifiedName: ${JSON.stringify(`${bindingOwner}~${candidate.guildName}`)},`,
+      `    agentId: ${JSON.stringify(candidate.agentId)},`,
+      "  },",
+    ].join("\n");
+  });
+  return [
+    "export const suitePackageBindings = {",
+    ...records,
+    "} as const;",
+    "",
+  ].join("\n");
+}
+
 function syncPackageFiles(packageDir, tempDir) {
   clearTempPackage(tempDir);
   const trackedFiles = run("git", ["ls-files", packageDir], { cwd: rootDir, quiet: true }).stdout
@@ -91,13 +160,20 @@ function syncPackageFiles(packageDir, tempDir) {
     throw new Error(`No tracked package files found for ${packageDir}.`);
   }
 
+  const copiedFiles = [];
   for (const file of trackedFiles) {
     const relative = path.relative(packageDir, file);
     const source = path.join(rootDir, file);
     const destination = path.join(tempDir, relative);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(source, destination);
+    copiedFiles.push(relative);
   }
+
+  // `guild agent save --all` intentionally ignores untracked files. Stage the
+  // exact monorepo-owned package files so newly added modules are included in
+  // the Guild version without staging generated guild.json or local metadata.
+  run("git", ["add", "--", ...copiedFiles], { cwd: tempDir });
 }
 
 function clearTempPackage(tempDir) {
@@ -191,7 +267,7 @@ function assertGuildReady() {
 }
 
 function resolveTargets(catalog) {
-  const packages = dedupePackages([catalog.entrypoint, ...(catalog.agents ?? [])].filter(Boolean));
+  const packages = dedupePackages([...(catalog.agents ?? []), catalog.entrypoint].filter(Boolean));
   if (args.all) return packages;
 
   const selector = args.agent;
@@ -286,9 +362,13 @@ function printUsage() {
 Usage:
   npm run publish:guild-agent -- --agent foundation-setup --message "Publish company context builder updates"
   npm run publish:guild-agent -- --all --message "Publish Guild Marketing OS agents"
+  npm run publish:guild-agent -- --agent foundation-setup --owner <organization> --workspace <organization>/<workspace> --dry-run
 
 This command must run from the GitHub monorepo root after changes are committed and pushed.
 It publishes through a temporary Guild clone so the monorepo remote is never used as a Guild agent remote.
 Internally, it runs guild agent clone and guild agent save only from that temporary Guild clone.
+For a non-default owner, package metadata is rebound to that owner. Launcher
+publishing also resolves the eight editable capability package IDs and emits a
+static owner-specific allowlist into the temporary Guild clone.
 `.trim());
 }

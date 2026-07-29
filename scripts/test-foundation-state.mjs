@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -6,7 +7,10 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 
 const rootDir = process.cwd();
-const fixturePath = path.join(rootDir, "scripts/fixtures/webflow-company-profile.md");
+const fixturePath = path.join(
+  rootDir,
+  "scripts/fixtures/webflow-company-profile.md",
+);
 const fixture = fs.readFileSync(fixturePath, "utf8");
 const foundationDir = path.join(rootDir, "agents/foundation-setup");
 
@@ -15,7 +19,6 @@ const build = spawnSync("npm", ["run", "build"], {
   encoding: "utf8",
   maxBuffer: 20 * 1024 * 1024,
 });
-
 if (build.status !== 0) {
   process.stderr.write(`${build.stdout ?? ""}${build.stderr ?? ""}`);
   process.exit(build.status ?? 1);
@@ -27,426 +30,773 @@ const {
   stripCitationMarkers,
   removeFencedBlocks,
   convertMarkdownTablesToBullets,
+  isSensitiveClaim,
+  normalizeBlockedClaims,
+  preservesQualifiedHipaaNuance,
   replaceManagedWorkspaceContextBlock,
+  sourceEvidenceLabelsAllowReuse,
 } = await import(path.join(foundationDir, "dist/agent.js"));
 
-let state;
-let createdContextBody = "";
-let bridgePublishInput;
-let bridgePublishCalls = 0;
-let bridgeScenario = "successful";
-let llmScenario = "successful";
-let compactionCalls = 0;
-let auditCalls = 0;
-
-const compactedBrief = `
-### Company Identity
-Webflow, Inc. is a privately held Delaware corporation founded in 2013 and headquartered in San Francisco. Public context lists 900+ team members in 25 countries, 3.5M users, and $335M in total funding.
-
-### Positioning And Strategy
-Webflow has moved from visual development platform to Website Experience Platform and now an agentic web marketing platform for teams that need to build, manage, personalize, experiment, and connect revenue-driving web experiences.
-
-### Products And Platform
-Core products and surfaces include visual design, CMS, hosting, collaboration, Localization, Analyze, Optimize, AEO, Webflow Cloud, DevLink, Figma to Webflow, apps, APIs, webhooks, OAuth, and marketplace extensions.
-
-### Audiences And Buying Motion
-Primary audiences are marketers, designers / creative teams, developers / engineering leaders, agencies / freelancers, startups, and enterprise teams. The buyer center is marketing-led but requires engineering guardrails for governance and integration.
-
-### Pricing And Commercial Model
-Webflow runs a hybrid self-serve and enterprise model spanning free and paid Site plans, Workspace plans, add-ons such as Analyze, Optimize, and Localization, a Team plan, and custom Enterprise.
-
-### Proof Points
-Public proof includes Orangetheory Fitness cost savings, Fivetran speed-to-market gains, Retool demo-booking lift from testing, Wave conversion and traffic improvements, and IONITY active-user growth.
-
-### Compliance And Constraints
-Trust context includes SOC 2 Type II, ISO 27001, ISO 27017 and PCI materials, U.S. data storage, DPF/SCC/UK IDTA transfer mechanisms, encryption in transit and at rest, SSO, SCIM, JIT, audit log API, and a clear not HIPAA / no PHI constraint.
-
-### Competitive Landscape
-Named competitors and comparison references include WordPress, Framer, Contentful, Sitecore, Wix. Webflow's wedge is visual control, managed infrastructure, integrated CMS, optimization, governance, APIs, and AEO readiness.
-
-### Open Questions And Unknowns
-Revenue figures are secondary estimates, public forward growth targets are unspecified, audited financials are unavailable, and education/nonprofit vertical targeting is unspecified in reviewed official sources.
-
-### Downstream Operating Rules
-Treat this compacted Guild workspace context as the first source of truth for Webflow-specific facts. Use the retained approved source corpus only when detailed provenance is needed. Do not take live publishing, spend, CRM, credential, trigger, install, or visibility actions without explicit approval.
-`.trim();
-
-const sourceCorpusSummary = [
-  "Compacted from the approved Webflow Company Profile covering company identity, product, pricing, audiences, channels, funding, technology, compliance, competitors, customers, proof, and knowledge graph design.",
-  "Raw citation markers, Mermaid diagrams, pseudo-query examples, code blocks, and long table formatting were stripped before LLM compaction.",
-].join("\n");
-
-const task = {
-  sessionId: "session_test",
-  console,
-  llm: {
-    async generateText({ prompt }) {
-      if (prompt.includes("Workspace Context Compaction Audit")) {
-        auditCalls += 1;
-        if (llmScenario === "unsupported_claim") {
-          return {
-            text: JSON.stringify({
-              lost_material_facts: [],
-              unsupported_new_claims: ["Unsupported claim: Webflow guarantees rankings."],
-              overcompressed_nuance: [],
-              recommended_fixes: ["Remove the unsupported ranking claim."],
-            }),
-          };
-        }
-        if (llmScenario === "repair_addendum" && auditCalls <= 2) {
-          return {
-            text: JSON.stringify({
-              lost_material_facts: ["Webflow headquarters address: 398 11th Street, Floor 2, San Francisco, CA 94103."],
-              unsupported_new_claims: [],
-              overcompressed_nuance: ["Preserve the source caveat that Webflow may not be HIPAA compliant and customers should not provide PHI."],
-              recommended_fixes: ["Append the missing material fact and compliance nuance to the brief."],
-            }),
-          };
-        }
-        if (auditCalls === 1) {
-          return {
-            text: JSON.stringify({
-              lost_material_facts: ["Webflow is not HIPAA compliant / no PHI."],
-              unsupported_new_claims: [],
-              overcompressed_nuance: [],
-              recommended_fixes: ["Add the HIPAA limitation to Compliance And Constraints."],
-            }),
-          };
-        }
-        return {
-          text: JSON.stringify({
-            lost_material_facts: [],
-            unsupported_new_claims: [],
-            overcompressed_nuance: [],
-            recommended_fixes: [],
-          }),
-        };
-      }
-
-      if (prompt.includes("Workspace Context Compaction")) {
-        compactionCalls += 1;
-        return {
-          text: JSON.stringify({
-            workspace_context_brief: compactedBrief,
-            source_corpus_summary: sourceCorpusSummary,
-            estimated_token_reduction: "Reduced from full approved source corpus to concise always-on workspace context brief.",
-          }),
-        };
-      }
-
-      return { text: "not json" };
+function createTask({
+  sessionId,
+  workspaceReadMode = "published",
+  llmText = "not json",
+}) {
+  let state;
+  let llmCalls = 0;
+  const task = {
+    sessionId,
+    console,
+    llm: {
+      async generateText() {
+        llmCalls += 1;
+        return { text: llmText };
+      },
     },
-  },
-  async save(nextState) {
-    state = nextState;
-  },
-  async restore() {
-    return state;
-  },
-  tools: {
-    async workspace_context_publish(input) {
-      bridgePublishCalls += 1;
-      bridgePublishInput = input;
-      if (bridgeScenario === "unavailable") {
-        throw new Error("workspace context publish bridge unavailable");
-      }
-      const currentManualContext = [
-        "# Existing Workspace Context",
-        "",
-        "Keep this intro.",
-        "",
-        "<!-- guild-marketing-os-context:start -->",
-        "old managed block",
-        "<!-- guild-marketing-os-context:end -->",
-        "",
-        "Keep this outro.",
-      ].join("\n");
-      createdContextBody = replaceManagedWorkspaceContextBlock(currentManualContext, input.managed_context);
-      return {
-        status: "PUBLISHED",
-        workspace_id: "workspace_test",
-        workspace_full_name: "michaelpreuss/guild-marketing-os",
-        previous_context_id: "context_old",
-        draft_context_id: "context_draft",
-        published_context_id: "context_published",
-        summary: input.summary,
-        publish_path: "host_bridge",
-        rollback_reference: "Re-publish context_old to roll back.",
-      };
+    async save(nextState) {
+      state = structuredClone(nextState);
     },
-  },
-};
+    async restore() {
+      return state;
+    },
+    tools: {
+      async guild_get_session() {
+        return {
+          id: sessionId,
+          workspace: {
+            id: "workspace_test",
+            name: "marketing-os",
+            full_name: "example/marketing-os",
+            owner: {
+              id: "owner_test",
+              type: "organization",
+              name: "example",
+            },
+          },
+          session_type: "chat",
+          context_id:
+            workspaceReadMode === "published"
+              ? "context_published"
+              : null,
+          created_at: "2026-07-28T00:00:00.000Z",
+          updated_at: "2026-07-28T00:00:00.000Z",
+        };
+      },
+      async guild_get_workspace() {
+        const managedContext =
+          workspaceReadMode === "published"
+            ? [
+                "<!-- guild-marketing-os-context:start -->",
+                "# Guild Marketing OS Managed Company Context",
+                "Status: published",
+                "Company: Webflow",
+                "## Workspace Context Brief",
+                "Approved compact context.",
+                "<!-- guild-marketing-os-context:end -->",
+              ].join("\n")
+            : "No approved Marketing OS company context.";
+        return {
+          id: "workspace_test",
+          name: "marketing-os",
+          full_name: "example/marketing-os",
+          owner: {
+            id: "owner_test",
+            type: "organization",
+            name: "example",
+          },
+          context: {
+            id:
+              workspaceReadMode === "published"
+                ? "context_published"
+                : null,
+            compiled: managedContext,
+            generated: "",
+            manual: managedContext,
+          },
+        };
+      },
+    },
+  };
+  return {
+    task,
+    readState() {
+      return structuredClone(state);
+    },
+    llmCallCount() {
+      return llmCalls;
+    },
+  };
+}
 
 function guildChatEnvelope(text) {
   return JSON.stringify({
     type: "text",
     text: [
       "* This session was started at 18:50:27 (24h, UTC) on Sunday, June 28, 2026.",
-      "* The current Guild workspace is named `guild-marketing-os` (Guild workspace_id 019f001c-cb37-3bb9-0000-31e5e134d4c3).",
-      "* Guild frontend URL: https://app.guild.ai",
-      "* The current user with whom you're interacting has Guild username `michaelpreuss` (Guild user_id 019cbabd-1669-0175-0000-6330e039ebd1).",
-      "",
-      "```json",
-      "{",
-      "  \"workspace_capabilities\": {",
-      "    \"configured_integrations\": [",
-      "      { \"service\": \"github\", \"status\": \"configured\" },",
-      "      { \"service\": \"slack\", \"status\": \"configured\" }",
-      "    ]",
-      "  }",
-      "}",
-      "```",
+      "* The current Guild workspace is named `guild-marketing-os`.",
       "",
       text,
     ].join("\n"),
   });
 }
 
-function guildChatEnvelopeWithManagedContext(text) {
-  const injectedManagedContext = [
+{
+  const harness = createTask({ sessionId: "foundation-managed-refresh" });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "<!-- guild-marketing-os-context:start -->",
+        "# Guild Marketing OS Managed Company Context",
+        "Status: published",
+        "Company: Webflow",
+        "Approved description: Webflow is a website experience platform.",
+        "Primary audiences: Marketers, designers, and developers.",
+        "Current goals: Increase marketing velocity.",
+        "Anything not approved for reuse: Unsupported performance or legal claims.",
+        "## Workspace Context Brief",
+        "Use this as approved company context.",
+        "<!-- guild-marketing-os-context:end -->",
+        "",
+        "Refresh company context readiness. Do not approve or publish.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company Context Approval Packet/);
+  assert.match(result.output.text, /Company: Webflow/);
+  assert.match(result.output.text, /approved_in_session: false/);
+  assert.doesNotMatch(result.output.text, /attachment_unreadable/);
+  assert.equal(harness.readState().lastOutput.conversationIntent, "source_available");
+  assert.match(
+    harness.readState().lastSourceText,
+    /Guild Marketing OS Managed Company Context/,
+  );
+}
+
+{
+  const harness = createTask({ sessionId: "foundation-draft-approval" });
+  const approvalFixture = [
+    "Company name: Webflow.",
+    "Approved description: Webflow is a visual website platform for teams that need to design, build, manage, and optimize web experiences.",
+    "Primary audiences: marketing teams, web teams, agencies, designers, developers, and enterprise digital teams.",
+    "Current goals: create approved company context and route the next Marketing OS agent.",
+    "Proof-backed claims: the user-supplied source packet says Webflow combines visual site design, CMS, hosting, collaboration, optimization, AI, and extensibility features.",
+    "Approved channels: website, email, social content, pitch materials, and campaign planning.",
+  ].join("\n");
+  const draft = await foundationAgent.start(
+    { type: "text", text: approvalFixture },
+    harness.task,
+  );
+  assert.equal(draft.type, "output");
+  assert.match(draft.output.text, /Company Context Approval Packet/);
+  assert.match(draft.output.text, /Company: Webflow/);
+  assert.match(draft.output.text, /saved_to_workspace_context: false/);
+  assert.match(draft.output.text, /saved_to_context_artifacts: true/);
+  assert.match(draft.output.text, /retained in this Guild Chat/);
+  assert.match(
+    draft.output.text,
+    /Review required — Legal Reviewer:/,
+    "approval-gate lines should be explicitly qualified for the shared safety validator",
+  );
+  assert.match(
+    draft.output.text,
+    /Entity clarity: Draft entity clarity pending approved evidence\./,
+    "unapproved Builder drafts should not promote model-generated entity-clarity claims",
+  );
+  assert.match(
+    draft.output.text,
+    /Recommended web inputs for review:/,
+    "recommended research inputs should be visibly review-qualified",
+  );
+  const evidenceSection = draft.output.text
+    .split("## Assumptions And Missing Evidence")[1]
+    .split("## Approval Gate")[0];
+  assert.equal(
+    evidenceSection.match(
+      /\b(?:source_supplied|connected_read_only|live_monitoring)\b/g,
+    )?.length,
+    1,
+    "Builder should state exactly one evidence mode in the shared evidence section",
+  );
+  const statusJson = draft.output.text
+    .split("## Status Payload")[1]
+    .split("## Downstream Handoff")[0]
+    .match(/```json\s*([\s\S]*?)```/i)?.[1];
+  assert.ok(statusJson, "Builder should render one shared status JSON block");
+  assert.equal(
+    JSON.parse(statusJson).status,
+    harness.readState().lastOutput.status,
+    "Builder should expose its shared artifact status in Status Payload",
+  );
+  assert.ok(
+    draft.output.text.lastIndexOf("## Downstream Handoff") >
+      draft.output.text.lastIndexOf("\n## "),
+    "Downstream Handoff should be the final top-level artifact section",
+  );
+  assert.equal(harness.readState().lastSourceText, approvalFixture);
+  assert.equal(
+    harness.readState().durableContextArtifactStatus,
+    "draft",
+  );
+  assert.match(draft.output.text, /plus a draft Company Context artifact/);
+
+  const readyState = harness.readState();
+  readyState.lastOutput.status = "ready_for_review";
+  readyState.lastOutput.statusPayload.readiness = "review_ready";
+  readyState.lastOutput.statusPayload.blockers = [];
+  readyState.durableContextArtifactStatus = "ready_for_review";
+  await harness.task.save(readyState);
+
+  const approvalText = "Context approved save to workspace context";
+  const approval = await foundationAgent.start(
+    { type: "text", text: approvalText },
+    harness.task,
+  );
+  assert.equal(approval.type, "output");
+  assert.match(approval.output.text, /approved_in_session: true/);
+  assert.match(approval.output.text, /approved in this Guild Chat/);
+  assert.match(approval.output.text, new RegExp(approvalText));
+  assert.equal(harness.readState().approvedSourceText, approvalFixture);
+  assert.equal(
+    harness.readState().durableContextArtifactStatus,
+    "approved",
+  );
+
+  const directPublish = await foundationAgent.start(
+    {
+      type: "text",
+      text: "publish approved context to workspace context",
+    },
+    harness.task,
+  );
+  assert.equal(directPublish.type, "output");
+  assert.match(
+    directPublish.output.text,
+    /publication belongs to the canonical Marketing OS Launcher Chat/,
+  );
+  assert.match(
+    directPublish.output.text,
+    /saved_to_workspace_context: false/,
+  );
+  assert.match(
+    directPublish.output.text,
+    /workspace_context_status: approved_pending_publish/,
+  );
+  assert.equal(
+    harness.readState().workspaceContextStatus,
+    "approved_pending_publish",
+  );
+}
+
+{
+  const harness = createTask({ sessionId: "foundation-envelope" });
+  const first = await foundationAgent.start(
+    { type: "text", text: guildChatEnvelope(fixture) },
+    harness.task,
+  );
+  assert.equal(first.type, "output");
+  assert.match(first.output.text, /Company: Webflow/);
+  assert.equal(
+    harness.readState().lastOutput.statusPayload.companyName,
+    "Webflow",
+  );
+  assert.ok(harness.readState().lastSourceText.includes("# Webflow"));
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-marketer-baseline",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Set up Marketing OS for Webflow.",
+    "",
+    "Company description:",
+    "Webflow is a visual website platform that helps marketing, design, and development teams build and manage websites together.",
+    "",
+    "Primary audiences:",
+    "Enterprise marketing leaders, web teams, designers, developers, and digital agencies.",
+    "",
+    "Current marketing goal:",
+    "Help enterprise teams launch and improve web experiences faster while keeping brand and engineering governance.",
+    "",
+    "Approved claims:",
+    "Webflow combines visual site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+    "The platform serves marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "",
+    "Channels in scope:",
+    "Website, blog, customer stories, email, organic social, presentations, and campaign planning.",
+    "",
+    "Important constraints:",
+    "Do not invent customer results, pricing, security, compliance, or performance claims. Keep unknown facts as TBD.",
+    "",
+    "Keep everything draft-only.",
+  ].join("\n");
+  const result = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "ready_for_review");
+  assert.equal(
+    harness.readState().lastOutput.statusPayload.readiness,
+    "review_ready",
+  );
+  assert.equal(
+    harness.readState().durableContextArtifactStatus,
+    "ready_for_review",
+  );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.goals,
+    [
+      "Help enterprise teams launch and improve web experiences faster while keeping brand and engineering governance",
+    ],
+    "a marketing goal should remain an intention rather than becoming a blocked performance claim",
+  );
+  assert.equal(
+    harness.readState().lastOutput.contextArtifacts.proofAndConstraints
+      .approvedClaims.some((claim) =>
+        /combines visual site design, CMS, hosting/i.test(claim.claim)
+      ),
+    true,
+    "explicitly labeled approved claims should be retained for artifact review",
+  );
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.length,
+    0,
+    "unknown-proof constraints should remain constraints rather than blocked claims",
+  );
+  assert.match(result.output.text, /"status": "ready_for_review"/);
+  assert.match(
+    result.output.text,
+    /Current marketing goal: Help enterprise teams launch and improve web experiences faster/,
+  );
+  assert.match(
+    result.output.text,
+    /Important constraints: Do not invent customer results, pricing, security, compliance, or performance claims/,
+  );
+  assert.match(
+    result.output.text,
+    /Approve this baseline company description, audiences, goal, reusable claims, channels, and constraints/,
+  );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-rich-prose-source",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Start Company Context setup using only the source document below.",
+    "Produce a review-ready draft and do not publish Workspace Context.",
+    "",
+    "Source document: Webflow acceptance fixture",
+    "",
+    "Webflow, Inc. is a privately held U.S. software company founded in 2013. It provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+    "",
+    "The company reports more than 900 team members in 25 countries. These are company-reported figures supplied for this test.",
+    "",
+    "Primary audiences: enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "Current goals: Maintain engineering governance and integration control.",
+    "Proof-backed claims: Webflow provides a visual website platform.",
+    "Approved channels: website and customer stories.",
+    "",
+    "Evidence mode: source_supplied. No live source was inspected.",
+  ].join("\n");
+  const result = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company: Webflow/);
+  assert.doesNotMatch(result.output.text, /Company: this test/i);
+  assert.match(
+    result.output.text,
+    /Overview: Webflow, Inc\. is a privately held U\.S\. software company/,
+  );
+  assert.doesNotMatch(
+    harness.readState().lastOutput.consumedContext.missing.join(", "),
+    /Approved description/,
+  );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-marketer-sensitive-claim",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Set up Marketing OS for Example Co.",
+    "Company description: Example Co is a website platform.",
+    "Primary audiences: marketing teams and web teams.",
+    "Current marketing goal: create a useful launch plan.",
+    "Approved claims: Example Co guarantees 99.99% uptime.",
+    "Channels in scope: website, email, and presentations.",
+    "Important constraints: Keep unknown facts as TBD.",
+  ].join("\n");
+  await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.notEqual(
+    harness.readState().lastOutput.status,
+    "ready_for_review",
+    "progressive disclosure must not bypass review for a sensitive unsupported claim",
+  );
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.some((claim) =>
+      /99\.99% uptime/i.test(claim.claim)
+    ),
+    true,
+  );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-incomplete-sensitive-source",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Start Company Context setup using only the source document below.",
+    "Source document: Webflow acceptance fixture",
+    "",
+    "Webflow, Inc. provides a visual website platform. Its current positioning includes Website Experience Platform and agentic web marketing platform.",
+    "Primary audiences include enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "The company reports more than 900 team members in 25 countries and 3.5 million users.",
+    "The supplied source states that Webflow is audited for SOC 2 Type II and certified to ISO 27001.",
+    "Webflow may not be HIPAA compliant, so protected health information must not be provided through the platform.",
+    "Treat scale, trust, compliance, pricing, and performance claims as source-supplied and review-required.",
+    "Evidence mode: source_supplied. No live source was inspected.",
+  ].join("\n");
+  const draft = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(draft.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "needs_input");
+  assert.equal(harness.readState().durableContextArtifactStatus, "draft");
+  assert.match(draft.output.text, /plus a draft Company Context artifact/);
+  assert.doesNotMatch(
+    draft.output.text,
+    /plus review-ready Company Context artifact/,
+  );
+  assert.equal(
+    harness.readState().lastOutput.approvedFacts.some((claim) =>
+      /agentic web marketing platform/i.test(claim.claim)
+    ),
+    false,
+    "guarded positioning must not remain in reusable facts before approval",
+  );
+  assert.doesNotMatch(
+    draft.output.text,
+    /\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA compliance\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA compliant\b|\bnot HIPAA compliant\b|\bHIPAA[- ]noncompliant\b/i,
+    "Builder must not strengthen a qualified HIPAA caveat even inside blocked claims",
+  );
+  const blockedActionKeys =
+    harness.readState().lastOutput.contextArtifacts.channelRegistry.blockedActions
+      .map((value) =>
+        value.toLowerCase().replace(/^no\s+/, "").replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+      );
+  assert.equal(
+    new Set(blockedActionKeys).size,
+    blockedActionKeys.length,
+    "blocked actions should not repeat because of punctuation, casing, or a leading No variant",
+  );
+
+  const unsafeGeneratedOutput = structuredClone(harness.readState().lastOutput);
+  unsafeGeneratedOutput.approvalGates.unshift({
+    ownerRole: "Marketing Compliance Officer",
+    decision:
+      "Approve pricing claims and lack of HIPAA compatibility warning before reuse.",
+    requiredBefore: "Downstream draft creation.",
+    status: "needed",
+  });
+  unsafeGeneratedOutput.contextArtifacts.channelRegistry.blockedActions.push(
+    "live publishing",
+    "scheduling",
+    "paid media spend",
+    "CRM activation",
+    "credential setup",
+    "External CRM activation",
+    "Direct scheduling of social or paid media",
+  );
+  const hardenedHarness = createTask({
+    sessionId: "foundation-hardened-generated-output",
+    workspaceReadMode: "missing",
+    llmText: JSON.stringify(unsafeGeneratedOutput),
+  });
+  const hardenedDraft = await foundationAgent.start(
+    { type: "text", text: source },
+    hardenedHarness.task,
+  );
+  assert.equal(hardenedDraft.type, "output");
+  assert.doesNotMatch(
+    hardenedDraft.output.text,
+    /lack of HIPAA compatibility/i,
+    "Builder must remove over-strengthened HIPAA wording from generated approval gates",
+  );
+  const hardenedBlockedActionKeys =
+    hardenedHarness.readState().lastOutput.contextArtifacts.channelRegistry.blockedActions
+      .map((value) =>
+        value.toLowerCase().replace(/^no\s+/, "").replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+      );
+  assert.equal(
+    new Set(hardenedBlockedActionKeys).size,
+    hardenedBlockedActionKeys.length,
+    "Builder must collapse affirmative and leading-No forms of the same blocked action",
+  );
+  assert.doesNotMatch(
+    hardenedDraft.output.text,
+    /External CRM activation|Direct scheduling of social or paid media/i,
+    "Builder must collapse paraphrases already covered by the canonical blocked-action categories",
+  );
+
+  const resumeHarness = createTask({
+    sessionId: "foundation-focused-resume",
+    workspaceReadMode: "missing",
+  });
+  const resumedDraft = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        source,
+        "## Focused resume input",
+        "Resume Company Context artifact revision 1 using the source and draft already retained in this Marketing OS cockpit.",
+        "Do not ask me to repaste the original source.",
+        "",
+        "Approved channels: website, blog, customer stories, email, and organic social.",
+        "",
+        "Approved company description: Webflow provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility for enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+        "",
+        "Proof-backed claims approved for reusable context after this customer review:",
+        "- The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+        "- The approved primary audiences are enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+        "",
+        "Goals: Help enterprise marketing and creative teams build and optimize web experiences while engineering retains governance and integration control.",
+        "",
+        "Do not approve any other facts from revision 1. Keep every remaining withheld claim and existing do-not-use qualification unchanged, including the exact qualified HIPAA/PHI wording from the supplied source. Keep evidence mode source_supplied and everything draft-only. Do not publish Workspace Context or perform any external action.",
+      ].join("\n\n"),
+    },
+    resumeHarness.task,
+  );
+  assert.equal(resumedDraft.type, "output");
+  assert.equal(
+    resumeHarness.readState().lastOutput.conversationIntent,
+    "source_available",
+    "focused Company Context resume must take precedence over nearby social/channel language",
+  );
+  assert.notEqual(
+    resumeHarness.readState().lastOutput.status,
+    "blocked",
+    "focused Company Context resume must remain in the context workflow",
+  );
+  assert.doesNotMatch(
+    resumedDraft.output.text,
+    /Requested downstream goal: Social Monitoring And Content/,
+  );
+  assert.ok(
+    resumeHarness.readState().lastOutput.approvedFacts.some((claim) =>
+      /Webflow provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility/i.test(
+        claim.claim,
+      )
+    ),
+    "focused resume must retain the explicitly approved company description",
+  );
+  assert.ok(
+    resumeHarness.readState().lastOutput.proofBackedClaims.some((claim) =>
+      /The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility/i.test(
+        claim.claim,
+      )
+    ),
+    "focused resume must import multiline proof-backed claims",
+  );
+  assert.match(
+    resumedDraft.output.text,
+    /Webflow may not be HIPAA compliant/i,
+    "focused resume must preserve the exact qualified HIPAA wording from the retained source",
+  );
+  assert.doesNotMatch(
+    resumedDraft.output.text,
+    /Webflow (?:is|is not) HIPAA compliant|lack of HIPAA compatibility|non[- ]HIPAA compliance/i,
+    "focused resume must not strengthen or invert the qualified HIPAA wording",
+  );
+  assert.match(
+    resumedDraft.output.text,
+    /Blocked: .*Webflow may not be HIPAA compliant/i,
+    "withheld claims must carry their qualification at the beginning of the rendered line",
+  );
+
+  const prematureApproval = await foundationAgent.start(
+    { type: "text", text: "Context approved save to workspace context" },
+    harness.task,
+  );
+  assert.equal(prematureApproval.type, "output");
+  assert.match(
+    prematureApproval.output.text,
+    /still a draft and cannot be approved/,
+  );
+  assert.match(prematureApproval.output.text, /approved_in_session: false/);
+  assert.equal(harness.readState().durableContextArtifactStatus, "draft");
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-downstream",
+    workspaceReadMode: "published",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: "Create a messaging framework from our approved workspace context.",
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company Context Builder is context-only/);
+  assert.match(
+    result.output.text,
+    /Continue through Marketing OS Launcher or @mention Messaging/,
+  );
+  assert.match(result.output.text, /context_published/);
+  assert.doesNotMatch(result.output.text, /# Company Context Approval Packet/);
+  assert.equal(harness.llmCallCount(), 0);
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-downstream-missing",
+    workspaceReadMode: "missing",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: "Create a messaging framework for the company in this workspace.",
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company context is not approved yet/);
+  assert.match(result.output.text, /Company: TBD/);
+  assert.doesNotMatch(
+    result.output.text,
+    /Company: Create a messaging framework/,
+  );
+}
+
+{
+  const current = [
+    "# Existing Workspace Context",
+    "",
+    "Keep this intro.",
+    "",
     "<!-- guild-marketing-os-context:start -->",
-    "# Guild Marketing OS Managed Company Context",
-    "",
-    "Status: published",
-    "Company: Webflow",
-    "",
-    "## Workspace Context Brief",
-    "Previously published compacted Webflow context. It mentions published workspace context state and should not be classified as the user's current request.",
+    "old managed block",
     "<!-- guild-marketing-os-context:end -->",
     "",
-    text,
+    "Keep this outro.",
   ].join("\n");
-  return guildChatEnvelope(injectedManagedContext);
-}
-
-function guildChatEnvelopeWithNeutralWorkspaceContext(text) {
-  return guildChatEnvelope([
-    "Guild Marketing OS validation workspace. No company-specific workspace context is currently approved.",
-    "",
-    text,
-  ].join("\n"));
-}
-
-function routedCompanyContextBuilderSource(text) {
-  return [
-    "Use guild-marketing-os-company-context-builder / Company Context Builder for this request. Treat the following Webflow Company Profile block as the source packet for a Company Context Approval Packet. Do not publish yet.",
-    "",
-    text,
+  const replacement = [
+    "<!-- guild-marketing-os-context:start -->",
+    "new managed block",
+    "<!-- guild-marketing-os-context:end -->",
   ].join("\n");
+  const merged = replaceManagedWorkspaceContextBlock(current, replacement);
+  assert.match(merged, /Keep this intro/);
+  assert.match(merged, /Keep this outro/);
+  assert.match(merged, /new managed block/);
+  assert.doesNotMatch(merged, /old managed block/);
 }
 
-async function runPublishFlow(label, wrapInput) {
-  state = undefined;
-  createdContextBody = "";
-  bridgePublishInput = undefined;
-  bridgePublishCalls = 0;
-  bridgeScenario = "successful";
-  llmScenario = "successful";
-  compactionCalls = 0;
-  auditCalls = 0;
-
-  const first = await foundationAgent.start({ type: "text", text: wrapInput(fixture) }, task);
-  assert.equal(first.type, "output", label);
-  assert.match(first.output.text, /Company Context Approval Packet/, label);
-  assert.match(first.output.text, /Company: Webflow/, label);
-  assert.match(first.output.text, /saved_to_workspace_context: false/, label);
-  assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", `${label}: company name should resolve from fixture heading`);
-  assert.equal(state.lastSourceText, fixture, `${label}: source text should preserve exact fixture`);
-
-  const approval = await foundationAgent.start({ type: "text", text: wrapInput("Context approved save to workspace context") }, task);
-  assert.equal(approval.type, "output", label);
-  assert.match(approval.output.text, /approved_in_session: true/, label);
-  assert.match(approval.output.text, /workspace_context_status: approved_pending_publish/, label);
-  assert.match(approval.output.text, /publish approved context to workspace context/, label);
-  assert.equal(state.approvedSourceText, fixture, `${label}: approved source text should preserve exact fixture`);
-
-  const publish = await foundationAgent.start({ type: "text", text: wrapInput("publish approved context to workspace context") }, task);
-  assert.equal(publish.type, "output", label);
-  assert.match(publish.output.text, /saved_to_workspace_context: true/, label);
-  assert.match(publish.output.text, /workspace_context_id: context_published/, label);
-  assert.match(publish.output.text, /workspace_context_draft_id: context_draft/, label);
-  assert.match(publish.output.text, /workspace_context_previous_id: context_old/, label);
-  assert.match(publish.output.text, /workspace_context_publish_path: host_bridge/, label);
-  assert.equal(state.workspaceContextStatus, "published", label);
-  assert.equal(state.workspaceContextId, "context_published", label);
-  assert.equal(state.workspaceContextDraftId, "context_draft", label);
-  assert.equal(state.workspaceContextPreviousId, "context_old", label);
-  assert.equal(state.workspaceContextPublishPath, "host_bridge", label);
-  assert.equal(bridgePublishCalls, 1, `${label}: should publish once through bridge`);
-  assert.equal(bridgePublishInput.session_id, "session_test", label);
-  assert.equal(bridgePublishInput.approval_phrase, "publish approved context to workspace context", label);
-  assert.equal(bridgePublishInput.start_marker, "<!-- guild-marketing-os-context:start -->", label);
-  assert.equal(bridgePublishInput.end_marker, "<!-- guild-marketing-os-context:end -->", label);
-  assert.match(bridgePublishInput.managed_context, /## Workspace Context Brief/, label);
-  assert.doesNotMatch(bridgePublishInput.managed_context, /This session was started/, label);
-  assert.ok(!bridgePublishInput.managed_context.includes(fixture), `${label}: bridge payload must not include raw fixture`);
-  assert.doesNotMatch(bridgePublishInput.managed_context, /cite/, label);
-  assert.match(createdContextBody, /Keep this intro\./, label);
-  assert.match(createdContextBody, /Keep this outro\./, label);
-  assert.doesNotMatch(createdContextBody, /old managed block/, label);
-  assert.doesNotMatch(createdContextBody, /This session was started/, label);
-  assert.match(createdContextBody, /<!-- guild-marketing-os-context:start -->/, label);
-  assert.match(createdContextBody, /<!-- guild-marketing-os-context:end -->/, label);
-  assert.equal(state.approvedSourceText, fixture, `${label}: approved source text should remain exact in state after publish`);
-  assert.ok(!createdContextBody.includes(fixture), `${label}: published managed block must not include the raw full approved source fixture`);
-  assert.doesNotMatch(createdContextBody, /cite/, label);
-  assert.match(createdContextBody, /## Workspace Context Brief/, label);
-  assert.match(createdContextBody, /## Source Corpus Summary/, label);
-  assert.match(createdContextBody, /## Compaction Audit/, label);
-  assert.doesNotMatch(createdContextBody, /## Approved Source Corpus/, label);
-  for (const materialFact of [
-    "Webflow, Inc.",
-    "2013",
-    "3.5M users",
-    "$335M",
-    "Website Experience Platform",
-    "agentic web marketing platform",
-    "Analyze",
-    "Optimize",
-    "AEO",
-    "Webflow Cloud",
-    "SOC 2 Type II",
-    "ISO 27001",
-    "not HIPAA",
-    "WordPress",
-    "Framer",
-    "Contentful",
-    "Sitecore",
-  ]) {
-    assert.ok(createdContextBody.includes(materialFact), `${label}: compacted context should retain ${materialFact}`);
-  }
-  assert.equal(compactionCalls, 2, `${label}: publish should regenerate once after lost material facts`);
-  assert.equal(auditCalls, 2, `${label}: publish should audit initial and regenerated compactions`);
-}
-
-await runPublishFlow("direct input", (text) => text);
-await runPublishFlow("Guild chat envelope input", guildChatEnvelope);
-await runPublishFlow("Guild chat envelope with injected managed context", guildChatEnvelopeWithManagedContext);
-
-state = undefined;
-createdContextBody = "";
-bridgePublishInput = undefined;
-bridgePublishCalls = 0;
-bridgeScenario = "successful";
-llmScenario = "successful";
-compactionCalls = 0;
-auditCalls = 0;
-
-const browserRoutedFirst = await foundationAgent.start({
-  type: "text",
-  text: guildChatEnvelopeWithNeutralWorkspaceContext(routedCompanyContextBuilderSource(fixture)),
-}, task);
-assert.equal(browserRoutedFirst.type, "output", "browser routed fixture input");
-assert.match(browserRoutedFirst.output.text, /Conversation intent: source_available/, "browser routed fixture input");
-assert.match(browserRoutedFirst.output.text, /Company: Webflow/, "browser routed fixture input");
-assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "browser routed fixture should resolve company name");
-assert.equal(state.lastSourceText, fixture, "browser routed fixture should persist the exact fixture without routing or workspace context preface");
-
-const browserRoutedApproval = await foundationAgent.start({
-  type: "text",
-  text: guildChatEnvelopeWithNeutralWorkspaceContext("Context approved save to workspace context"),
-}, task);
-assert.equal(browserRoutedApproval.type, "output", "browser routed approval");
-assert.match(browserRoutedApproval.output.text, /approved_in_session: true/, "browser routed approval");
-assert.equal(state.approvedSourceText, fixture, "browser routed approval should preserve exact approved source text");
-
-const browserRoutedPublish = await foundationAgent.start({
-  type: "text",
-  text: guildChatEnvelopeWithNeutralWorkspaceContext("publish approved context to workspace context"),
-}, task);
-assert.equal(browserRoutedPublish.type, "output", "browser routed publish");
-assert.match(browserRoutedPublish.output.text, /saved_to_workspace_context: true/, "browser routed publish");
-assert.match(browserRoutedPublish.output.text, /workspace_context_publish_path: host_bridge/, "browser routed publish");
-assert.equal(state.workspaceContextStatus, "published", "browser routed publish should publish");
-assert.equal(bridgePublishCalls, 1, "browser routed publish should publish once through bridge");
-assert.equal(state.approvedSourceText, fixture, "browser routed publish should keep exact approved source text");
-assert.ok(!createdContextBody.includes(fixture), "browser routed published context must not include raw fixture");
-assert.doesNotMatch(createdContextBody, /cite/, "browser routed published context should strip citation artifacts");
-
-state = undefined;
-createdContextBody = "";
-bridgePublishInput = undefined;
-bridgePublishCalls = 0;
-bridgeScenario = "successful";
-llmScenario = "repair_addendum";
-compactionCalls = 0;
-auditCalls = 0;
-
-const repairFirst = await foundationAgent.start({ type: "text", text: fixture }, task);
-assert.equal(repairFirst.type, "output", "audit repair first input");
-const repairApproval = await foundationAgent.start({ type: "text", text: "Context approved save to workspace context" }, task);
-assert.equal(repairApproval.type, "output", "audit repair approval");
-const repairPublish = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
-assert.equal(repairPublish.type, "output", "audit repair publish");
-assert.match(repairPublish.output.text, /saved_to_workspace_context: true/, "audit repair publish");
-assert.equal(state.workspaceContextStatus, "published", "audit repair should publish after deterministic addendum");
-assert.equal(compactionCalls, 2, "audit repair should still regenerate once with the LLM");
-assert.equal(auditCalls, 3, "audit repair should audit initial, regenerated, and addendum-repaired briefs");
-assert.match(createdContextBody, /Audit-Preserved Facts And Nuance/, "audit repair should append an addendum");
-assert.match(createdContextBody, /398 11th Street, Floor 2, San Francisco, CA 94103/, "audit repair should include the lost material fact");
-
-const approvedOutputForAuditTests = state.approvedOutput;
-
-state = undefined;
-const cliArtifactFirst = await foundationAgent.start({ type: "text", text: guildChatEnvelopeWithManagedContext(`chat ${fixture}`) }, task);
-assert.equal(cliArtifactFirst.type, "output", "Guild chat initial command artifact");
-assert.match(cliArtifactFirst.output.text, /Conversation intent: source_available/, "Guild chat initial command artifact");
-assert.match(cliArtifactFirst.output.text, /Company: Webflow/, "Guild chat initial command artifact");
-assert.equal(state.lastOutput.statusPayload.companyName, "Webflow", "CLI artifact should not hide fixture heading company name");
-assert.equal(state.lastSourceText, fixture, "CLI artifact should be stripped from persisted source text");
-
-assert.equal(stripCitationMarkers("A citeturn1 B"), "A  B", "citation markers should be stripped");
-assert.equal(removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"), "Keep\n\nDone", "fenced diagram blocks should be removed");
 assert.equal(
-  convertMarkdownTablesToBullets("| Name | Evidence |\n|---|---|\n| Webflow | citeturn1 |\n").trim(),
+  stripCitationMarkers("A citeturn1 B"),
+  "A  B",
+  "citation markers should be stripped",
+);
+assert.equal(
+  removeFencedBlocks("Keep\n```mermaid\ngraph TD\n```\nDone"),
+  "Keep\n\nDone",
+  "fenced diagram blocks should be removed",
+);
+assert.equal(
+  convertMarkdownTablesToBullets(
+    "| Name | Evidence |\n|---|---|\n| Webflow | citeturn1 |\n",
+  ).trim(),
   "- Name: Webflow",
-  "markdown tables should convert to bullets before citation stripping when used directly",
 );
 const cleanedFixture = cleanApprovedSourceForWorkspaceContext(fixture);
-assert.doesNotMatch(cleanedFixture, /cite/, "cleaned source should not include citation markers");
-assert.doesNotMatch(cleanedFixture, /```mermaid/, "cleaned source should not include Mermaid blocks");
-assert.doesNotMatch(cleanedFixture, /```text/, "cleaned source should not include pseudo-query blocks");
-assert.match(cleanedFixture, /- Attribute: Legal entity; Current finding: Webflow, Inc\./, "cleaned source should collapse tables into bullets");
+assert.doesNotMatch(cleanedFixture, /cite/);
+assert.doesNotMatch(cleanedFixture, /```mermaid/);
+assert.doesNotMatch(cleanedFixture, /```text/);
+assert.match(
+  cleanedFixture,
+  /- Attribute: Legal entity; Current finding: Webflow, Inc\./,
+);
+const compressedContext = fs.readFileSync(
+  path.join(rootDir, "scripts/fixtures/context-benchmark/compressed.md"),
+  "utf8",
+);
+assert.equal(
+  sourceEvidenceLabelsAllowReuse("Company name: Webflow", compressedContext),
+  true,
+);
+assert.equal(
+  preservesQualifiedHipaaNuance(
+    "Webflow may not be HIPAA compliant, so Protected Health Information must not be provided through the platform.",
+    "Webflow may not be HIPAA compliant.",
+  ),
+  true,
+);
+for (const strengthenedClaim of [
+  "Webflow is HIPAA compliant.",
+  "Webflow is explicitly not HIPAA compliant.",
+  "Key constraints include lack of HIPAA compliance.",
+  "Review the lack of HIPAA compatibility warning.",
+  "Protected Health Information is prohibited (not HIPAA compliant).",
+  "Webflow is HIPAA-noncompliant.",
+  "Webflow is HIPAA-incompatible.",
+]) {
+  assert.equal(
+    preservesQualifiedHipaaNuance(
+      strengthenedClaim,
+      "Webflow may not be HIPAA compliant.",
+    ),
+    false,
+    `qualified HIPAA source wording must reject: ${strengthenedClaim}`,
+  );
+}
+assert.equal(
+  sourceEvidenceLabelsAllowReuse(
+    "Wave achieved a 3x speed improvement and a 4% to 21% organic traffic increase.",
+    compressedContext,
+  ),
+  false,
+);
+assert.equal(
+  sourceEvidenceLabelsAllowReuse("Current CEO: Linda Tong", compressedContext),
+  false,
+);
+assert.equal(isSensitiveClaim("Wave achieved a 3x improvement."), true);
+assert.equal(isSensitiveClaim("Organic traffic increased by 4%."), true);
+assert.deepEqual(
+  normalizeBlockedClaims([
+    {
+      claim: "Webflow has $200 million ARR.",
+      status: "user_supplied",
+    },
+  ]),
+  [
+    {
+      claim: "Webflow has $200 million ARR.",
+      status: "blocked",
+      source: "sensitive_claim_guardrail",
+      notes:
+        "The claim is in the blocked-claims collection and cannot be reused without separate evidence and owner approval.",
+    },
+  ],
+);
 
-state = {
-  approvedOutput: approvedOutputForAuditTests,
-  approvedSourceText: fixture,
-  workspaceContextStatus: "approved_pending_publish",
-};
-createdContextBody = "";
-bridgePublishInput = undefined;
-bridgePublishCalls = 0;
-bridgeScenario = "successful";
-llmScenario = "unsupported_claim";
-compactionCalls = 0;
-auditCalls = 0;
-const blockedPublish = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
-assert.equal(blockedPublish.type, "output", "unsupported claim audit");
-assert.match(blockedPublish.output.text, /workspace_context_status: blocked/, "unsupported claim audit");
-assert.match(blockedPublish.output.text, /Workspace context compaction audit did not pass/, "unsupported claim audit");
-assert.equal(createdContextBody, "", "unsupported audit should block before workspace write");
-assert.equal(bridgePublishCalls, 0, "unsupported audit should block before bridge publish");
-
-state = undefined;
-createdContextBody = "";
-bridgePublishInput = undefined;
-bridgePublishCalls = 0;
-bridgeScenario = "unavailable";
-llmScenario = "successful";
-compactionCalls = 0;
-auditCalls = 0;
-const bridgeFirst = await foundationAgent.start({ type: "text", text: fixture }, task);
-assert.equal(bridgeFirst.type, "output", "bridge unavailable setup");
-const bridgeApproval = await foundationAgent.start({ type: "text", text: "Context approved save to workspace context" }, task);
-assert.equal(bridgeApproval.type, "output", "bridge unavailable approval");
-const bridgeBlocked = await foundationAgent.start({ type: "text", text: "publish approved context to workspace context" }, task);
-assert.equal(bridgeBlocked.type, "output", "bridge unavailable publish");
-assert.match(bridgeBlocked.output.text, /workspace_context_status: blocked/, "bridge unavailable publish");
-assert.match(bridgeBlocked.output.text, /Workspace context publish did not complete/, "bridge unavailable publish");
-assert.match(bridgeBlocked.output.text, /host-controlled publish bridge/, "bridge unavailable publish");
-assert.equal(bridgePublishCalls, 1, "bridge unavailable publish should attempt the host bridge once");
-assert.equal(createdContextBody, "", "bridge unavailable publish should not create a context body");
-assert.equal(state.approvedSourceText, fixture, "bridge unavailable publish should retain exact approved source for retry");
-bridgeScenario = "successful";
-
-console.log("Foundation state/publish test OK.");
+console.log(
+  "Foundation Guild Chat state, approval, Launcher publication handoff, context readiness, and routing tests OK.",
+);

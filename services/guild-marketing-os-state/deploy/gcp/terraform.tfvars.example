@@ -1,0 +1,11 @@
+project_id      = "your-isolated-gcp-project"
+region          = "us-west1"
+environment     = "production"
+service_name    = "guild-marketing-os-state"
+container_image = "us-west1-docker.pkg.dev/your-isolated-gcp-project/marketing-os/state@sha256:replace-with-a-real-64-character-lowercase-image-digest"
+
+# These values must come from Guild's documented delegated-identity contract.
+# Do not apply this module with invented, personal, or maintainer credentials.
+guild_delegated_issuer   = "https://replace-with-guild-issued-issuer"
+guild_delegated_audience = "replace-with-guild-issued-audience"
+guild_delegated_jwks_url = "https://replace-with-guild-issued-jwks"

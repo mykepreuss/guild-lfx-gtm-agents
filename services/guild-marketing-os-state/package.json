@@ -1,0 +1,19 @@
+{
+  "name": "@guild-marketing-os/state-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "migrate": "node postgres/migrate.mjs",
+    "test": "node test.mjs && node envelope-encryption.test.mjs && node http-service.test.mjs && node openapi.test.mjs && node server.test.mjs && node postgres/schema.test.mjs && node postgres/migrate.test.mjs && node deploy/gcp/deployment.test.mjs",
+    "test:postgres:integration": "node postgres/run-integration.mjs"
+  },
+  "dependencies": {
+    "jose": "6.2.4",
+    "pg": "8.22.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

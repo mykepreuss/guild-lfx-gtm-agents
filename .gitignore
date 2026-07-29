@@ -4,6 +4,7 @@ node_modules/
 dist/
 agent.js.gz
 package-lock.json
+!services/guild-marketing-os-state/package-lock.json
 tsconfig.tsbuildinfo
 agents/*/.guild/
 agents/*/.npmrc
@@ -12,4 +13,5 @@ _private/
 research/
 source-map.md
 work/*.md
+work/evidence/
 *.local.md

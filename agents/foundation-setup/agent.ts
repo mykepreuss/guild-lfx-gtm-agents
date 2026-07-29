@@ -1,4 +1,11 @@
-import { agent, guildServiceTool, output as agentOutput, type Task } from "@guildai/agents-sdk";
+import {
+  agent,
+  guildTools,
+  output as agentOutput,
+  pick,
+  type GuildService,
+  type Task,
+} from "@guildai/agents-sdk";
 import { z } from "zod";
 
 const artifactValues = [
@@ -33,6 +40,7 @@ const conversationIntentSchema = z.enum([
   "attachment_unreadable",
   "save_state_question",
   "missing_context",
+  "downstream_request",
   "downstream_request_without_context",
   "approval_or_edit",
 ]);
@@ -46,7 +54,7 @@ const defaultConstraints = [
   "No credential setup.",
   "No workspace install.",
   "No workspace context publish except through the exact approved Company Context Builder publish confirmation.",
-  "No context artifact persistence.",
+  "No context artifact persistence outside the canonical Launcher Chat or this direct Builder session.",
   "No trigger setup.",
   "No visibility changes.",
   "No legal, compliance, pricing, security, performance, or production-readiness approval is implied.",
@@ -89,6 +97,8 @@ const structuredOutputSchema = z.object({
     workspace_context_summary: z.string().optional(),
     workspace_context_publish_path: z.enum(["host_bridge", "official_guild_tools"]).optional(),
     workspace_context_rollback_note: z.string().optional(),
+    source_references: z.array(z.string()).optional(),
+    context_artifact_references: z.array(z.string()).optional(),
     persistence_note: z.string(),
   }),
   consumedContext: z.object({
@@ -167,6 +177,17 @@ const structuredOutputSchema = z.object({
     nextAgents: z.array(knownAgentSchema),
     blockers: z.array(z.string()),
     requiredArtifacts: z.array(artifactSchema),
+    evidence_mode: z.literal("source_supplied"),
+    observed_at: z.string().nullable(),
+    source_coverage: z.array(z.string()),
+    coverage_limitations: z.array(z.string()),
+    safety: z.object({
+      action_mode: z.literal("draft_only"),
+      external_mutation_requested: z.literal(false),
+      blocked_actions: z.array(z.string()),
+      unsupported_claims: z.array(z.string()),
+      evidence_gaps: z.array(z.string()),
+    }),
   }),
   downstreamHandoff: z.array(
     z.object({
@@ -194,6 +215,15 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
+type MarketerContextPacket = {
+  companyName: string;
+  description: string;
+  audiences: string[];
+  goals: string[];
+  approvedClaims: string[];
+  channels: string[];
+  constraints: string[];
+};
 type WorkspaceContextAudit = z.infer<typeof workspaceContextAuditSchema>;
 type WorkspaceContextCompaction = z.infer<typeof workspaceContextCompactionSchema>;
 type CompactedWorkspaceContext = {
@@ -220,31 +250,135 @@ const agentStateSchema = z.object({
   workspaceContextPreviousId: z.string().nullable().optional(),
   workspaceContextPublishPath: z.enum(["host_bridge", "official_guild_tools"]).optional(),
   workspaceId: z.string().optional(),
+  durableSourceId: z.string().optional(),
+  durableSourceRevision: z.number().int().positive().optional(),
+  durableContextArtifactId: z.string().optional(),
+  durableContextArtifactRevision: z.number().int().positive().optional(),
+  durableContextArtifactStatus: z.enum(["draft", "ready_for_review", "approved", "blocked"]).optional(),
+  durableContextFingerprint: z.string().optional(),
+  durablePublishedContextRevision: z.number().int().positive().optional(),
 });
 type AgentState = z.infer<typeof agentStateSchema>;
+type PublishedWorkspaceContext = {
+  ready: boolean;
+  workspaceId: string;
+  workspaceFullName: string;
+  contextId?: string;
+  compiled: string;
+  companyName?: string;
+};
 
-const workspaceContextPublishRequestSchema = z.object({
-  session_id: z.string(),
-  managed_context: z.string(),
-  summary: z.string(),
-  start_marker: z.string(),
-  end_marker: z.string(),
-  company_name: z.string(),
-  approval_phrase: z.literal("publish approved context to workspace context"),
-  approved_at: z.string().optional(),
+const evidenceEntrySchema = z.object({
+  mode: z.literal("source_supplied"),
+  observed_at: z.string().optional(),
+  source_coverage: z.array(z.string()).optional(),
+  limitations: z.array(z.string()).optional(),
+  source_revision_ids: z.array(z.string()).optional(),
 });
 
-const workspaceContextPublishResponseSchema = z.object({
-  status: z.enum(["PUBLISHED", "published"]),
-  workspace_id: z.string().optional(),
-  workspace_full_name: z.string().optional(),
-  previous_context_id: z.string().nullable().optional(),
-  draft_context_id: z.string(),
-  published_context_id: z.string(),
-  summary: z.string().nullable().optional(),
-  publish_path: z.enum(["host_bridge", "official_guild_tools"]).optional(),
-  rollback_reference: z.string().optional(),
+const sourceRecordSchema = z.object({
+  source_id: z.string(),
+  revision: z.number().int().positive(),
+  deletion_state: z.enum(["retained", "deleted"]),
+  raw_source: z.string().optional(),
 }).passthrough();
+
+const sourceStoreRequestSchema = z.object({
+  idempotency_key: z.string(),
+  source_id: z.string(),
+  raw_source: z.string().min(1),
+  evidence: evidenceEntrySchema,
+  provenance: z.record(z.string(), z.unknown()).optional(),
+});
+
+const sourceResponseSchema = z.object({ data: sourceRecordSchema });
+
+const sourceReadRequestSchema = z.object({
+  sourceId: z.string(),
+  revision: z.number().int().positive(),
+});
+
+const contextArtifactRecordSchema = z.object({
+  artifact_id: z.string(),
+  revision: z.number().int().positive(),
+  artifact_type: z.string(),
+  status: z.enum([
+    "draft",
+    "ready_for_review",
+    "approved",
+    "superseded",
+    "blocked",
+  ]),
+  approvals: z
+    .array(
+      z.object({ exact_approval_text: z.string() }).passthrough(),
+    )
+    .default([]),
+}).passthrough();
+
+const contextArtifactStoreRequestSchema = z.object({
+  idempotency_key: z.string(),
+  artifact_id: z.string(),
+  artifact_type: z.literal("company-context"),
+  markdown_body: z.string().min(1),
+  consumed_context_revision: z.string().optional(),
+  consumed_source_revisions: z.array(z.string()),
+  evidence: z.array(evidenceEntrySchema),
+  status: z.enum(["ready_for_review", "blocked"]),
+  safety: z.object({
+    action_mode: z.literal("draft_only"),
+    external_mutation_requested: z.literal(false),
+    blocked_actions: z.array(z.string()),
+    unsupported_claims: z.array(z.string()),
+    evidence_gaps: z.array(z.string()),
+  }),
+  metadata: z.record(z.string(), z.unknown()),
+});
+
+const contextArtifactReadRequestSchema = z.object({
+  artifactId: z.string(),
+  revision: z.number().int().positive(),
+});
+
+const contextArtifactApproveRequestSchema = z.object({
+  artifactId: z.string(),
+  idempotency_key: z.string(),
+  revision: z.number().int().positive(),
+  expected_revision: z.number().int().positive(),
+  approval_text: z.string().min(1),
+});
+
+const contextArtifactResponseSchema = z.object({
+  data: contextArtifactRecordSchema,
+});
+
+const contextSnapshotSchema = z.object({
+  workspace: z.record(z.string(), z.unknown()),
+  published_context_revision: z.number().int().positive(),
+  guild_context_id: z.string().nullable().optional(),
+  rollback_context_id: z.string().nullable().optional(),
+  compiled_brief: z.string(),
+  readiness: z.string(),
+  source_references: z.array(z.string()),
+  artifact_id: z.string(),
+  artifact_revision: z.number().int().positive(),
+}).passthrough();
+
+const contextSnapshotResponseSchema = z.object({
+  data: contextSnapshotSchema.nullable(),
+});
+
+const contextPublishRequestSchema = z.object({
+  idempotency_key: z.string(),
+  artifact_id: z.string(),
+  artifact_revision: z.number().int().positive(),
+  expected_current_revision: z.number().int().positive().nullable(),
+  approval_text: z.literal("publish approved context to workspace context"),
+  compiled_brief: z.string().min(1),
+  readiness: z.literal("ready"),
+  source_references: z.array(z.string()),
+  freshness: z.record(z.string(), z.unknown()),
+});
 
 const workspaceContextCompactionSchema = z.object({
   workspace_context_brief: z.string(),
@@ -260,36 +394,7 @@ const workspaceContextAuditSchema = z.object({
 });
 
 const tools = {
-  workspace_context_publish: guildServiceTool("guild-marketing-os-workspace-context", {
-    description: [
-      "Publish an approved Guild Marketing OS managed workspace context block through a host-controlled bridge.",
-      "The bridge resolves the current session workspace, reads the published workspace context, preserves unmanaged manual context, replaces the managed block, creates a draft context version, publishes it, and returns rollback metadata.",
-      "The agent must not call raw internal Guild workspace context endpoints directly.",
-    ].join(" "),
-    inputSchema: workspaceContextPublishRequestSchema,
-    outputSchema: workspaceContextPublishResponseSchema,
-    owner: "michaelpreuss",
-    versionNumber: "1.0.1",
-    endpoint: {
-      method: "POST",
-      path: "/workspace-context/publish",
-      description: "Publish approved managed workspace context",
-      format: "application/json",
-      parameters: [
-        { name: "session_id", type: "body", schema: workspaceContextPublishRequestSchema.shape.session_id },
-        { name: "managed_context", type: "body", schema: workspaceContextPublishRequestSchema.shape.managed_context },
-        { name: "summary", type: "body", schema: workspaceContextPublishRequestSchema.shape.summary },
-        { name: "start_marker", type: "body", schema: workspaceContextPublishRequestSchema.shape.start_marker },
-        { name: "end_marker", type: "body", schema: workspaceContextPublishRequestSchema.shape.end_marker },
-        { name: "company_name", type: "body", schema: workspaceContextPublishRequestSchema.shape.company_name },
-        { name: "approval_phrase", type: "body", schema: workspaceContextPublishRequestSchema.shape.approval_phrase },
-        { name: "approved_at", type: "body", schema: workspaceContextPublishRequestSchema.shape.approved_at },
-      ],
-      parameterSchema: workspaceContextPublishRequestSchema,
-      responseSchema: workspaceContextPublishResponseSchema,
-      errors: [],
-    },
-  }),
+  ...pick(guildTools, ["guild_get_session", "guild_get_workspace"]),
 };
 type Tools = typeof tools;
 type AgentTask = Task<Tools, AgentState>;
@@ -353,6 +458,7 @@ const sourcePacketFieldLabels = [
   "Organization",
   "Org",
   "Product",
+  "Approved company description",
   "Approved description",
   "Company description",
   "Product description",
@@ -361,12 +467,19 @@ const sourcePacketFieldLabels = [
   "Primary audience",
   "Audiences",
   "Audience",
+  "Current marketing goal",
+  "Marketing goal",
   "Current goals",
   "Goals",
+  "Approved claims",
+  "Approved facts",
+  "Claims approved for reuse",
   "Channels in scope",
   "Approved channels",
   "Channel scope",
   "Channels",
+  "Important constraints",
+  "Constraints",
   "Proof-backed claims or source excerpts",
   "Proof-backed claims",
   "Approved proof",
@@ -397,11 +510,27 @@ async function runFoundationTurn(
   state: AgentState,
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
   const rawContext = getRawContext(input);
-  const conversationIntent = classifyConversationIntent(rawContext);
+  const focusedContextResume = isFocusedContextResume(rawContext);
+  const conversationIntent = inputUsesInjectedManagedContext(input) ||
+      focusedContextResume
+    ? "source_available"
+    : classifyConversationIntent(rawContext);
+  const requestedDownstreamAgent = !focusedContextResume &&
+      isExplicitDownstreamRequest(rawContext)
+    ? detectRequestedDownstreamAgent(rawContext)
+    : undefined;
 
   if (isWorkspaceContextPublishConfirmation(rawContext)) {
     const publishResult = await buildWorkspaceContextPublishOutput(input, task, state);
     return finalizeTurn(publishResult.output, publishResult.state);
+  }
+
+  if (requestedDownstreamAgent) {
+    const publishedContext = await readPublishedWorkspaceContext(task);
+    if (publishedContext?.ready) {
+      return finalizeTurn(buildDownstreamWithContextOutput(input, requestedDownstreamAgent, publishedContext), state);
+    }
+    return finalizeTurn(buildDownstreamWithoutContextOutput(input, requestedDownstreamAgent), state);
   }
 
   if (conversationIntent === "save_state_question") {
@@ -410,7 +539,13 @@ async function runFoundationTurn(
 
   if (conversationIntent === "approval_or_edit") {
     const approved = buildApprovalOrEditOutput(input, state);
-    return finalizeTurn(approved.output, approved.state);
+    const persisted = await persistContextApproval(
+      approved.output,
+      approved.state,
+      rawContext,
+      task,
+    );
+    return finalizeTurn(persisted.output, persisted.state);
   }
 
   if (conversationIntent === "attachment_unreadable") {
@@ -452,11 +587,177 @@ async function runFoundationTurn(
   }
 
   const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
-  return finalizeTurn(guarded, {
+  const draftState = {
     ...state,
     lastOutput: guarded,
-    lastSourceText: getSourceTextForPersistence(input),
+    lastSourceText: undefined,
+    approvedOutput: undefined,
+    approvedSourceText: undefined,
+    approvedAt: undefined,
     workspaceContextStatus: state.workspaceContextStatus ?? "not_requested",
+  };
+  const persisted = await persistContextDraft(
+    guarded,
+    draftState,
+    getSourceTextForPersistence(input),
+    task,
+  );
+  return finalizeTurn(persisted.output, persisted.state);
+}
+
+async function persistContextDraft(
+  output: Output,
+  state: AgentState,
+  sourceText: string,
+  task: AgentTask,
+): Promise<{ output: Output; state: AgentState }> {
+  if (!sourceText.trim()) {
+    return { output, state };
+  }
+
+  const fingerprint = foundationFingerprint(sourceText);
+  const sourceId = uuidFromFoundationSeed(
+    `${task.sessionId}:${fingerprint}:source`,
+  );
+  const artifactId = uuidFromFoundationSeed(
+    `${task.sessionId}:${fingerprint}:company-context`,
+  );
+  const sourceReference = `${sourceId}:1`;
+  const artifactReference = `${artifactId}:1`;
+  const persistedOutput = structuredOutputSchema.parse({
+    ...output,
+    persistenceState: {
+      ...output.persistenceState,
+      saved_to_context_artifacts: true,
+      source_references: [sourceReference],
+      context_artifact_references: [artifactReference],
+      persistence_note:
+        output.status === "ready_for_review"
+          ? "The supplied source and review-ready Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the completed artifact into the canonical cockpit. Workspace Context is still unchanged."
+          : "The supplied source and draft Company Context artifact revision are retained in this Guild Chat. When used through Launcher, Launcher imports the draft into the canonical cockpit for focused follow-up. Workspace Context is still unchanged.",
+    },
+  });
+
+  return {
+    output: persistedOutput,
+    state: {
+      ...state,
+      lastOutput: persistedOutput,
+      lastSourceText: sourceText,
+      approvedSourceText: undefined,
+      durableSourceId: sourceId,
+      durableSourceRevision: 1,
+      durableContextArtifactId: artifactId,
+      durableContextArtifactRevision: 1,
+      durableContextArtifactStatus:
+        output.status === "blocked"
+          ? "blocked"
+          : output.status === "ready_for_review"
+            ? "ready_for_review"
+            : "draft",
+      durableContextFingerprint: fingerprint,
+    },
+  };
+}
+
+async function persistContextApproval(
+  output: Output,
+  state: AgentState,
+  exactApprovalText: string,
+  _task: AgentTask,
+): Promise<{ output: Output; state: AgentState }> {
+  if (!output.persistenceState.approved_in_session) {
+    return { output, state };
+  }
+  const artifactId = state.durableContextArtifactId;
+  const artifactRevision = state.durableContextArtifactRevision;
+  if (!artifactId || !artifactRevision) {
+    const blockedOutput = markDurableContextApprovalBlocked(
+      output,
+      "No durable Company Context artifact revision is available. Recreate the draft from readable source before approving it.",
+    );
+    return {
+      output: blockedOutput,
+      state: {
+        ...state,
+        approvedOutput: undefined,
+        durableContextArtifactStatus: undefined,
+      },
+    };
+  }
+
+  if (
+    state.durableContextArtifactStatus !== "ready_for_review" &&
+    state.durableContextArtifactStatus !== "approved"
+  ) {
+    const blockedOutput = markDurableContextApprovalBlocked(
+      output,
+      state.durableContextArtifactStatus === "blocked"
+        ? "The Company Context artifact is blocked and cannot be approved until its evidence gaps are resolved."
+        : "The Company Context artifact is still a draft and cannot be approved until its required inputs and evidence gaps are resolved.",
+    );
+    return {
+      output: blockedOutput,
+      state: {
+        ...state,
+        lastOutput: blockedOutput,
+        approvedOutput: undefined,
+      },
+    };
+  }
+
+  const storedApprovalText = exactApprovalText.trim();
+  const approvedOutput = structuredOutputSchema.parse({
+    ...output,
+    persistenceState: {
+      ...output.persistenceState,
+      saved_to_context_artifacts: true,
+      source_references:
+        output.persistenceState.source_references ??
+        (state.durableSourceId && state.durableSourceRevision
+          ? [`${state.durableSourceId}:${state.durableSourceRevision}`]
+          : []),
+      context_artifact_references: [`${artifactId}:${artifactRevision}`],
+      persistence_note: `Company Context artifact ${artifactId} revision ${artifactRevision} is approved in this Guild Chat. Exact approval text retained: ${storedApprovalText}. Workspace Context remains unchanged until Launcher receives the exact publication phrase.`,
+    },
+    statusPayload: {
+      ...output.statusPayload,
+      blockers: output.statusPayload.blockers.filter(
+        (blocker) =>
+          !/not saved to Context Hub|artifacts were not persisted/i.test(
+            blocker,
+          ),
+      ),
+    },
+  });
+  return {
+    output: approvedOutput,
+    state: {
+      ...state,
+      lastOutput: approvedOutput,
+      approvedOutput,
+      approvedSourceText: state.lastSourceText,
+      durableContextArtifactStatus: "approved",
+    },
+  };
+}
+
+function markDurableContextApprovalBlocked(
+  output: Output,
+  reason: string,
+): Output {
+  return structuredOutputSchema.parse({
+    ...output,
+    status: "needs_input",
+    persistenceState: {
+      ...output.persistenceState,
+      approved_in_session: false,
+      persistence_note: reason,
+    },
+    statusPayload: {
+      ...output.statusPayload,
+      blockers: [...new Set([...output.statusPayload.blockers, reason])],
+    },
   });
 }
 
@@ -485,19 +786,69 @@ function finalizeOutput(output: Output): z.infer<typeof outputSchema> {
 }
 
 function getRawContext(input: Input): string {
-  const rawText = stripGuildRuntimePreamble(input.text).trim();
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  const managedContext = extractInjectedManagedWorkspaceContext(unwrappedText);
+  const rawText = stripGuildRuntimePreamble(unwrappedText).trim();
   const embeddedText = extractEmbeddedTextInput(rawText, { trim: true }) ?? rawText;
-  return extractSourceDocumentFromContext(embeddedText, { trim: true }) ?? embeddedText;
+  const userSource = extractSourceDocumentFromContext(embeddedText, { trim: true }) ?? embeddedText;
+  return managedContext && shouldUseInjectedManagedContext(userSource)
+    ? managedContext
+    : userSource;
 }
 
 function getSourceTextForPersistence(input: Input): string {
-  const rawText = stripGuildRuntimePreamble(input.text);
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  const managedContext = extractInjectedManagedWorkspaceContext(unwrappedText);
+  const rawText = stripGuildRuntimePreamble(unwrappedText);
   const embeddedText = extractEmbeddedTextInput(rawText, { trim: false }) ?? rawText;
-  return extractSourceDocumentFromContext(embeddedText, { trim: false }) ?? embeddedText;
+  const userSource = extractSourceDocumentFromContext(embeddedText, { trim: false }) ?? embeddedText;
+  return managedContext && shouldUseInjectedManagedContext(userSource)
+    ? managedContext
+    : userSource;
 }
 
 function getSourceLabels(_input: Input): string[] {
   return [];
+}
+
+function unwrapCanonicalTextInput(value: string): string {
+  for (const candidate of [value, fencedJson(value), firstJsonObject(value)]) {
+    if (!candidate) continue;
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (isRecord(parsed) && parsed.type === "text" && typeof parsed.text === "string") {
+        return parsed.text;
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+  return value;
+}
+
+function extractInjectedManagedWorkspaceContext(value: string): string | undefined {
+  const startIndex = value.indexOf(managedContextStart);
+  const endIndex = value.indexOf(managedContextEnd, startIndex + managedContextStart.length);
+  if (startIndex === -1 || endIndex <= startIndex) return undefined;
+  return value
+    .slice(startIndex, endIndex + managedContextEnd.length)
+    .replace(/\\n/g, "\n")
+    .trim();
+}
+
+function shouldUseInjectedManagedContext(userSource: string): boolean {
+  return /\b(?:refresh|review|check|assess|summarize|read)\b[\s\S]{0,120}\b(?:company|workspace|marketing os)\s+context\b/i.test(
+    userSource,
+  ) ||
+    /\b(?:approved|published|current)\s+workspace\s+context\b/i.test(userSource) ||
+    /\bcontext\s+readiness\b/i.test(userSource);
+}
+
+function inputUsesInjectedManagedContext(input: Input): boolean {
+  const unwrappedText = unwrapCanonicalTextInput(input.text);
+  if (!extractInjectedManagedWorkspaceContext(unwrappedText)) return false;
+  const userSource = stripGuildRuntimePreamble(unwrappedText).trim();
+  return shouldUseInjectedManagedContext(userSource);
 }
 
 function extractEmbeddedTextInput(value: string, options: { trim: boolean } = { trim: true }): string | undefined {
@@ -564,6 +915,7 @@ function getOperatingConstraints(_input: Input): string[] {
 }
 
 function classifyConversationIntent(rawContext: string): ConversationIntent {
+  if (isFocusedContextResume(rawContext)) return "source_available";
   if (isApprovalOrEdit(rawContext)) return "approval_or_edit";
   if (isSaveStateQuestion(rawContext)) return "save_state_question";
   if (isAttachmentUnreadableTurn(rawContext)) return "attachment_unreadable";
@@ -573,6 +925,12 @@ function classifyConversationIntent(rawContext: string): ConversationIntent {
   }
   if (!hasUsableSourceContent(rawContext)) return "missing_context";
   return "source_available";
+}
+
+function isFocusedContextResume(rawContext: string): boolean {
+  return /\bresume\s+company context(?:\s+artifact)?\s+revision\s+\d+\b/i.test(
+    rawContext,
+  ) || /(?:^|\n)\s*##\s+Focused resume input\s*$/im.test(rawContext);
 }
 
 function isSaveStateQuestion(rawContext: string): boolean {
@@ -613,6 +971,7 @@ function isAttachmentUnreadableTurn(rawContext: string): boolean {
 function hasUsableSourceContent(rawContext: string): boolean {
   const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
   const fieldCount = [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Primary audiences",
@@ -637,6 +996,7 @@ function isSparseSetupRequest(rawContext: string): boolean {
 
 function hasFieldedSourcePacket(rawContext: string): boolean {
   const fieldCount = [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Primary audiences",
@@ -669,7 +1029,9 @@ function hasUrlOnlySource(rawContext: string): boolean {
     !sourceDocumentHeadingPattern(rawContext);
 }
 
-function detectRequestedDownstreamAgent(rawContext: string): (typeof agentValues)[number] | undefined {
+function detectRequestedDownstreamAgent(
+  rawContext: string,
+): Exclude<(typeof agentValues)[number], "Company Context Builder"> | undefined {
   const normalized = rawContext.toLowerCase();
   if (/\b(campaign|paid|ads?|budget|landing page|performance|retargeting)\b/i.test(normalized)) return "Campaigns And Paid Media";
   if (/\b(social|content|post|reply|monitoring|digest|linkedin|twitter|x\b|reddit)\b/i.test(normalized)) return "Social Monitoring And Content";
@@ -679,6 +1041,49 @@ function detectRequestedDownstreamAgent(rawContext: string): (typeof agentValues
   if (/\b(icp|persona|target audience|who to target|buyer|user role)\b/i.test(normalized)) return "ICP";
   if (/\b(market|competitor|competition|community|search|answer engine|signal)\b/i.test(normalized)) return "Market Signal";
   return undefined;
+}
+
+function isExplicitDownstreamRequest(rawContext: string): boolean {
+  if (hasFieldedSourcePacket(rawContext) || sourceDocumentHeadingPattern(rawContext)) return false;
+  return /\b(?:create|draft|build|write|develop|prepare|review|revise|produce|make|help with|need|want)\b[\s\S]{0,180}\b(?:campaign|paid media|ads?|social|content|post|monitoring|brand|branding|pitch|deck|positioning|messaging|message|boilerplate|copy|segment|segmentation|icp|persona|target audience|market signal|competitor|competition)\b/i.test(rawContext) ||
+    /\b(?:campaign|paid media|social monitoring|content plan|brand brief|pitch deck|messaging framework|message pillars|audience segmentation|icp|market signal)\b[\s\S]{0,120}\b(?:please|for us|for our|from approved context|using approved context)\b/i.test(rawContext);
+}
+
+async function readPublishedWorkspaceContext(task: AgentTask): Promise<PublishedWorkspaceContext | undefined> {
+  try {
+    const guild = task.guild as GuildService | undefined;
+    const session = guild
+      ? await guild.get_session({ session_id: task.sessionId })
+      : await task.tools.guild_get_session({ session_id: task.sessionId });
+    const workspace = guild
+      ? await guild.get_workspace({ workspace_id: session.workspace.id })
+      : await task.tools.guild_get_workspace({ workspace_id: session.workspace.id });
+    const compiled = workspace.context.compiled ?? "";
+    const managedStart = compiled.indexOf(managedContextStart);
+    const managedEnd = compiled.indexOf(managedContextEnd);
+    const managedBlock =
+      managedStart !== -1 && managedEnd > managedStart
+        ? compiled.slice(managedStart, managedEnd + managedContextEnd.length)
+        : "";
+    const ready = Boolean(
+      workspace.context.id &&
+        managedBlock &&
+        /\bStatus:\s*(?:published|approved)\b/i.test(managedBlock) &&
+        /##\s+Workspace Context Brief\b/i.test(managedBlock),
+    );
+    const companyName = managedBlock.match(/^\s*(?:Company|Company name):\s*(.+)$/im)?.[1]?.trim();
+
+    return {
+      ready,
+      workspaceId: workspace.id,
+      workspaceFullName: workspace.full_name,
+      contextId: workspace.context.id ?? session.context_id ?? undefined,
+      compiled,
+      companyName,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function buildExtractionPrompt(input: Input, rawContext: string, conversationIntent: ConversationIntent): string {
@@ -719,7 +1124,24 @@ Your JSON must match this TypeScript-style shape:
   "openQuestions": string[],
   "approvalGates": [{ "ownerRole": string, "decision": string, "requiredBefore": string, "status": "needed" | "approved" | "blocked" }],
   "aeoReadiness": { "status": "blocked" | "draft" | "review_ready", "entityClarity": string, "answerReadyOpportunities": string[], "missingProof": string[], "recommendedWebInputs": string[] },
-  "statusPayload": { "companyName": string, "readiness": "blocked" | "draft" | "review_ready", "nextAgents": string[], "blockers": string[], "requiredArtifacts": string[] },
+  "statusPayload": {
+    "companyName": string,
+    "readiness": "blocked" | "draft" | "review_ready",
+    "nextAgents": string[],
+    "blockers": string[],
+    "requiredArtifacts": string[],
+    "evidence_mode": "source_supplied",
+    "observed_at": string | null,
+    "source_coverage": string[],
+    "coverage_limitations": string[],
+    "safety": {
+      "action_mode": "draft_only",
+      "external_mutation_requested": false,
+      "blocked_actions": string[],
+      "unsupported_claims": string[],
+      "evidence_gaps": string[]
+    }
+  },
   "downstreamHandoff": [{ "agent": string, "receives": string[], "reason": string }],
   "markdownPacket": string
 }
@@ -732,13 +1154,13 @@ Rules:
 - Do not invent customer-specific facts, metrics, audience counts, connected systems, legal constraints, or performance results.
 - Use only the Raw context below as company evidence. Do not use workspace metadata, connected integration names, user profile data, attachment filenames, or attachment metadata as company context.
 - Classify this turn as ${conversationIntent}; preserve that exact conversationIntent in JSON.
-- Always set saved_to_workspace_context and saved_to_context_artifacts to false. This agent drafts ready-to-publish blocks only; it does not persist them.
+- Always set saved_to_workspace_context and saved_to_context_artifacts to false in the model-generated JSON. The deterministic agent layer changes saved_to_context_artifacts only after it has retained the draft in Guild Chat state.
 - Set drafted_in_session true when a draft artifact block is produced. Set approved_in_session true only when the user explicitly approves the draft in the current turn.
 - If the Raw context only says a file or context is attached/provided but does not include readable source text, return status "blocked" and ask the user to paste the source text.
 - If context is sparse, return status "blocked" or "needs_input" and mark unsupported artifacts as "blocked" or "needs_input".
 - Do not draft substantive public copy, headlines, campaign messages, benefit claims, channel plans, or audience rules from sparse context.
 - Do not claim publishing, scheduling, spend, CRM activation, credential setup, workspace install, trigger setup, visibility change, or external system updates happened.
-- Do not claim that Guild workspace context, workspace artifacts, Context Hub files, or runtime context were saved, updated, published, installed, or persisted.
+- Do not claim that Guild workspace context or durable artifacts were saved, updated, published, installed, or persisted; only the deterministic service response may make that claim.
 - Keep legal, trademark, privacy, security, compliance, pricing, guarantee, and performance claims behind approved evidence and human review.
 - Use review verbs such as draft, recommend, plan, prepare, or propose.
 - Separate approved facts, user-supplied facts, extracted claims, proof-backed claims, claims needing approval, assumptions, missing evidence, blocked claims, and do-not-use claims.
@@ -849,13 +1271,29 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   const sourceTextNeeded = shouldRequestReadableSourceText(rawContext);
   const explicitCompanyName = extractCompanyName(rawContext);
   const explicitDescription = extractLineAfterLabels(rawContext, [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Product description",
     "Description",
-  ]);
+  ]) ?? extractCompanyDescriptionFromProse(rawContext, explicitCompanyName);
   const explicitAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
-  const explicitGoals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
+  const explicitGoals = extractBlockAfterLabels(rawContext, [
+    "Current marketing goal",
+    "Marketing goal",
+    "Current goals",
+    "Goals",
+  ]);
+  const explicitApprovedClaims = extractBlockAfterLabels(rawContext, [
+    "Approved claims",
+    "Approved facts",
+    "Claims approved for reuse",
+  ]);
+  const explicitConstraints = extractBlockAfterLabels(rawContext, [
+    "Important constraints",
+    "Constraints",
+    "Anything not approved for reuse",
+  ]);
   const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
   const blockers = new Set(output.statusPayload.blockers);
   let missing = new Set(output.consumedContext.missing);
@@ -878,6 +1316,24 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     assumptionsAndMissingEvidence = [...output.assumptionsAndMissingEvidence];
     for (const blocker of output.statusPayload.blockers) blockers.add(blocker);
   }
+
+  const preservesSourceHipaaNuance = (claim: Claim): boolean =>
+    preservesQualifiedHipaaNuance(claim.claim, rawContext);
+  blockedClaims = blockedClaims.filter(preservesSourceHipaaNuance);
+  assumptionsAndMissingEvidence =
+    assumptionsAndMissingEvidence.filter(preservesSourceHipaaNuance);
+  claimsNeedingApproval =
+    claimsNeedingApproval.filter(preservesSourceHipaaNuance);
+  output.approvedFacts =
+    output.approvedFacts.filter(preservesSourceHipaaNuance);
+  output.extractedClaims =
+    output.extractedClaims.filter(preservesSourceHipaaNuance);
+  output.proofBackedClaims =
+    output.proofBackedClaims.filter(preservesSourceHipaaNuance);
+  output.contextArtifacts.proofAndConstraints.approvedClaims =
+    output.contextArtifacts.proofAndConstraints.approvedClaims.filter(
+      preservesSourceHipaaNuance,
+    );
 
   if (explicitCompanyName) {
     output.contextArtifacts.companyContext.companyName = explicitCompanyName;
@@ -912,6 +1368,26 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     );
     missing.delete("Approved channel scope");
     missing.delete("Channel scope");
+  }
+
+  for (const fact of explicitApprovedClaims) {
+    if (isSensitiveClaim(fact)) {
+      blockedClaims.push(sensitiveClaimGuardrail(fact));
+      claimsNeedingApproval.push(sensitiveClaimNeedsApproval(fact));
+      continue;
+    }
+    addUserSuppliedClaim(output.approvedFacts, fact);
+    addUserSuppliedClaim(
+      output.contextArtifacts.proofAndConstraints.approvedClaims,
+      fact,
+    );
+  }
+  if (explicitConstraints.length > 0) {
+    output.contextArtifacts.proofAndConstraints.constraints =
+      mergeDefaultConstraints([
+        ...explicitConstraints,
+        ...output.contextArtifacts.proofAndConstraints.constraints,
+      ]);
   }
 
   for (const fact of extractProofFacts(rawContext)) {
@@ -1034,7 +1510,13 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     }
   }
 
-  output.approvalGates = mergeApprovalGates(output.approvalGates);
+  output.approvalGates = mergeApprovalGates(
+    output.approvalGates.filter((gate) =>
+      [gate.decision, gate.requiredBefore].every((value) =>
+        preservesQualifiedHipaaNuance(value, rawContext)
+      )
+    ),
+  );
   for (const claim of collectSensitiveOutputClaims(output)) {
     blockedClaims.push(sensitiveClaimGuardrail(claim));
     claimsNeedingApproval.push(sensitiveClaimNeedsApproval(claim));
@@ -1045,9 +1527,10 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
     .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
-  output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
+  output.contextArtifacts.proofAndConstraints.blockedClaims =
+    normalizeBlockedClaims(blockedClaims.filter(preservesSourceHipaaNuance));
   output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
-    ...claimsNeedingApproval,
+    ...claimsNeedingApproval.filter(preservesSourceHipaaNuance),
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
     ...output.assumptionsAndMissingEvidence.filter((claim) => claim.status === "assumption" || claim.status === "missing"),
   ]);
@@ -1114,7 +1597,265 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     ].join("\n");
   }
 
+  return finalizeCompleteMarketerContextPacket(output, rawContext);
+}
+
+function finalizeCompleteMarketerContextPacket(
+  output: Output,
+  rawContext: string,
+): Output {
+  const packet = extractMarketerContextPacket(rawContext);
+  if (!packet) return output;
+
+  const sensitiveReusableFacts = [
+    packet.description,
+    ...packet.approvedClaims,
+  ].filter(isGuardedReusableClaim);
+  if (sensitiveReusableFacts.length > 0) {
+    return output;
+  }
+
+  const approvedFacts = [
+    userSuppliedClaim(`Company name: ${packet.companyName}`),
+    userSuppliedClaim(packet.description),
+    ...packet.approvedClaims.map(userSuppliedClaim),
+  ];
+  const optionalEvidenceGaps = packet.approvedClaims.length > 0
+    ? [
+        "Customer results, pricing, security, compliance, and quantified performance proof remain TBD unless separately supplied and approved.",
+      ]
+    : [
+        "Proof points and public claims remain TBD; planning drafts may proceed without inventing them.",
+      ];
+  const operatingConstraints = mergeDefaultConstraints(packet.constraints);
+
+  output.status = "ready_for_review";
+  output.conversationIntent = "source_available";
+  output.consumedContext = {
+    used: [
+      "Company description",
+      "Primary audiences",
+      "Current marketing goal",
+      packet.approvedClaims.length > 0
+        ? "Approved claims"
+        : "Company description as the only currently reusable factual claim",
+      "Channels in scope",
+      packet.constraints.length > 0
+        ? "Important constraints"
+        : "Default draft-only Marketing OS constraints",
+    ],
+    missing: [],
+    sourceLabels: ["User-provided text input"],
+  };
+  output.contextArtifacts.companyContext = {
+    status: "draft",
+    companyName: packet.companyName,
+    category: "TBD — refine when useful; not required to begin.",
+    primaryAudiences: packet.audiences,
+    goals: packet.goals,
+    missingContext: [],
+  };
+  output.contextArtifacts.messagingSource = {
+    status: "draft",
+    overview: packet.description,
+    positioning:
+      "TBD — develop in Messaging from the approved company description, audiences, goal, and claims.",
+    proofNeeds: optionalEvidenceGaps,
+    answerReadyLanguage: packet.approvedClaims,
+  };
+  output.contextArtifacts.brandKit = {
+    status: "draft",
+    voice:
+      "TBD — add approved brand voice guidance when available; this does not block marketing drafts.",
+    visualDirection:
+      "TBD — add approved visual guidance when available; this does not block presentation outlines or design briefs.",
+    constraints: [
+      "Keep brand recommendations draft-only until approved brand guidance is supplied.",
+    ],
+  };
+  output.contextArtifacts.audienceSegments = packet.audiences.map(
+    (audience) => ({
+      status: "draft",
+      name: audience,
+      description:
+        "User-supplied audience. ICP and Audience Segmentation may add pains, fit, buying roles, and exclusions as reviewable hypotheses.",
+      evidenceStatus: "user_supplied",
+      missingEvidence: [],
+    }),
+  );
+  output.contextArtifacts.channelRegistry = {
+    status: "draft",
+    approvedChannels: packet.channels,
+    channelsTbd: [],
+    blockedActions: operatingConstraints,
+  };
+  output.contextArtifacts.proofAndConstraints = {
+    status: "draft",
+    approvedClaims: approvedFacts,
+    blockedClaims: [],
+    constraints: operatingConstraints,
+  };
+  output.contextArtifacts.dashboardSignals = {
+    status: "draft",
+    readiness: "review_ready",
+    blockers: [],
+    nextReviewSignals: [
+      "Approve this baseline company context.",
+      "Add proof, brand guidance, or more detail later when it improves a specific workflow.",
+    ],
+  };
+  output.workspaceContextDraft = renderMarketerWorkspaceContextDraft(packet);
+  output.approvedFacts = approvedFacts;
+  output.extractedClaims = approvedFacts;
+  output.proofBackedClaims = [];
+  output.claimsNeedingApproval = [];
+  output.assumptionsAndMissingEvidence = [];
+  output.openQuestions = [];
+  output.approvalGates = [
+    {
+      ownerRole: "Company Context Owner",
+      decision:
+        "Approve this baseline company description, audiences, goal, reusable claims, channels, and constraints.",
+      requiredBefore: "Publishing the compact brief for specialist reuse.",
+      status: "needed",
+    },
+  ];
+  output.aeoReadiness = {
+    status: "draft",
+    entityClarity:
+      "The approved company description can serve as the baseline entity summary.",
+    answerReadyOpportunities: [
+      "What the company is",
+      "Who it serves",
+      "What the current marketing goal is",
+    ],
+    missingProof: optionalEvidenceGaps,
+    recommendedWebInputs: [],
+  };
+  output.statusPayload = {
+    ...output.statusPayload,
+    companyName: packet.companyName,
+    readiness: "review_ready",
+    nextAgents: [
+      "Market Signal",
+      "ICP",
+      "Audience Segmentation",
+      "Messaging",
+      "Branding And Pitch Deck",
+      "Social Monitoring And Content",
+      "Campaigns And Paid Media",
+    ],
+    blockers: [],
+    requiredArtifacts: [...defaultRequestedArtifacts],
+    evidence_mode: "source_supplied",
+    source_coverage: [
+      "Company description",
+      "Audiences",
+      "Marketing goal",
+      "Approved claims",
+      "Channel scope",
+      "Constraints",
+    ],
+    coverage_limitations: [
+      "Only the user-supplied context was inspected. No live website, connector, or monitoring source was used.",
+    ],
+    safety: {
+      ...output.statusPayload.safety,
+      action_mode: "draft_only",
+      external_mutation_requested: false,
+      blocked_actions: operatingConstraints,
+      unsupported_claims: [],
+      evidence_gaps: optionalEvidenceGaps,
+    },
+  };
+  output.downstreamHandoff = defaultDownstreamHandoff();
+
   return output;
+}
+
+function extractMarketerContextPacket(
+  rawContext: string,
+): MarketerContextPacket | undefined {
+  if (
+    !/\b(?:current marketing goal|approved claims|important constraints)\s*:/i.test(
+      rawContext,
+    )
+  ) {
+    return undefined;
+  }
+  const companyName = extractCompanyName(rawContext);
+  const description =
+    extractLineAfterLabels(rawContext, [
+      "Approved company description",
+      "Approved description",
+      "Company description",
+      "Product description",
+      "Description",
+    ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
+  const audiences = extractListAfterLabels(rawContext, [
+    "Primary audiences",
+    "Primary audience",
+    "Audiences",
+    "Audience",
+  ]);
+  const goals = extractBlockAfterLabels(rawContext, [
+    "Current marketing goal",
+    "Marketing goal",
+    "Current goals",
+    "Goals",
+  ]);
+  const approvedClaims = extractBlockAfterLabels(rawContext, [
+    "Approved claims",
+    "Approved facts",
+    "Claims approved for reuse",
+  ]);
+  const channels = extractListAfterLabels(rawContext, [
+    "Channels in scope",
+    "Approved channels",
+    "Channel scope",
+    "Channels",
+  ]);
+  const constraints = extractBlockAfterLabels(rawContext, [
+    "Important constraints",
+    "Constraints",
+    "Anything not approved for reuse",
+  ]);
+
+  if (
+    !companyName ||
+    !description ||
+    audiences.length === 0 ||
+    goals.length === 0 ||
+    channels.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    companyName,
+    description,
+    audiences,
+    goals,
+    approvedClaims,
+    channels,
+    constraints,
+  };
+}
+
+function renderMarketerWorkspaceContextDraft(
+  packet: MarketerContextPacket,
+): string {
+  return [
+    `Company: ${packet.companyName}`,
+    "Readiness: review_ready",
+    `Company description: ${packet.description}`,
+    `Primary audiences: ${packet.audiences.join(", ")}`,
+    `Current marketing goal: ${packet.goals.join(" ")}`,
+    `Approved claims: ${packet.approvedClaims.length > 0 ? packet.approvedClaims.join(" ") : "None yet; do not invent proof."}`,
+    `Channels in scope: ${packet.channels.join(", ")}`,
+    `Important constraints: ${packet.constraints.length > 0 ? packet.constraints.join(" ") : "Keep unknown facts as TBD."}`,
+    "Operating rule: create reviewable drafts, distinguish facts from assumptions, and take no external action.",
+  ].join("\n");
 }
 
 function isSparse(rawContext: string): boolean {
@@ -1143,14 +1884,20 @@ function hasExplicitContextDetails(rawContext: string): boolean {
   return Boolean(
     extractCompanyName(rawContext) ||
       extractLineAfterLabels(rawContext, [
+        "Approved company description",
         "Approved description",
         "Company description",
         "Product description",
         "Description",
         "Primary audiences",
         "Primary audience",
+        "Current marketing goal",
+        "Marketing goal",
         "Current goals",
         "Goals",
+        "Approved claims",
+        "Approved facts",
+        "Claims approved for reuse",
         "Proof-backed claims or source excerpts",
         "Proof-backed claims",
         "Approved proof",
@@ -1160,6 +1907,8 @@ function hasExplicitContextDetails(rawContext: string): boolean {
         "Approved channels",
         "Channel scope",
         "Channels",
+        "Important constraints",
+        "Constraints",
       ]),
   );
 }
@@ -1233,7 +1982,16 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
       continue;
     }
 
-    if (isSensitiveClaim(claim.claim)) {
+    if (!sourceEvidenceLabelsAllowReuse(claim.claim, rawContext)) {
+      sensitive.push({
+        ...sensitiveClaimGuardrail(claim.claim),
+        notes:
+          "The supplied source labels this material as review-required, secondary, blocked, or unknown. Only explicitly approved_reusable material may enter reusable context.",
+      });
+      continue;
+    }
+
+    if (isGuardedReusableClaim(claim.claim)) {
       sensitive.push(sensitiveClaimGuardrail(claim.claim));
       continue;
     }
@@ -1255,6 +2013,57 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
   }
 
   return { approved: dedupeClaims(approved), downgraded: dedupeClaims(downgraded), sensitive: dedupeClaims(sensitive) };
+}
+
+export function sourceEvidenceLabelsAllowReuse(
+  claim: string,
+  rawContext: string,
+): boolean {
+  if (
+    !/\[(?:approved_reusable|source_supplied_review_required|secondary_estimate|blocked_action|unknown)\]/i.test(
+      rawContext,
+    )
+  ) {
+    return true;
+  }
+  const approvedReusableContext =
+    extractApprovedReusableContext(rawContext);
+  return (
+    isCompanyNameClaimGrounded(claim, approvedReusableContext) ||
+    isGroundedInInput(claim, approvedReusableContext)
+  );
+}
+
+function extractApprovedReusableContext(rawContext: string): string {
+  const approvedLines: string[] = [];
+  let collecting = false;
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const approvedMarker = line.match(
+      /\[approved_reusable\]\s*`?\s*(.*)$/i,
+    );
+    if (approvedMarker) {
+      collecting = true;
+      if (approvedMarker[1]?.trim()) {
+        approvedLines.push(approvedMarker[1].trim());
+      }
+      continue;
+    }
+    if (
+      /^#{1,6}\s/.test(line) ||
+      /^[-*]\s+/.test(line) ||
+      /\[(?:source_supplied_review_required|secondary_estimate|blocked_action|unknown)\]/i.test(
+        line,
+      )
+    ) {
+      collecting = false;
+      continue;
+    }
+    if (collecting && line) {
+      approvedLines.push(line);
+    }
+  }
+  return approvedLines.join(" ");
 }
 
 function isCompanyNameClaimGrounded(claim: string, rawContext: string): boolean {
@@ -1485,6 +2294,10 @@ function applyReadableSourceNeededState(output: Output): Output {
 function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Output {
   const output = buildFallbackOutput(input, ["No persistence operation has been run in this agent."], "save_state_question");
   const savedToWorkspace = state.workspaceContextStatus === "published" && Boolean(state.workspaceContextId);
+  const savedArtifacts = Boolean(
+    state.durableContextArtifactId &&
+      state.durableContextArtifactRevision,
+  );
   const approvedOnly = !savedToWorkspace && Boolean(state.approvedOutput);
   const draftedOnly = !savedToWorkspace && !approvedOnly && Boolean(state.lastOutput);
   output.status = "needs_input";
@@ -1492,51 +2305,72 @@ function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Out
     drafted_in_session: Boolean(state.lastOutput ?? state.approvedOutput) || true,
     approved_in_session: Boolean(state.approvedOutput),
     saved_to_workspace_context: savedToWorkspace,
-    saved_to_context_artifacts: false,
+    saved_to_context_artifacts: savedArtifacts,
     workspace_context_id: state.workspaceContextId,
     workspace_context_draft_id: state.workspaceContextDraftId,
     workspace_context_previous_id: state.workspaceContextPreviousId,
     workspace_context_status: state.workspaceContextStatus ?? "not_requested",
     workspace_context_summary: state.workspaceContextSummary,
     workspace_context_publish_path: state.workspaceContextPublishPath,
+    source_references:
+      state.durableSourceId && state.durableSourceRevision
+        ? [`${state.durableSourceId}:${state.durableSourceRevision}`]
+        : [],
+    context_artifact_references:
+      state.durableContextArtifactId &&
+      state.durableContextArtifactRevision
+        ? [
+            `${state.durableContextArtifactId}:${state.durableContextArtifactRevision}`,
+          ]
+        : [],
     workspace_context_rollback_note: state.workspaceContextPreviousId
       ? `Re-publish previous workspace context ${state.workspaceContextPreviousId} to roll back.`
       : undefined,
     persistence_note: savedToWorkspace
-      ? `Yes. The approved company context has been published to Guild workspace context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}. Context Hub artifact files were not changed.`
+      ? `Yes. The approved Company Context artifact is retained in Guild Chat state, and its compact brief has been published to Guild Workspace Context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}.`
       : approvedOnly
-        ? "The latest company context is approved in this session and waiting for the exact publish confirmation. It has not been saved to Guild workspace context or Context Hub artifacts."
+        ? "The latest Company Context artifact is durably approved and waiting for the exact workspace-context publish confirmation. Guild workspace context has not changed."
         : draftedOnly
-          ? "The latest company context is drafted in this session only. It has not been approved or saved to Guild workspace context or Context Hub artifacts."
-          : "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts.",
+          ? savedArtifacts
+            ? "The encrypted source and review-ready Company Context artifact are durably stored, but the artifact is not approved and Guild workspace context has not changed."
+            : "The latest company context is a session draft and durable persistence did not complete."
+          : "No durable Company Context draft is available.",
   };
   output.consumedContext.used = ["User asked whether company context is saved or approved."];
   output.consumedContext.missing = savedToWorkspace
-    ? ["Context Hub artifact persistence"]
+    ? []
     : approvedOnly
-      ? ["Exact publish confirmation: publish approved context to workspace context", "Context Hub artifact persistence"]
+      ? ["Exact publish confirmation: publish approved context to workspace context"]
       : ["Explicit approval", "Exact publish confirmation: publish approved context to workspace context"];
   output.contextArtifacts.companyContext.status = "needs_input";
   output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
   output.contextArtifacts.dashboardSignals.status = "needs_input";
   output.contextArtifacts.dashboardSignals.readiness = "draft";
-  output.contextArtifacts.dashboardSignals.blockers = ["Session draft is not persisted."];
+  output.contextArtifacts.dashboardSignals.blockers = savedArtifacts
+    ? approvedOnly
+      ? ["Awaiting exact workspace context publish confirmation."]
+      : ["Durable Company Context artifact is awaiting approval."]
+    : ["Durable Company Context persistence is unavailable."];
   output.workspaceContextDraft = savedToWorkspace
     ? `Guild workspace context published. Context id: ${state.workspaceContextId ?? "TBD"}.`
     : approvedOnly
-      ? "Approved company context is staged in this session. Reply exactly `publish approved context to workspace context` to publish it."
-      : "No Guild workspace context update has been saved. The current Company Context block is a session draft only.";
+      ? "Approved Company Context artifact is staged durably. Reply exactly `publish approved context to workspace context` to publish its compact brief."
+      : savedArtifacts
+        ? "Review-ready Company Context artifact is stored durably. Guild workspace context has not changed."
+        : "No Guild workspace context update has been saved, and no durable Company Context artifact is available.";
   output.openQuestions = [
-    savedToWorkspace ? "Should Context Hub artifact files be updated separately?" : "Should the current draft be approved in this session?",
+    savedToWorkspace ? "Should a new Company Context revision be drafted?" : "Should the current durable artifact revision be approved?",
     "Do any claims need to be removed before a future persistence step?",
     approvedOnly ? "Should I publish the approved company context after the exact confirmation phrase?" : "Which approved source should be used if a separate save/publish workflow is later authorized?",
   ];
   output.statusPayload.readiness = "draft";
   output.statusPayload.blockers = savedToWorkspace
-    ? ["Context Hub artifacts were not persisted."]
+    ? []
     : approvedOnly
-      ? ["Awaiting exact workspace context publish confirmation.", "Not saved to Context Hub artifacts."]
-      : ["Not saved to workspace context.", "Not saved to Context Hub artifacts."];
+      ? ["Awaiting exact workspace context publish confirmation."]
+      : savedArtifacts
+        ? ["Durable Company Context artifact is awaiting approval."]
+        : ["Durable Company Context persistence did not complete."];
   output.downstreamHandoff = [
     {
       agent: "Company Context Builder",
@@ -1666,12 +2500,13 @@ function approveStoredDraft(draft: Output, isPersistenceRequest: boolean): Outpu
       drafted_in_session: true,
       approved_in_session: true,
       saved_to_workspace_context: false,
-      saved_to_context_artifacts: false,
+      saved_to_context_artifacts:
+        draft.persistenceState.saved_to_context_artifacts,
       workspace_context_status: "approved_pending_publish",
       workspace_context_summary: publishSummaryForOutput(draft),
       persistence_note: isPersistenceRequest
-        ? "Company context approved in this session. It is staged for workspace context publishing, but has not been saved yet. Reply exactly `publish approved context to workspace context` to publish it."
-        : "Company context approved in this session. It has not been saved yet. Reply exactly `publish approved context to workspace context` to publish it to Guild workspace context.",
+        ? "Company context approval is being applied to the durable artifact revision. Workspace context remains unchanged until the exact publication phrase is supplied."
+        : "Company context approval is being applied to the durable artifact revision. Reply exactly `publish approved context to workspace context` only after reviewing the retained artifact.",
     },
     consumedContext: {
       ...draft.consumedContext,
@@ -1691,7 +2526,6 @@ function approveStoredDraft(draft: Output, isPersistenceRequest: boolean): Outpu
         ...new Set([
           ...draft.statusPayload.blockers.filter((blocker) => !/owner approval|not saved|session approval/i.test(blocker)),
           "Awaiting exact workspace context publish confirmation.",
-          "Context Hub artifacts were not persisted.",
         ]),
       ],
     },
@@ -1715,7 +2549,7 @@ function approveStoredDraft(draft: Output, isPersistenceRequest: boolean): Outpu
 
 async function buildWorkspaceContextPublishOutput(
   input: Input,
-  task: AgentTask,
+  _task: AgentTask,
   state: AgentState,
 ): Promise<{ output: Output; state: AgentState }> {
   if (!state.approvedOutput) {
@@ -1735,73 +2569,70 @@ async function buildWorkspaceContextPublishOutput(
   }
 
   const approvedOutput = state.approvedOutput;
-  const compactionResult = await buildCompactedWorkspaceContext(approvedOutput, state.approvedSourceText, task);
-
-  if (compactionResult.status === "blocked") {
-    const blockedOutput = markWorkspaceContextCompactionBlocked(approvedOutput, compactionResult);
+  if (
+    !state.durableContextArtifactId ||
+    !state.durableContextArtifactRevision ||
+    state.durableContextArtifactStatus !== "approved"
+  ) {
+    const blockedOutput = markWorkspaceContextPublishBlocked(
+      approvedOutput,
+      new Error(
+        "The exact Company Context artifact revision is not durably approved.",
+      ),
+    );
     return {
       output: blockedOutput,
       state: {
         ...state,
         lastOutput: blockedOutput,
-        approvedOutput,
         workspaceContextStatus: "blocked",
-        workspaceContextSummary: publishSummaryForOutput(approvedOutput),
       },
     };
   }
 
-  const summary = publishSummaryForOutput(approvedOutput, compactionResult.context);
-
-  try {
-    const managedBlock = renderManagedWorkspaceContextBlock(approvedOutput, compactionResult.context);
-    const publishResult = workspaceContextPublishResponseSchema.parse(await task.tools.workspace_context_publish({
-      session_id: task.sessionId,
-      managed_context: managedBlock,
-      summary,
-      start_marker: managedContextStart,
-      end_marker: managedContextEnd,
-      company_name: approvedOutput.statusPayload.companyName,
-      approval_phrase: "publish approved context to workspace context",
-      approved_at: state.approvedAt,
-    }));
-    const publishedOutput = markWorkspaceContextPublished(approvedOutput, {
-      contextId: publishResult.published_context_id,
-      draftContextId: publishResult.draft_context_id,
-      previousContextId: publishResult.previous_context_id ?? undefined,
-      summary: publishResult.summary ?? summary,
-      publishPath: publishResult.publish_path ?? "host_bridge",
-      rollbackReference: publishResult.rollback_reference,
-    });
-
-    return {
-      output: publishedOutput,
-      state: {
-        ...state,
-        lastOutput: publishedOutput,
-        approvedOutput: publishedOutput,
-        workspaceId: publishResult.workspace_id ?? state.workspaceId,
-        workspaceContextId: publishResult.published_context_id,
-        workspaceContextDraftId: publishResult.draft_context_id,
-        workspaceContextPreviousId: publishResult.previous_context_id,
-        workspaceContextPublishPath: publishResult.publish_path ?? "host_bridge",
-        workspaceContextStatus: "published",
-        workspaceContextSummary: publishResult.summary ?? summary,
-      },
-    };
-  } catch (error) {
-    const blockedOutput = markWorkspaceContextPublishBlocked(approvedOutput, error);
-    return {
-      output: blockedOutput,
-      state: {
-        ...state,
-        lastOutput: blockedOutput,
-        approvedOutput,
-        workspaceContextStatus: "blocked",
-        workspaceContextSummary: summary,
-      },
-    };
-  }
+  const routedOutput = structuredOutputSchema.parse({
+    ...approvedOutput,
+    conversationIntent: "approval_or_edit",
+    status: "ready_for_review",
+    persistenceState: {
+      ...approvedOutput.persistenceState,
+      drafted_in_session: true,
+      approved_in_session: true,
+      saved_to_workspace_context: false,
+      saved_to_context_artifacts: true,
+      workspace_context_status: "approved_pending_publish",
+      workspace_context_summary: publishSummaryForOutput(approvedOutput),
+      persistence_note:
+        "The Company Context artifact is approved in this direct Builder session, but Workspace Context publication belongs to the canonical Marketing OS Launcher Chat. Return to Launcher and send the exact phrase there. Nothing was published from this direct specialist session.",
+    },
+    statusPayload: {
+      ...approvedOutput.statusPayload,
+      blockers: [
+        ...new Set([
+          ...approvedOutput.statusPayload.blockers.filter(
+            (blocker) => !/publish confirmation/i.test(blocker),
+          ),
+          "Return to the canonical Marketing OS Launcher Chat for Workspace Context publication.",
+        ]),
+      ],
+    },
+    openQuestions: [
+      ...new Set([
+        ...approvedOutput.openQuestions,
+        "Open the canonical Marketing OS Launcher Chat and repeat the exact publication phrase.",
+      ]),
+    ],
+  });
+  return {
+    output: routedOutput,
+    state: {
+      ...state,
+      lastOutput: routedOutput,
+      approvedOutput: routedOutput,
+      workspaceContextStatus: "approved_pending_publish",
+      workspaceContextSummary: publishSummaryForOutput(approvedOutput),
+    },
+  };
 }
 
 function markWorkspaceContextPublished(
@@ -1831,7 +2662,7 @@ function markWorkspaceContextPublished(
       drafted_in_session: true,
       approved_in_session: true,
       saved_to_workspace_context: true,
-      saved_to_context_artifacts: false,
+      saved_to_context_artifacts: true,
       workspace_context_id: publishResult.contextId,
       workspace_context_draft_id: publishResult.draftContextId,
       workspace_context_previous_id: publishResult.previousContextId ?? null,
@@ -1839,14 +2670,20 @@ function markWorkspaceContextPublished(
       workspace_context_summary: publishResult.summary,
       workspace_context_publish_path: publishResult.publishPath,
       workspace_context_rollback_note: rollbackNote,
-      persistence_note: `Published compacted workspace context brief to Guild workspace context as ${publishResult.contextId} through the ${publishPathLabel}. Draft context: ${publishResult.draftContextId}. Previous published context: ${previousContext}. The full approved source corpus remains in Company Context Builder session state only. Context Hub artifact files were not changed.`,
+      persistence_note: `Published compacted Workspace Context brief to Guild as ${publishResult.contextId} through the ${publishPathLabel}. Previous published context: ${previousContext}. The approved Company Context artifact remains in Guild Chat state.`,
     },
     consumedContext: {
       ...approvedOutput.consumedContext,
       used: [...new Set([...approvedOutput.consumedContext.used, `Published compacted workspace context brief to Guild workspace context through the ${publishPathLabel}.`])],
       missing: [
-        ...new Set(approvedOutput.consumedContext.missing.filter((item) => !/publish confirmation|workspace context/i.test(item))),
-        "Context Hub artifact persistence",
+        ...new Set(
+          approvedOutput.consumedContext.missing.filter(
+            (item) =>
+              !/publish confirmation|workspace context|Context Hub artifact persistence/i.test(
+                item,
+              ),
+          ),
+        ),
       ],
     },
     workspaceContextDraft: [
@@ -1862,8 +2699,12 @@ function markWorkspaceContextPublished(
       ...approvedOutput.statusPayload,
       blockers: [
         ...new Set([
-          ...approvedOutput.statusPayload.blockers.filter((blocker) => !/workspace context|not saved|publish confirmation|Context Hub artifacts were not persisted/i.test(blocker)),
-          "Context Hub artifacts were not persisted.",
+          ...approvedOutput.statusPayload.blockers.filter(
+            (blocker) =>
+              !/workspace context|not saved|publish confirmation|Context Hub artifacts were not persisted/i.test(
+                blocker,
+              ),
+          ),
         ]),
       ],
     },
@@ -1873,8 +2714,12 @@ function markWorkspaceContextPublished(
         ...approvedOutput.contextArtifacts.dashboardSignals,
         blockers: [
           ...new Set([
-            ...approvedOutput.contextArtifacts.dashboardSignals.blockers.filter((blocker) => !/workspace context|not saved|publish confirmation/i.test(blocker)),
-            "Context Hub artifacts were not persisted.",
+            ...approvedOutput.contextArtifacts.dashboardSignals.blockers.filter(
+              (blocker) =>
+                !/workspace context|not saved|publish confirmation|Context Hub artifacts were not persisted/i.test(
+                  blocker,
+                ),
+            ),
           ]),
         ],
       },
@@ -1895,10 +2740,11 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
       drafted_in_session: true,
       approved_in_session: true,
       saved_to_workspace_context: false,
-      saved_to_context_artifacts: false,
+      saved_to_context_artifacts:
+        approvedOutput.persistenceState.saved_to_context_artifacts,
       workspace_context_status: "blocked",
       workspace_context_summary: publishSummaryForOutput(approvedOutput),
-      persistence_note: `Workspace context publish was attempted after exact confirmation through the host-controlled publish bridge, but Guild did not confirm the write. The approved context remains staged for retry. Error: ${safeMessage}`,
+      persistence_note: `Workspace Context publication did not complete. The approved context artifact remains in Guild Chat state for retry from the canonical Launcher Chat. Error: ${safeMessage}`,
     },
     statusPayload: {
       ...approvedOutput.statusPayload,
@@ -1924,7 +2770,7 @@ function markWorkspaceContextPublishBlocked(approvedOutput: Output, error: unkno
     openQuestions: [
       ...new Set([
         ...approvedOutput.openQuestions,
-        "Should I retry workspace context publishing after the host publish bridge is available?",
+        "Should I retry Workspace Context publication from the canonical Marketing OS Launcher Chat?",
       ]),
     ],
   });
@@ -1952,7 +2798,8 @@ function markWorkspaceContextCompactionBlocked(approvedOutput: Output, result: E
       drafted_in_session: true,
       approved_in_session: true,
       saved_to_workspace_context: false,
-      saved_to_context_artifacts: false,
+      saved_to_context_artifacts:
+        approvedOutput.persistenceState.saved_to_context_artifacts,
       workspace_context_status: "blocked",
       workspace_context_summary: publishSummaryForOutput(approvedOutput),
       persistence_note: note,
@@ -2026,17 +2873,9 @@ function renderManagedWorkspaceContextBlock(output: Output, compactedContext: Co
 
 async function buildCompactedWorkspaceContext(
   approvedOutput: Output,
-  approvedSourceText: string | undefined,
   task: AgentTask,
 ): Promise<WorkspaceContextCompactionResult> {
-  const sourceText = approvedSourceText?.trim()
-    ? approvedSourceText
-    : [
-      renderReadyToPublishWorkspaceContext(approvedOutput),
-      "",
-      renderDownstreamHandoffContext(approvedOutput),
-    ].join("\n");
-  const cleanedSourceText = cleanApprovedSourceForWorkspaceContext(sourceText);
+  const cleanedSourceText = buildApprovedWorkspaceContextCorpus(approvedOutput);
   const estimatedSourceTokens = estimateWorkspaceContextTokens(cleanedSourceText);
   let firstCompaction = await requestWorkspaceContextCompaction(approvedOutput, cleanedSourceText, task);
   if (!firstCompaction) {
@@ -2060,7 +2899,7 @@ async function buildCompactedWorkspaceContext(
   if (firstBriefCheck.length > 0) {
     return {
       status: "blocked",
-      reason: `The compacted workspace context brief is missing required sections: ${firstBriefCheck.join(", ")}.`,
+      reason: `The compacted workspace context brief failed deterministic validation: ${firstBriefCheck.join(", ")}.`,
       cleanedSourceText,
     };
   }
@@ -2119,7 +2958,7 @@ async function buildCompactedWorkspaceContext(
   if (regeneratedBriefCheck.length > 0) {
     return {
       status: "blocked",
-      reason: `The regenerated workspace context brief is missing required sections: ${regeneratedBriefCheck.join(", ")}.`,
+      reason: `The regenerated workspace context brief failed deterministic validation: ${regeneratedBriefCheck.join(", ")}.`,
       audit: firstAudit,
       cleanedSourceText,
     };
@@ -2156,7 +2995,7 @@ async function buildCompactedWorkspaceContext(
     if (repairedBriefCheck.length > 0) {
       return {
         status: "blocked",
-        reason: `The audit-repaired workspace context brief is missing required sections: ${repairedBriefCheck.join(", ")}.`,
+        reason: `The audit-repaired workspace context brief failed deterministic validation: ${repairedBriefCheck.join(", ")}.`,
         audit: regeneratedAudit,
         cleanedSourceText,
       };
@@ -2308,7 +3147,7 @@ Workspace Context Compaction
 
 Return only valid JSON. Do not use markdown fences.
 
-Create a concise always-on Guild workspace context brief from the approved source corpus. Target ${targetWorkspaceContextTokenMin}-${targetWorkspaceContextTokenMax} tokens. Preserve material facts, nuance, explicit constraints, and explicit unknowns. Do not add facts that are not present in the source.
+Create a concise always-on Guild workspace context brief from the approved reusable context corpus. Target ${targetWorkspaceContextTokenMin}-${targetWorkspaceContextTokenMax} tokens. Preserve material reusable facts, nuance, explicit constraints, evidence labels, and explicit unknowns. Do not add facts that are not present in the source.
 
 Required JSON shape:
 {
@@ -2320,7 +3159,9 @@ Required JSON shape:
 The workspace_context_brief must use these exact Markdown section headings:
 ${requiredWorkspaceBriefSections.map((section) => `### ${section}`).join("\n")}
 
-Must preserve if present: dates, numbers, named products, named audiences, proof metrics, third-party review ratings, compliance caveats, pricing tiers, acquisitions, funding, competitors, and explicit unknowns.
+Only facts in the approved reusable context corpus may be restated as reusable facts. The complete raw source is intentionally absent from always-on Workspace Context.
+Any item labeled review-required, blocked, withheld, missing, assumption, or do-not-use must remain a limitation or category-level summary; never turn it into an approved public claim or reintroduce its underlying raw claim.
+Must preserve if approved and present: dates, named products, named audiences, named competitors, explicit constraints, and explicit unknowns.
 Do not infer appointment dates, causality, guarantees, compliance workarounds, or operational readiness unless the source states them directly.
 For private-company financials, distinguish company-disclosed funding from secondary-reported valuation or revenue estimates; never call secondary valuations or ARR estimates company-confirmed.
 For pricing and packaging, preserve tier names and included capabilities without strengthening them with words like "full", "complete", "all", or implementation mechanisms not in the source. If the source says "automatic visitor routing", do not rewrite it as "IP routing"; if it says Basic includes unlimited form submissions or Optimize includes audience targeting, keep those details.
@@ -2334,7 +3175,7 @@ Known next agents: ${approvedOutput.statusPayload.nextAgents.join(", ")}
 ${auditInstruction}
 ${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
-Cleaned approved source corpus:
+Approved reusable context corpus:
 ${cleanedSourceText}
 `.trim();
 }
@@ -2345,7 +3186,8 @@ Workspace Context Compaction Audit
 
 Return only valid JSON. Do not use markdown fences.
 
-Compare the cleaned approved source corpus against the compacted workspace context brief. Be strict about material facts, named entities, numbers, dates, compliance caveats, pricing, proof metrics, competitors, acquisitions, and explicit unknowns.
+Compare the approved reusable context corpus against the compacted workspace context brief. Be strict about material facts, evidence labels, named entities, dates, constraints, competitors, and explicit unknowns.
+Treat any pricing, proof, scale, funding, revenue, compliance, security, privacy, ranking, guarantee, or performance claim in the brief as unsupported unless that exact reusable fact appears in the approved corpus. Do not request restoration of raw source claims that were intentionally summarized as review-required, blocked, withheld, or do-not-use.
 
 Required JSON shape:
 {
@@ -2358,7 +3200,7 @@ Required JSON shape:
 Use empty arrays when there are no issues. Put only claims that materially affect downstream Marketing OS agents in lost_material_facts. Put any claim in unsupported_new_claims if it appears in the brief but is not supported by the cleaned source.
 ${retryInstruction ? `\nRetry instruction: ${retryInstruction}\n` : ""}
 
-Cleaned approved source corpus:
+Approved reusable context corpus:
 ${cleanedSourceText}
 
 Compacted workspace context brief:
@@ -2370,7 +3212,97 @@ ${compaction.source_corpus_summary}
 }
 
 function validateWorkspaceContextBrief(brief: string): string[] {
-  return requiredWorkspaceBriefSections.filter((section) => !new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}\\s*$`, "im").test(brief));
+  const errors = requiredWorkspaceBriefSections
+    .filter((section) => !new RegExp(`^#{2,4}\\s+${escapeRegExp(section)}\\s*$`, "im").test(brief))
+    .map((section) => `missing section: ${section}`);
+  const unsafeLines = brief
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (!line || /^#{1,6}\s/.test(line)) return false;
+      if (!isWorkspaceSensitiveClaimLine(line)) return false;
+      return !/\b(?:review[- ]required|requires (?:separate )?(?:evidence|approval|review)|withheld|blocked|do not (?:use|reuse|claim)|must not (?:use|reuse|claim)|not approved|tbd|missing evidence|source[-_ ]supplied(?: only)?|limitation|unknown|unspecified|remain open|omitted|excluded)\b/i.test(
+        line,
+      );
+    });
+  if (unsafeLines.length > 0) {
+    errors.push(
+      `unqualified review-required claim(s): ${unsafeLines
+        .slice(0, 3)
+        .map((line) => line.slice(0, 120))
+        .join(" | ")}`,
+    );
+  }
+  return errors;
+}
+
+function isWorkspaceSensitiveClaimLine(line: string): boolean {
+  return /\b(?:pricing|price|privacy|security|secure|compliance|compliant|certified|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best-in-class|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\$[0-9]/i.test(
+    line,
+  );
+}
+
+function buildApprovedWorkspaceContextCorpus(output: Output): string {
+  const approvedFacts = output.approvedFacts
+    .filter(
+      (claim) =>
+        (claim.status === "approved" || claim.status === "user_supplied") &&
+        !isGuardedReusableClaim(claim.claim),
+    )
+    .map((claim) => `- [${claim.status}] ${claim.claim}`);
+  const approvedProof = output.proofBackedClaims
+    .filter(isReusableProofClaim)
+    .map((claim) => `- [${claim.status}] ${claim.claim}`);
+  const reviewRequired = [
+    ...output.claimsNeedingApproval,
+    ...output.contextArtifacts.proofAndConstraints.blockedClaims,
+  ].filter((claim) => claim.claim.trim());
+  const reviewCategories = summarizeBlockedClaimCategories(reviewRequired);
+
+  return [
+    "# Approved Reusable Marketing OS Context Corpus",
+    "",
+    "This corpus is derived from the exact approved Company Context artifact. The complete raw source remains in Guild Chat state and is intentionally excluded from always-on Workspace Context.",
+    "",
+    "## Runtime Summary",
+    renderReadyToPublishWorkspaceContext(output),
+    "",
+    "## Downstream Handoff Context",
+    renderDownstreamHandoffContext(output),
+    "",
+    "## Approved Reusable Facts",
+    ...(approvedFacts.length ? approvedFacts : ["- No reusable facts are approved beyond the named company and operating constraints."]),
+    "",
+    "## Approved Reusable Proof",
+    ...(approvedProof.length ? approvedProof : ["- No quantified, pricing, scale, compliance, security, financial, ranking, or performance proof is approved for public reuse."]),
+    "",
+    "## Review-Required Source Summary",
+    `- ${reviewRequired.length} source claim(s) are withheld from reusable context pending separate evidence and owner review.`,
+    `- Review-required categories: ${formatList(reviewCategories)}.`,
+    "- Do not restore, paraphrase, or imply the underlying withheld claims in the compact brief.",
+    "",
+    "## Sanitized Context Artifacts",
+    `- Company: ${output.contextArtifacts.companyContext.companyName}`,
+    `- Category: ${output.contextArtifacts.companyContext.category}`,
+    `- Primary audiences: ${formatList(output.contextArtifacts.companyContext.primaryAudiences)}`,
+    `- Goals: ${formatList(output.contextArtifacts.companyContext.goals)}`,
+    `- Messaging overview: ${output.contextArtifacts.messagingSource.overview}`,
+    `- Positioning: ${output.contextArtifacts.messagingSource.positioning}`,
+    `- Answer-ready language: ${formatList(output.contextArtifacts.messagingSource.answerReadyLanguage)}`,
+    `- Approved channels: ${formatList(output.contextArtifacts.channelRegistry.approvedChannels)}`,
+    `- Channels TBD: ${formatList(output.contextArtifacts.channelRegistry.channelsTbd)}`,
+    `- AEO entity clarity: ${output.aeoReadiness.entityClarity}`,
+    `- AEO missing proof: ${formatList(output.aeoReadiness.missingProof)}`,
+    "",
+    "## Operating Constraints",
+    ...output.contextArtifacts.proofAndConstraints.constraints.map(
+      (constraint) => `- ${constraint}`,
+    ),
+  ]
+    .join("\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function renderCompactionAudit(compactedContext: CompactedWorkspaceContext): string {
@@ -2491,10 +3423,73 @@ function isBareApprovalCommand(rawContext: string): boolean {
   return /^\s*(?:approve|approved|confirm|looks good|ship it)\s+(?:company context|the company context|this|it|the draft)\s*\.?\s*$/i.test(rawContext.trim());
 }
 
-function buildDownstreamWithoutContextOutput(input: Input): Output {
+function buildDownstreamWithContextOutput(
+  input: Input,
+  requestedAgent: Exclude<(typeof agentValues)[number], "Company Context Builder">,
+  publishedContext: PublishedWorkspaceContext,
+): Output {
+  const contextRevision = publishedContext.contextId ?? "published revision";
+  const companyName = publishedContext.companyName ?? "Published workspace company";
+  const output = buildFallbackOutput(input, [], "downstream_request");
+  output.status = "ready_for_review";
+  output.persistenceState = {
+    drafted_in_session: false,
+    approved_in_session: true,
+    saved_to_workspace_context: true,
+    saved_to_context_artifacts: false,
+    workspace_context_id: publishedContext.contextId,
+    workspace_context_status: "published",
+    persistence_note: `Read published Guild workspace context revision ${contextRevision}. No new company context draft was created.`,
+  };
+  output.consumedContext.used = [`Published Guild workspace context revision ${contextRevision}`];
+  output.consumedContext.missing = [];
+  output.contextArtifacts.companyContext.companyName = companyName;
+  output.contextArtifacts.companyContext.status = "draft";
+  output.contextArtifacts.companyContext.missingContext = [];
+  output.workspaceContextDraft = "No new workspace context draft was created.";
+  output.approvedFacts = [];
+  output.extractedClaims = [];
+  output.proofBackedClaims = [];
+  output.claimsNeedingApproval = [];
+  output.assumptionsAndMissingEvidence = [];
+  output.openQuestions = [];
+  output.approvalGates = [
+    {
+      ownerRole: "Marketing Owner",
+      decision: `Continue through Marketing OS Launcher or select ${requestedAgent}.`,
+      requiredBefore: "Specialist artifact generation.",
+      status: "needed",
+    },
+  ];
+  output.statusPayload.companyName = companyName;
+  output.statusPayload.readiness = "review_ready";
+  output.statusPayload.nextAgents = [requestedAgent];
+  output.statusPayload.blockers = [];
+  output.statusPayload.source_coverage = [`Published workspace context revision ${contextRevision}`];
+  output.statusPayload.coverage_limitations = [
+    "Company Context Builder is context-only and did not generate the requested specialist artifact.",
+  ];
+  output.statusPayload.safety.evidence_gaps = [];
+  output.downstreamHandoff = [
+    {
+      agent: requestedAgent,
+      receives: downstreamReceivesForAgent(requestedAgent),
+      reason: `Published context revision ${contextRevision} is available. Continue through Marketing OS Launcher or @mention ${requestedAgent}; Company Context Builder does not generate specialist artifacts.`,
+    },
+  ];
+  return output;
+}
+
+function buildDownstreamWithoutContextOutput(
+  input: Input,
+  requestedAgent: Exclude<(typeof agentValues)[number], "Company Context Builder"> =
+    detectRequestedDownstreamAgent(getRawContext(input)) ?? "Campaigns And Paid Media",
+): Output {
   const rawContext = getRawContext(input);
-  const requestedAgent = detectRequestedDownstreamAgent(rawContext) ?? "Campaigns And Paid Media";
-  const companyName = extractCompanyName(rawContext) ?? "TBD";
+  const companyName =
+    cleanExtractedName(
+      extractLineAfterLabels(rawContext, ["Company name", "Brand name", "Organization name", "Product name"]) ?? "",
+    ) ?? "TBD";
   const output = buildFallbackOutput(input, ["Approved company context is required before downstream specialist work."], "downstream_request_without_context");
   output.status = "blocked";
   output.contextArtifacts.companyContext.companyName = companyName;
@@ -2518,6 +3513,11 @@ function buildDownstreamWithoutContextOutput(input: Input): Output {
   output.statusPayload.readiness = "blocked";
   output.statusPayload.nextAgents = ["Company Context Builder"];
   output.statusPayload.blockers = ["Company context is not approved yet.", `${requestedAgent} should receive a handoff after context approval.`];
+  output.statusPayload.coverage_limitations = [
+    "No published Marketing OS workspace context revision could be verified.",
+    "Company Context Builder is context-only and did not generate the requested specialist artifact.",
+  ];
+  output.statusPayload.safety.evidence_gaps = ["Approved published company context"];
   output.downstreamHandoff = [
     {
       agent: "Company Context Builder",
@@ -2590,7 +3590,8 @@ function normalizePersistenceState(value: Output["persistenceState"] | undefined
     drafted_in_session: value?.drafted_in_session ?? conversationIntent === "source_available",
     approved_in_session: value?.approved_in_session ?? false,
     saved_to_workspace_context: value?.saved_to_workspace_context ?? false,
-    saved_to_context_artifacts: false,
+    saved_to_context_artifacts:
+      value?.saved_to_context_artifacts ?? false,
     workspace_context_id: value?.workspace_context_id,
     workspace_context_draft_id: value?.workspace_context_draft_id,
     workspace_context_previous_id: value?.workspace_context_previous_id,
@@ -2598,18 +3599,71 @@ function normalizePersistenceState(value: Output["persistenceState"] | undefined
     workspace_context_summary: value?.workspace_context_summary,
     workspace_context_publish_path: value?.workspace_context_publish_path,
     workspace_context_rollback_note: value?.workspace_context_rollback_note,
+    source_references: value?.source_references,
+    context_artifact_references: value?.context_artifact_references,
     persistence_note:
       value?.persistence_note ??
       "Drafted in this session only. Not saved to Guild workspace context or Context Hub artifacts.",
   };
 }
 
+function safeFoundationError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer <redacted>")
+    .slice(0, 500);
+}
+
+function foundationFingerprint(value: string): string {
+  let first = 0x811c9dc5;
+  let second = 0x9e3779b9;
+  let third = 0x7f4a7c15;
+  let fourth = 0x94d049bb;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    first = Math.imul(first ^ code, 0x01000193);
+    second = Math.imul(second ^ (code + index), 0x85ebca6b);
+    third = Math.imul(third ^ (code + first), 0xc2b2ae35);
+    fourth = Math.imul(fourth ^ (code + second), 0x27d4eb2f);
+  }
+  return [first, second, third, fourth]
+    .map((part) => (part >>> 0).toString(16).padStart(8, "0"))
+    .join("");
+}
+
+function uuidFromFoundationSeed(seed: string): string {
+  const value = foundationFingerprint(seed).split("");
+  value[12] = "4";
+  const variant = Number.parseInt(value[16], 16);
+  value[16] = ((variant & 0x3) | 0x8).toString(16);
+  const hex = value.join("");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
+}
+
 function isPricingOrSensitiveEdit(rawContext: string): boolean {
   return /\b(pricing|price|compliance|security|privacy|performance|production-ready|production readiness|guarantee|legal)\b/i.test(rawContext);
 }
 
-function isSensitiveClaim(claim: string): boolean {
-  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|only|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\$[0-9]/i.test(claim);
+export function isSensitiveClaim(claim: string): boolean {
+  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9]+(?:[.,][0-9]+)?\+?\s+(?:pages|brands?|teams?|bookings?|mqls?|countries)\b|\$[0-9]/i.test(claim);
+}
+
+export function preservesQualifiedHipaaNuance(
+  claim: string,
+  rawContext: string,
+): boolean {
+  if (!/\bmay not be HIPAA compliant\b/i.test(rawContext)) {
+    return true;
+  }
+  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA (?:compliance|compatibility|certification)\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA (?:compliant|compatible|certified)\b|\bnot HIPAA (?:compliant|compatible|certified)\b|\bHIPAA[- ](?:noncompliant|incompatible)\b|\b(?:strict\s+)?non[- ]HIPAA (?:compliance|compatibility|certification)\b/i.test(
+    claim,
+  );
 }
 
 function isGuardedReusableClaim(claim: string): boolean {
@@ -2636,7 +3690,45 @@ function sensitiveClaimNeedsApproval(claim: string): Claim {
 }
 
 function mergeDefaultConstraints(values: readonly string[]): string[] {
-  return [...new Set([...values.filter(Boolean), ...defaultConstraints])];
+  const normalized = new Set<string>();
+  const merged: string[] = [];
+  for (const value of [...defaultConstraints, ...values]) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = operatingConstraintKey(trimmed);
+    if (normalized.has(key)) continue;
+    normalized.add(key);
+    merged.push(trimmed);
+  }
+  return merged;
+}
+
+function operatingConstraintKey(value: string): string {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const categories = [
+    ["workspace_context_publish", /\bworkspace context\b.*\bpublish/],
+    ["context_artifact_persistence", /\bcontext artifact\b.*\bpersist/],
+    ["crm_activation", /\bcrm\b.*\b(?:activat|mutat|updat|writ|sync)/],
+    ["scheduling", /\bschedul/],
+    ["paid_media_spend", /\b(?:paid media|ad spend|advertising spend)\b|\bspend\b/],
+    ["credential_setup", /\bcredentials?\b.*\b(?:setup|configur)/],
+    ["workspace_install", /\bworkspace\b.*\binstall/],
+    ["trigger_setup", /\btriggers?\b.*\b(?:setup|configur)/],
+    ["visibility_changes", /\bvisibility\b.*\b(?:chang|updat|modif)/],
+    ["live_publishing", /\b(?:live|external|direct)?\s*publish/],
+    [
+      "approval_implication",
+      /\b(?:legal|compliance|pricing|security|performance|production-readiness)\b.*\b(?:approval|approved|implied)\b/,
+    ],
+  ] as const;
+  for (const [category, pattern] of categories) {
+    if (pattern.test(normalized)) return `category:${category}`;
+  }
+  return `text:${normalized.replace(/^no\s+/, "")}`;
 }
 
 function extractSensitiveClaimMentions(rawContext: string): string[] {
@@ -2735,13 +3827,17 @@ function scrubReusableGuardedClaims(output: Output): void {
   output.contextArtifacts.brandKit.constraints = scrubGuardedList(output.contextArtifacts.brandKit.constraints, [
     "No final logo, trademark, legal, or production identity claims without approval.",
   ]);
-  output.contextArtifacts.proofAndConstraints.constraints = scrubGuardedList(
-    output.contextArtifacts.proofAndConstraints.constraints,
-    defaultConstraints,
+  output.contextArtifacts.proofAndConstraints.constraints = mergeDefaultConstraints(
+    scrubGuardedList(
+      output.contextArtifacts.proofAndConstraints.constraints,
+      defaultConstraints,
+    ),
   );
-  output.contextArtifacts.channelRegistry.blockedActions = scrubGuardedList(
-    output.contextArtifacts.channelRegistry.blockedActions,
-    defaultConstraints,
+  output.contextArtifacts.channelRegistry.blockedActions = mergeDefaultConstraints(
+    scrubGuardedList(
+      output.contextArtifacts.channelRegistry.blockedActions,
+      defaultConstraints,
+    ),
   );
 
   output.contextArtifacts.audienceSegments = output.contextArtifacts.audienceSegments.map((segment) => {
@@ -2771,14 +3867,24 @@ function scrubReusableGuardedClaims(output: Output): void {
     };
   });
 
-  output.aeoReadiness.entityClarity = scrubGuardedString(
-    output.aeoReadiness.entityClarity,
-    "Draft entity clarity pending approved evidence.",
-  );
-  output.aeoReadiness.answerReadyOpportunities = scrubGuardedList(
-    output.aeoReadiness.answerReadyOpportunities,
-    ["What the company is", "Who it serves", "Why it matters", "What proof supports claims"],
-  );
+  if (hasGuardrailClaims || !output.persistenceState.approved_in_session) {
+    output.aeoReadiness.entityClarity = "Draft entity clarity pending approved evidence.";
+    output.aeoReadiness.answerReadyOpportunities = [
+      "What the company is",
+      "Who it serves",
+      "Why it matters",
+      "What proof supports claims",
+    ];
+  } else {
+    output.aeoReadiness.entityClarity = scrubGuardedString(
+      output.aeoReadiness.entityClarity,
+      "Draft entity clarity pending approved evidence.",
+    );
+    output.aeoReadiness.answerReadyOpportunities = scrubGuardedList(
+      output.aeoReadiness.answerReadyOpportunities,
+      ["What the company is", "Who it serves", "Why it matters", "What proof supports claims"],
+    );
+  }
   output.aeoReadiness.missingProof = scrubGuardedList(output.aeoReadiness.missingProof, [
     "Approved description",
     "Canonical URLs",
@@ -2805,6 +3911,25 @@ function hasSensitiveClaimGuardrails(output: Output): boolean {
 
 function normalizeClaimsNeedingApproval(claims: readonly Claim[]): Claim[] {
   return dedupeClaims(claims.map((claim) => isGuardedReusableClaim(claim.claim) ? sensitiveClaimNeedsApproval(claim.claim) : claim));
+}
+
+export function normalizeBlockedClaims(claims: readonly Claim[]): Claim[] {
+  return dedupeClaims(
+    claims.map((claim) => {
+      if (claim.status === "blocked" || claim.status === "do_not_use") {
+        return claim;
+      }
+      return {
+        ...claim,
+        status: "blocked" as const,
+        source: claim.source ?? "sensitive_claim_guardrail",
+        notes: appendNote(
+          claim.notes,
+          "The claim is in the blocked-claims collection and cannot be reused without separate evidence and owner approval.",
+        ),
+      };
+    }),
+  );
 }
 
 function scrubGuardedString(value: string, fallback: string): string {
@@ -2930,11 +4055,12 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
   const rawContext = getRawContext(input);
   const companyName = extractCompanyName(rawContext) ?? "TBD";
   const approvedDescription = extractLineAfterLabels(rawContext, [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Product description",
     "Description",
-  ]);
+  ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
   const primaryAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
   const goals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
   const approvedChannels = hasExplicitApprovedChannelScope(rawContext)
@@ -3056,6 +4182,17 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
       nextAgents: ["Market Signal", "ICP", "Messaging"],
       blockers,
       requiredArtifacts: requestedArtifacts,
+      evidence_mode: "source_supplied",
+      observed_at: null,
+      source_coverage: rawContext ? ["Current-session user-supplied source text"] : [],
+      coverage_limitations: ["No connected read-only source or live monitor was queried."],
+      safety: {
+        action_mode: "draft_only",
+        external_mutation_requested: false,
+        blocked_actions: operatingConstraints,
+        unsupported_claims: [],
+        evidence_gaps: missing,
+      },
     },
     downstreamHandoff: [
       {
@@ -3110,6 +4247,9 @@ function extractCompanyName(rawContext: string): string | undefined {
   const headingName = extractNameFromSourceHeading(rawContext);
   if (headingName) return headingName;
 
+  const proseName = extractNameFromCompanyProse(rawContext);
+  if (proseName) return proseName;
+
   const namedEntityReference = extractNamedEntityReference(rawContext);
   if (namedEntityReference) return namedEntityReference;
 
@@ -3117,7 +4257,7 @@ function extractCompanyName(rawContext: string): string | undefined {
     /\b(?:we['’]?re|we are)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /\b(?:company|brand|organization|org|product)\s+(?:called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
     /\b(?:company|brand|organization|org|product)\s+is\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
-    /\bfor\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
+    /\b(?:context|setup|profile|brief)\s+for\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
   ];
   const value = patterns
@@ -3139,9 +4279,54 @@ function extractNamedEntityReference(rawContext: string): string | undefined {
 function extractNameFromSourceHeading(rawContext: string): string | undefined {
   for (const rawLine of rawContext.split(/\r?\n/)) {
     const line = rawLine.trim();
-    const match = line.match(/^#{1,3}\s+(.+?)\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/i);
-    const value = match?.[1] ? cleanExtractedName(match[1]) : undefined;
-    if (value) return value;
+    const markdownMatch = line.match(
+      /^#{1,3}\s+(.+?)\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/i,
+    );
+    const markdownValue = markdownMatch?.[1]
+      ? cleanExtractedName(markdownMatch[1])
+      : undefined;
+    if (markdownValue) return markdownValue;
+
+    const sourceLabelMatch = line.match(
+      /^(?:source|reference|candidate)\s+(?:brief|document|material|profile|text|packet)\s*:\s*(.+)$/i,
+    );
+    const sourceLabelValue = sourceLabelMatch?.[1]
+      ? cleanExtractedName(
+          sourceLabelMatch[1].replace(
+            /\s+(?:(?:company|product|brand)\s+)?(?:acceptance\s+fixture|profile|overview|context|brief|fixture)\s*$/i,
+            "",
+          ),
+        )
+      : undefined;
+    if (sourceLabelValue) return sourceLabelValue;
+  }
+  return undefined;
+}
+
+function extractNameFromCompanyProse(rawContext: string): string | undefined {
+  const match = rawContext.match(
+    /(?:^|\n)\s*([A-Z][A-Za-z0-9 .&'’.-]{1,80}?)(?:,\s*(?:Inc\.?|LLC|Ltd\.?|Limited|Corp\.?|Corporation))?\s+is\s+(?:a|an)\s+/m,
+  );
+  return match?.[1] ? cleanExtractedName(match[1]) : undefined;
+}
+
+function extractCompanyDescriptionFromProse(
+  rawContext: string,
+  companyName: string | undefined,
+): string | undefined {
+  if (!companyName || companyName === "TBD") return undefined;
+  const normalizedName = companyName.replace(
+    /,\s*(?:Inc\.?|LLC|Ltd\.?|Limited|Corp\.?|Corporation)$/i,
+    "",
+  );
+  const companyLinePattern = new RegExp(
+    `^${escapeRegExp(normalizedName)}(?:,\\s*(?:Inc\\.?|LLC|Ltd\\.?|Limited|Corp\\.?|Corporation))?\\s+is\\s+(?:a|an)\\s+`,
+    "i",
+  );
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!companyLinePattern.test(line)) continue;
+    return line.replace(/[.。]+$/, "").trim() || undefined;
   }
   return undefined;
 }
@@ -3182,6 +4367,14 @@ function isGenericExtractedName(value: string): boolean {
     "my brand",
     "our brand",
     "the brand",
+    "this test",
+    "the test",
+    "this request",
+    "the request",
+    "this source",
+    "the source",
+    "this fixture",
+    "the fixture",
     "teams",
     "leaders",
     "users",
@@ -3194,15 +4387,72 @@ function isGenericExtractedName(value: string): boolean {
 
 function extractLineAfterLabels(rawContext: string, labels: readonly string[]): string | undefined {
   const sortedLabels = [...labels].sort((a, b) => b.length - a.length);
-  for (const rawLine of rawContext.split(/\r?\n/)) {
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index] ?? "";
     const line = rawLine.trim().replace(/^[-*]\s+/, "");
     for (const label of sortedLabels) {
       const match = line.match(new RegExp(`(?:^|[.;。]\\s*)${escapeRegExp(label)}\\s*:\\s*(.+)$`, "i"));
       const value = match?.[1] ? cleanLabeledFieldValue(match[1]) : undefined;
       if (value) return value;
+
+      if (!new RegExp(`^${escapeRegExp(label)}\\s*:\\s*$`, "i").test(line)) {
+        continue;
+      }
+      for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+        const next = (lines[cursor] ?? "").trim().replace(/^[-*]\s+/, "");
+        if (!next) continue;
+        if (isSourcePacketFieldLabel(next)) break;
+        const followingValue = cleanLabeledFieldValue(next);
+        if (followingValue) return followingValue;
+        break;
+      }
     }
   }
   return undefined;
+}
+
+function extractBlockAfterLabels(
+  rawContext: string,
+  labels: readonly string[],
+): string[] {
+  const sortedLabels = [...labels].sort((a, b) => b.length - a.length);
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = (lines[index] ?? "").trim().replace(/^[-*]\s+/, "");
+    const label = sortedLabels.find((candidate) =>
+      new RegExp(`^${escapeRegExp(candidate)}\\s*:`, "i").test(line)
+    );
+    if (!label) continue;
+
+    const values: string[] = [];
+    const inline = line.replace(
+      new RegExp(`^${escapeRegExp(label)}\\s*:\\s*`, "i"),
+      "",
+    );
+    const cleanedInline = cleanLabeledFieldValue(inline);
+    if (cleanedInline) values.push(cleanedInline);
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const rawNext = lines[cursor] ?? "";
+      const next = rawNext.trim().replace(/^[-*]\s+/, "");
+      if (!next) {
+        if (values.length > 0) break;
+        continue;
+      }
+      if (isSourcePacketFieldLabel(next)) break;
+      const value = cleanLabeledFieldValue(next);
+      if (value) values.push(value);
+    }
+    return [...new Set(values)];
+  }
+  return [];
+}
+
+function isSourcePacketFieldLabel(value: string): boolean {
+  return sourcePacketFieldLabels.some((label) =>
+    new RegExp(`^${escapeRegExp(label)}\\s*:`, "i").test(value)
+  );
 }
 
 function cleanLabeledFieldValue(value: string): string | undefined {
@@ -3224,18 +4474,49 @@ function extractListAfterLabels(rawContext: string, labels: readonly string[]): 
 }
 
 function extractProofFacts(rawContext: string): string[] {
-  const line = extractLineAfterLabels(rawContext, [
+  const labels = [
     "Proof-backed claims or source excerpts",
     "Proof-backed claims",
     "Approved proof",
     "Proof points",
     "Evidence",
-  ]);
-  if (!line) return [];
-  return line
-    .split(/;/)
-    .map((value) => value.trim().replace(/[.。]+$/, "").trim())
-    .filter(Boolean);
+  ] as const;
+  const facts: string[] = [];
+  const line = extractLineAfterLabels(rawContext, labels);
+  if (line) {
+    facts.push(
+      ...line
+        .split(/;/)
+        .map((value) => value.trim().replace(/[.。]+$/, "").trim())
+        .filter(Boolean),
+    );
+  }
+
+  const proofHeader =
+    /^\s*(?:#{1,6}\s*)?(?:proof-backed claims?(?:\s+approved\b[^:]*)?|approved proof|proof points?|evidence)\s*:\s*(.*)$/i;
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index]?.match(proofHeader);
+    if (!match) continue;
+    const inline = match[1]?.trim();
+    if (inline) {
+      facts.push(
+        ...inline
+          .split(/;/)
+          .map((value) => value.trim().replace(/[.。]+$/, "").trim())
+          .filter(Boolean),
+      );
+    }
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const next = lines[cursor]?.trim() ?? "";
+      if (!next) continue;
+      const bullet = next.match(/^[-*]\s+(.+)$/);
+      if (!bullet) break;
+      const fact = bullet[1]?.trim().replace(/[.。]+$/, "").trim();
+      if (fact) facts.push(fact);
+    }
+  }
+  return [...new Set(facts)];
 }
 
 function userSuppliedClaim(claim: string): Claim {
@@ -3325,6 +4606,10 @@ function summarizeBlockedClaimCategories(claims: readonly Claim[]): string[] {
 }
 
 function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
+  if (output.conversationIntent === "downstream_request") {
+    return renderDownstreamRoutingPacket(output);
+  }
+
   return `${renderPacketSummary(output)}
 
 ---
@@ -3350,6 +4635,8 @@ function renderMarkdownPacket(output: Omit<Output, "markdownPacket">): string {
 - workspace_context_summary: ${output.persistenceState.workspace_context_summary ?? "TBD"}
 - workspace_context_publish_path: ${output.persistenceState.workspace_context_publish_path ?? "TBD"}
 - workspace_context_rollback_note: ${output.persistenceState.workspace_context_rollback_note ?? "TBD"}
+- source_references: ${formatList(output.persistenceState.source_references ?? [])}
+- context_artifact_references: ${formatList(output.persistenceState.context_artifact_references ?? [])}
 - Note: ${output.persistenceState.persistence_note}
 
 ### Company Context Draft (company-context)
@@ -3384,8 +4671,10 @@ ${formatAudienceSegments(output.contextArtifacts.audienceSegments)}
 
 ### Proof And Constraints Draft (proof-and-constraints)
 - Status: ${output.contextArtifacts.proofAndConstraints.status}
-- Approved claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.approvedClaims)}
-- Blocked or do-not-use claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.blockedClaims)}
+- Approved claims:
+${formatClaims(output.contextArtifacts.proofAndConstraints.approvedClaims)}
+- Blocked or do-not-use claims:
+${formatClaims(output.contextArtifacts.proofAndConstraints.blockedClaims)}
 - Constraints: ${formatList(output.contextArtifacts.proofAndConstraints.constraints)}
 
 ### Dashboard Signals Draft (dashboard-signals)
@@ -3414,27 +4703,29 @@ ${output.persistenceState.saved_to_workspace_context
   : "Paste this block into a downstream agent if workspace context has not been published yet."}
 
 ## Assumptions And Missing Evidence
+- Evidence mode: ${output.statusPayload.evidence_mode}
+
 ### Approved Or User-Supplied Facts
-${formatClaims(output.approvedFacts)}
+${formatEvidenceSectionClaims(output.approvedFacts)}
 
 ### Extracted Claims
-${formatClaims(output.extractedClaims)}
+${formatEvidenceSectionClaims(output.extractedClaims)}
 
 ### Proof-Backed Claims
-${formatClaims(output.proofBackedClaims)}
+${formatEvidenceSectionClaims(output.proofBackedClaims)}
 
 ### Claims Needing Approval
-${formatClaims(output.claimsNeedingApproval)}
+${formatEvidenceSectionClaims(output.claimsNeedingApproval)}
 
 ### Assumptions And Missing Evidence
-${formatClaims(output.assumptionsAndMissingEvidence)}
+${formatEvidenceSectionClaims(output.assumptionsAndMissingEvidence)}
 
 ### Open Questions
 ${formatBulletList(output.openQuestions)}
 
 ## Approval Gate
 ${output.approvalGates
-  .map((gate) => `- ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
+  .map((gate) => `- Review required — ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
   .join("\n")}
 
 ## AEO / AI-Readiness Contribution
@@ -3442,12 +4733,13 @@ ${output.approvalGates
 - Entity clarity: ${output.aeoReadiness.entityClarity}
 - Answer-ready opportunities: ${formatList(output.aeoReadiness.answerReadyOpportunities)}
 - Missing proof: ${formatList(output.aeoReadiness.missingProof)}
-- Recommended web inputs: ${formatList(output.aeoReadiness.recommendedWebInputs)}
+- Recommended web inputs for review: ${formatList(output.aeoReadiness.recommendedWebInputs)}
 
 ## Status Payload
 \`\`\`json
 ${JSON.stringify({
   ...output.statusPayload,
+  status: output.status,
   conversationIntent: output.conversationIntent,
   persistenceState: output.persistenceState,
 }, null, 2)}
@@ -3457,9 +4749,49 @@ ${JSON.stringify({
 ${output.downstreamHandoff
   .map((handoff) => `- ${handoff.agent}: receives ${handoff.receives.join(", ")}. ${handoff.reason}`)
   .join("\n")}
+`;
+}
 
-## Do Not Do Yet
-${output.contextArtifacts.proofAndConstraints.constraints.map((constraint) => `- ${constraint}`).join("\n")}
+function renderDownstreamRoutingPacket(output: Omit<Output, "markdownPacket">): string {
+  const requestedAgent = output.statusPayload.nextAgents[0] ?? "Company Context Builder";
+  return `# Company Context Builder Routing Note
+
+## Consumed Context
+- Used: ${formatList(output.consumedContext.used)}
+- Missing: ${formatList(output.consumedContext.missing)}
+- Evidence mode: source_supplied
+
+## Produced Artifact
+- Company Context Builder is context-only.
+- Published company context is available.
+- No new company context packet or workspace-context draft was created from the request.
+- Continue through Marketing OS Launcher or @mention ${requestedAgent}.
+
+## Assumptions And Missing Evidence
+- The requested specialist must validate task-specific evidence and limitations in its own artifact.
+
+## Approval Gate
+${output.approvalGates
+  .map((gate) => `- Review required — ${gate.ownerRole}: ${gate.decision} Required before: ${withoutTrailingPeriod(gate.requiredBefore)}. Status: ${gate.status}.`)
+  .join("\n")}
+
+## AEO / AI-Readiness Contribution
+- No new AEO or AI-readiness artifact was generated by this routing response.
+
+## Status Payload
+\`\`\`json
+${JSON.stringify({
+  ...output.statusPayload,
+  status: output.status,
+  conversationIntent: output.conversationIntent,
+  persistenceState: output.persistenceState,
+}, null, 2)}
+\`\`\`
+
+## Downstream Handoff
+${output.downstreamHandoff
+  .map((handoff) => `- ${handoff.agent}: receives ${handoff.receives.join(", ")}. ${handoff.reason}`)
+  .join("\n")}
 `;
 }
 
@@ -3468,7 +4800,7 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
     if (output.persistenceState.saved_to_workspace_context) {
       return `${output.persistenceState.persistence_note} Downstream agents should treat published Guild workspace context as their first source of truth.`;
     }
-    return "No. This is drafted in the session only. It has not been saved to Guild workspace context or Context Hub artifacts. To make it reusable by other agents, use the Ready-To-Publish Workspace Context block in a separate approved workspace context edit/publish step, or paste the Downstream Handoff Context into a downstream agent.";
+    return output.persistenceState.persistence_note;
   }
   if (output.conversationIntent === "attachment_unreadable") {
     return "I can see that you tried to provide company context, but I cannot read the attachment contents in this run. Paste the relevant text or provide readable excerpts, and I will extract the company context from it. Nothing has been saved.";
@@ -3488,15 +4820,19 @@ function renderPacketSummary(output: Omit<Output, "markdownPacket">): string {
       return output.persistenceState.persistence_note;
     }
     if (needsVisiblePriorDraftForApproval(output)) {
-      return "I noted the approval or persistence request, but this run cannot see the prior company context draft. Paste the Ready-To-Publish Workspace Context block from the draft turn, or explicitly approve a separate workspace context edit/publish lifecycle step with that block. Nothing has been saved to Guild workspace context or Context Hub artifacts.";
+      return "I noted the approval or persistence request, but this run cannot resolve an exact durable Company Context artifact revision. Recreate the draft from readable source before approving it. Guild workspace context was not changed.";
     }
-    return `${output.persistenceState.persistence_note} Nothing has been saved to Guild workspace context or Context Hub artifacts. Use the Downstream Handoff Context below for downstream agents unless a separate workspace context publish has been authorized.`;
+    return output.persistenceState.persistence_note;
   }
   if (output.conversationIntent === "missing_context") {
     return "I do not have enough company context yet. Reply with rough notes, pasted text, or a readable source packet; you do not need to fill out an internal schema. Nothing has been saved.";
   }
   const companyName = output.statusPayload.companyName === "TBD" ? "this company" : output.statusPayload.companyName;
-  return `I found enough to draft initial company context for ${companyName}. I extracted the company entity, audience groups, product surface, proof-sensitive claims, and downstream handoffs. Nothing has been saved to Guild workspace context or Context Hub artifacts. Use the Ready-To-Publish Workspace Context block for a separate approved publish step, or paste the Downstream Handoff Context into downstream agents.`;
+  return output.persistenceState.saved_to_context_artifacts
+    ? output.status === "ready_for_review"
+      ? `I drafted initial company context for ${companyName} and retained the supplied source plus review-ready Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Review and approve the exact artifact revision in the canonical Launcher Chat before publication.`
+      : `I drafted initial company context for ${companyName} and retained the supplied source plus a draft Company Context artifact in Guild Chat state. Guild Workspace Context has not changed. Continue in the canonical Launcher Chat with the focused inputs listed in this draft.`
+    : `I drafted initial company context for ${companyName}, but durable source and artifact persistence did not complete. Approval and workspace-context publication remain blocked.`;
 }
 
 function needsVisiblePriorDraftForApproval(output: Pick<Output, "conversationIntent" | "persistenceState" | "statusPayload">): boolean {
@@ -3513,10 +4849,6 @@ function formatAudienceSegments(segments: readonly AudienceSegment[]): string {
       `  Status: ${segment.status}. Evidence: ${segment.evidenceStatus}. Missing evidence: ${formatList(segment.missingEvidence)}.`,
     ].join("\n"))
     .join("\n");
-}
-
-function formatInlineClaims(claims: readonly Claim[]): string {
-  return claims.length ? claims.map((claim) => claim.claim).join("; ") : "TBD";
 }
 
 function formatBulletList(values: readonly string[]): string {
@@ -3541,5 +4873,28 @@ function formatSchemaIssues(issues: z.ZodIssue[]): string {
 
 function formatClaims(claims: readonly Claim[]): string {
   if (!claims.length) return "- None identified.";
-  return claims.map((claim) => `- ${claim.claim} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`).join("\n");
+  return claims
+    .map(
+      (claim) => {
+        const qualification =
+          claim.status === "blocked"
+            ? "Blocked: "
+            : claim.status === "do_not_use"
+              ? "Do not use: "
+              : claim.status === "missing"
+                ? "Missing evidence: "
+                : claim.status === "assumption"
+                  ? "Assumption: "
+                  : "";
+        return `- ${qualification}${claim.claim.replace(/\s+/g, " ").trim()} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`;
+      },
+    )
+    .join("\n");
+}
+
+function formatEvidenceSectionClaims(claims: readonly Claim[]): string {
+  return formatClaims(claims)
+    .replace(/\bsource_supplied\b/gi, "source supplied")
+    .replace(/\bconnected_read_only\b/gi, "connected read only")
+    .replace(/\blive_monitoring\b/gi, "live monitoring");
 }

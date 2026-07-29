@@ -1,5 +1,5 @@
 {
-  "phase": "guild-native-phase-1",
+  "phase": "guild-native-public-v1",
   "sourcePolicy": [
     "Customer-specific facts belong in Guild workspace context, approved context artifacts, user input, or approved connected sources.",
     "Reusable agent packages must not embed customer-specific business context.",
@@ -8,13 +8,13 @@
     "AEO and AI-readiness outputs must distinguish approved entity facts, proof-backed claims, recommendations, assumptions, and unknowns."
   ],
   "entrypoint": {
-    "id": "foundation-setup",
-    "guildName": "guild-marketing-os-company-context-builder",
-    "displayName": "Knowledge Graph / Company Context Builder",
-    "status": "guild_native_source_ready",
-    "packageDir": "agents/foundation-setup",
+    "id": "launcher",
+    "guildName": "guild-marketing-os-launcher",
+    "displayName": "Marketing OS Launcher",
+    "status": "guild_native_canonical_cockpit_ready_private_alpha",
+    "packageDir": "agents/launcher",
     "primaryUser": "Project Leader",
-    "description": "Chat-native first-run entrypoint that turns raw company context into approved Context Hub artifact drafts, a concise Workspace Context draft, entity facts, proof points, gaps, assumptions, approval gates, and next-agent routing.",
+    "description": "Default Guild Marketing OS front door that keeps the canonical cockpit in one continuing Guild Chat, checks context readiness, routes review-only work to an allowlisted specialist, returns complete results, and maintains artifacts, approvals, workstreams, handoffs, export, and confirmed deletion without an external state service.",
     "defaultWorkspaceAgent": true,
     "contextHub": {
       "requiredArtifacts": [
@@ -27,17 +27,41 @@
         "dashboard-signals"
       ],
       "optionalArtifacts": [],
-      "missingContextBehavior": "Ask for critical missing business context when blocked; otherwise draft with TBD markers."
+      "missingContextBehavior": "Route company-context setup to Company Context Builder; otherwise identify the blocked specialist workflow without inventing context."
     }
   },
-  "supportPackages": [],
+  "supportPackages": [
+    {
+      "id": "launcher",
+      "guildName": "guild-marketing-os-launcher",
+      "displayName": "Marketing OS Launcher",
+      "status": "guild_native_canonical_cockpit_ready_private_alpha",
+      "packageDir": "agents/launcher",
+      "primaryUser": "Project Leader",
+      "description": "Default Guild Marketing OS front door that keeps the canonical cockpit in one continuing Guild Chat, checks context readiness, routes review-only work to an allowlisted specialist, returns complete results, and maintains artifacts, approvals, workstreams, handoffs, export, and confirmed deletion without an external state service.",
+      "defaultWorkspaceAgent": true,
+      "contextHub": {
+        "requiredArtifacts": [
+          "company-context",
+          "messaging-source",
+          "brand-kit",
+          "audience-segments",
+          "channel-registry",
+          "proof-and-constraints",
+          "dashboard-signals"
+        ],
+        "optionalArtifacts": [],
+        "missingContextBehavior": "Route company-context setup to Company Context Builder; otherwise identify the blocked specialist workflow without inventing context."
+      }
+    }
+  ],
   "agents": [
     {
       "id": "foundation-setup",
       "phaseOrder": 1,
       "guildName": "guild-marketing-os-company-context-builder",
       "displayName": "Knowledge Graph / Company Context Builder",
-      "status": "guild_native_source_ready",
+      "status": "guild_chat_context_lifecycle_ready_private_alpha",
       "packageDir": "agents/foundation-setup",
       "primaryUser": "Project Leader",
       "description": "Bootstraps a reusable Guild Marketing OS context graph by drafting approved context artifacts, entity facts, proof points, AEO readiness gaps, a concise Guild workspace context update, approval checkpoints, and next-agent routing from raw company context.",
@@ -60,7 +84,7 @@
       "phaseOrder": 2,
       "guildName": "guild-marketing-os-market-signal",
       "displayName": "Market Signal Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/market-signal",
       "primaryUser": "Marketing Advisor",
       "description": "Summarizes external market, community, search, answer-engine, developer, and social signals so audience, messaging, AEO, and content work starts from evidence rather than internal opinion.",
@@ -83,7 +107,7 @@
       "phaseOrder": 3,
       "guildName": "guild-marketing-os-icp",
       "displayName": "ICP Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/icp",
       "primaryUser": "Project Leader",
       "description": "Defines target audience models, personas, pains, objections, motivations, audience answer priorities, triggers, and fit criteria from approved context and market signal.",
@@ -106,7 +130,7 @@
       "phaseOrder": 4,
       "guildName": "guild-marketing-os-audience-segmentation",
       "displayName": "Audience Segmentation Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/audience-segmentation",
       "primaryUser": "Marketing Advisor",
       "description": "Turns approved ICP context into reviewable segment definitions, inclusion and exclusion logic, list-building instructions, and channel-specific targeting rules.",
@@ -129,7 +153,7 @@
       "phaseOrder": 5,
       "guildName": "guild-marketing-os-messaging",
       "displayName": "Messaging Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/messaging",
       "primaryUser": "Project Leader",
       "description": "Produces reusable positioning, narrative, message pillars, proof-backed claims, answer-ready blocks, elevator pitch, boilerplate, tone guidance, claim constraints, and objection handling.",
@@ -153,7 +177,7 @@
       "phaseOrder": 6,
       "guildName": "guild-marketing-os-branding-pitch-deck",
       "displayName": "Branding And Pitch Deck Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/branding-pitch-deck",
       "primaryUser": "Project Leader",
       "description": "Converts approved messaging into brand architecture, voice and visual direction, web and AEO recommendations, pitch narrative, slide-by-slide story, and design production briefs.",
@@ -177,7 +201,7 @@
       "phaseOrder": 7,
       "guildName": "guild-marketing-os-social-monitoring-content",
       "displayName": "Social Monitoring And Content Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/social-monitoring-content",
       "primaryUser": "Marketing Advisor",
       "description": "Combines social and community monitoring with approved-message content planning, owned content and digest opportunities, channel-specific post drafts, and claim/proof checks.",
@@ -201,7 +225,7 @@
       "phaseOrder": 8,
       "guildName": "guild-marketing-os-campaigns-paid-media",
       "displayName": "Campaigns And Paid Media Agent",
-      "status": "guild_native_source_ready",
+      "status": "validated_contract_source_ready_private_alpha",
       "packageDir": "agents/campaigns-paid-media",
       "primaryUser": "Marketing Advisor",
       "description": "Builds campaign and paid-media plans from approved context, segments, messaging, channel constraints, budget, KPI targets, proof policy, landing-page needs, and performance loops.",

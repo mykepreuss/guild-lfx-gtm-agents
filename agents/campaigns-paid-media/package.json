@@ -1,6 +1,6 @@
 {
   "name": "@guildai/michaelpreuss~guild-marketing-os-campaigns-paid-media",
-  "version": "1.0.9",
+  "version": "1.2.11",
   "author": "Guild.ai",
   "type": "module",
   "exports": {
@@ -19,8 +19,8 @@
     "typescript": "5.0.4"
   },
   "dependencies": {
-    "@guildai/agents-sdk": "0.2.58",
-    "@guildai-services/guildai~skills": "1.0.0"
+    "@guildai/agents-sdk": "0.4.2",
+    "zod": "4.4.3"
   },
   "files": [
     "./dist/**/*.js",
