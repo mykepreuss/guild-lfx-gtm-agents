@@ -290,6 +290,45 @@ function guildChatEnvelope(text) {
 
 {
   const harness = createTask({
+    sessionId: "foundation-rich-prose-source",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Start Company Context setup using only the source document below.",
+    "Produce a review-ready draft and do not publish Workspace Context.",
+    "",
+    "Source document: Webflow acceptance fixture",
+    "",
+    "Webflow, Inc. is a privately held U.S. software company founded in 2013. It provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+    "",
+    "The company reports more than 900 team members in 25 countries. These are company-reported figures supplied for this test.",
+    "",
+    "Primary audiences: enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "Current goals: Maintain engineering governance and integration control.",
+    "Proof-backed claims: Webflow provides a visual website platform.",
+    "Approved channels: website and customer stories.",
+    "",
+    "Evidence mode: source_supplied. No live source was inspected.",
+  ].join("\n");
+  const result = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company: Webflow/);
+  assert.doesNotMatch(result.output.text, /Company: this test/i);
+  assert.match(
+    result.output.text,
+    /Overview: Webflow, Inc\. is a privately held U\.S\. software company/,
+  );
+  assert.doesNotMatch(
+    harness.readState().lastOutput.consumedContext.missing.join(", "),
+    /Approved description/,
+  );
+}
+
+{
+  const harness = createTask({
     sessionId: "foundation-downstream",
     workspaceReadMode: "published",
   });

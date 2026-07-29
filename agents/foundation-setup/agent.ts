@@ -1235,7 +1235,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     "Company description",
     "Product description",
     "Description",
-  ]);
+  ]) ?? extractCompanyDescriptionFromProse(rawContext, explicitCompanyName);
   const explicitAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
   const explicitGoals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
   const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
@@ -3639,7 +3639,7 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
     "Company description",
     "Product description",
     "Description",
-  ]);
+  ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
   const primaryAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
   const goals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
   const approvedChannels = hasExplicitApprovedChannelScope(rawContext)
@@ -3826,6 +3826,9 @@ function extractCompanyName(rawContext: string): string | undefined {
   const headingName = extractNameFromSourceHeading(rawContext);
   if (headingName) return headingName;
 
+  const proseName = extractNameFromCompanyProse(rawContext);
+  if (proseName) return proseName;
+
   const namedEntityReference = extractNamedEntityReference(rawContext);
   if (namedEntityReference) return namedEntityReference;
 
@@ -3833,7 +3836,7 @@ function extractCompanyName(rawContext: string): string | undefined {
     /\b(?:we['’]?re|we are)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /\b(?:company|brand|organization|org|product)\s+(?:called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
     /\b(?:company|brand|organization|org|product)\s+is\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
-    /\bfor\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
+    /\b(?:context|setup|profile|brief)\s+for\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
   ];
   const value = patterns
@@ -3855,9 +3858,54 @@ function extractNamedEntityReference(rawContext: string): string | undefined {
 function extractNameFromSourceHeading(rawContext: string): string | undefined {
   for (const rawLine of rawContext.split(/\r?\n/)) {
     const line = rawLine.trim();
-    const match = line.match(/^#{1,3}\s+(.+?)\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/i);
-    const value = match?.[1] ? cleanExtractedName(match[1]) : undefined;
-    if (value) return value;
+    const markdownMatch = line.match(
+      /^#{1,3}\s+(.+?)\s+(?:company|product|brand)\s+(?:profile|overview|context|brief)\b/i,
+    );
+    const markdownValue = markdownMatch?.[1]
+      ? cleanExtractedName(markdownMatch[1])
+      : undefined;
+    if (markdownValue) return markdownValue;
+
+    const sourceLabelMatch = line.match(
+      /^(?:source|reference|candidate)\s+(?:brief|document|material|profile|text|packet)\s*:\s*(.+)$/i,
+    );
+    const sourceLabelValue = sourceLabelMatch?.[1]
+      ? cleanExtractedName(
+          sourceLabelMatch[1].replace(
+            /\s+(?:(?:company|product|brand)\s+)?(?:acceptance\s+fixture|profile|overview|context|brief|fixture)\s*$/i,
+            "",
+          ),
+        )
+      : undefined;
+    if (sourceLabelValue) return sourceLabelValue;
+  }
+  return undefined;
+}
+
+function extractNameFromCompanyProse(rawContext: string): string | undefined {
+  const match = rawContext.match(
+    /(?:^|\n)\s*([A-Z][A-Za-z0-9 .&'’.-]{1,80}?)(?:,\s*(?:Inc\.?|LLC|Ltd\.?|Limited|Corp\.?|Corporation))?\s+is\s+(?:a|an)\s+/m,
+  );
+  return match?.[1] ? cleanExtractedName(match[1]) : undefined;
+}
+
+function extractCompanyDescriptionFromProse(
+  rawContext: string,
+  companyName: string | undefined,
+): string | undefined {
+  if (!companyName || companyName === "TBD") return undefined;
+  const normalizedName = companyName.replace(
+    /,\s*(?:Inc\.?|LLC|Ltd\.?|Limited|Corp\.?|Corporation)$/i,
+    "",
+  );
+  const companyLinePattern = new RegExp(
+    `^${escapeRegExp(normalizedName)}(?:,\\s*(?:Inc\\.?|LLC|Ltd\\.?|Limited|Corp\\.?|Corporation))?\\s+is\\s+(?:a|an)\\s+`,
+    "i",
+  );
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!companyLinePattern.test(line)) continue;
+    return line.replace(/[.。]+$/, "").trim() || undefined;
   }
   return undefined;
 }
@@ -3898,6 +3946,14 @@ function isGenericExtractedName(value: string): boolean {
     "my brand",
     "our brand",
     "the brand",
+    "this test",
+    "the test",
+    "this request",
+    "the request",
+    "this source",
+    "the source",
+    "this fixture",
+    "the fixture",
     "teams",
     "leaders",
     "users",
