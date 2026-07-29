@@ -16,6 +16,8 @@ continuing Launcher Chat is the canonical cockpit.
 - Cannot call itself or an unrelated workspace agent.
 - Reads the current Guild Workspace Context before deciding that context is
   missing.
+- Uses one onboarding request to present the remaining native Guild installation
+  approvals sequentially, stopping immediately on denial or failure.
 - Creates a run in Guild task state before specialist delegation.
 - Records every attempt, artifact revision, approval, workstream, handoff,
   error, and audit event.

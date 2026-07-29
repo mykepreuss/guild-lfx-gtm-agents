@@ -334,26 +334,22 @@ async function run(
   const installed = installedSuiteAgents(workspaceAgents);
 
   if (classification["route"] === "onboarding") {
-    const missing = suiteInstallOrder.find(
+    const installedDuringOnboarding = [...installed];
+    const approvedInstallations: string[] = [];
+
+    for (const missing of suiteInstallOrder.filter(
       (entry) =>
         !installed.some((record) => record.packageName === entry.packageName),
-    );
-    if (missing) {
+    )) {
       try {
-        await task.tools.guild_agent_install_request({
+        const installation = await task.tools.guild_agent_install_request({
           agent_id: missing.agentId,
         });
-        return {
-          type: "text",
-          text: [
-            "# Marketing OS Onboarding",
-            "",
-            `${missing.displayName} installation was approved. Continue onboarding to verify it and request the next missing package.`,
-            "",
-            "This Chat is your canonical Marketing OS cockpit. Keep using it to preserve workstreams, artifacts, approvals, and handoffs.",
-            "No other installation request was made.",
-          ].join("\n"),
-        };
+        approvedInstallations.push(missing.displayName);
+        installedDuringOnboarding.push({
+          packageName: missing.packageName,
+          versionId: installation.id,
+        });
       } catch {
         return {
           type: "text",
@@ -362,7 +358,12 @@ async function run(
             "",
             `${missing.displayName} is still unavailable. Its installation request was denied, suspended, or failed, and onboarding remains resumable.`,
             "",
-            "No other installation request was made.",
+            approvedInstallations.length > 0
+              ? `Approved earlier in this run: ${approvedInstallations.join(", ")}.`
+              : "No installation was approved in this run.",
+            "Onboarding stopped immediately. No later package was requested.",
+            "",
+            "Send `Continue Marketing OS onboarding` to resume from this package.",
           ].join("\n"),
         };
       }
@@ -371,7 +372,12 @@ async function run(
     return {
       type: "text",
       text: [
-        renderOnboardingStatus(installed),
+        renderOnboardingStatus(installedDuringOnboarding),
+        "",
+        approvedInstallations.length > 0
+          ? `${approvedInstallations.length} missing capability package${approvedInstallations.length === 1 ? " was" : "s were"} installed through separate Guild approval requests.`
+          : "No capability package installation was needed.",
+        "Each installation required its own explicit approval.",
         "",
         "This Chat is your canonical Marketing OS cockpit. Resume this Chat for durable artifacts, approvals, workstreams, and handoffs.",
       ].join("\n"),

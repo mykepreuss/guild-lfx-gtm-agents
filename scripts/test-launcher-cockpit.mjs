@@ -128,9 +128,12 @@ function createChat({
   installed = installedAgents(),
   initialContexts,
   failSave = false,
+  failInstallAtCall,
 }) {
   let state = initialState;
   let specialistCalls = 0;
+  let installationCalls = 0;
+  const installationAgentIds = [];
   const specialistInputs = [];
   const contexts = initialContexts ?? [
     {
@@ -156,8 +159,21 @@ function createChat({
       async guild_get_agent_version() {
         return { version_number: "1.3.0" };
       },
-      async guild_agent_install_request() {
-        throw new Error("not expected");
+      async guild_agent_install_request({ agent_id }) {
+        installationCalls += 1;
+        installationAgentIds.push(agent_id);
+        if (installationCalls === failInstallAtCall) {
+          throw new Error("installation denied");
+        }
+        const entry = launcherCore.suiteInstallOrder.find(
+          (candidate) => candidate.agentId === agent_id,
+        );
+        if (!entry) throw new Error("unexpected installation target");
+        installed.push({
+          package_name: suitePackageBindings[entry.route].qualifiedName,
+          version_id: `installed-${installationCalls}`,
+        });
+        return { id: `workspace-agent-${installationCalls}` };
       },
       async guild_get_session() {
         return {
@@ -230,6 +246,12 @@ function createChat({
     specialistCallCount() {
       return specialistCalls;
     },
+    installationCallCount() {
+      return installationCalls;
+    },
+    installationAgentIds() {
+      return [...installationAgentIds];
+    },
   };
 }
 
@@ -238,6 +260,62 @@ function launcherInput(request, context = managedContext) {
     type: "text",
     text: `${context}\n\n${request}`,
   };
+}
+
+{
+  const chat = createChat({
+    sessionId: "sequential-onboarding",
+    specialist: async () => {
+      throw new Error("onboarding must not call a specialist");
+    },
+    installed: [],
+  });
+
+  const result = await launcher.run(
+    launcherInput("Continue Marketing OS onboarding."),
+    chat.task,
+  );
+  assert.equal(chat.installationCallCount(), 8);
+  assert.deepEqual(
+    chat.installationAgentIds(),
+    launcherCore.suiteInstallOrder.map((entry) => entry.agentId),
+  );
+  assert.match(result.text, /All eight capability packages are installed/);
+  assert.match(result.text, /8 missing capability packages were installed/);
+  assert.match(
+    result.text,
+    /Each installation required its own explicit approval/,
+  );
+  assert.doesNotMatch(result.text, /Continue onboarding to verify/);
+}
+
+{
+  const chat = createChat({
+    sessionId: "resumable-onboarding-denial",
+    specialist: async () => {
+      throw new Error("onboarding must not call a specialist");
+    },
+    installed: [],
+    failInstallAtCall: 3,
+  });
+
+  const blocked = await launcher.run(
+    launcherInput("Continue Marketing OS onboarding."),
+    chat.task,
+  );
+  assert.equal(chat.installationCallCount(), 3);
+  assert.match(blocked.text, /ICP is still unavailable/);
+  assert.match(blocked.text, /Company Context Builder, Market Signal/);
+  assert.match(blocked.text, /Onboarding stopped immediately/);
+  assert.match(blocked.text, /No later package was requested/);
+
+  const resumed = await launcher.run(
+    launcherInput("Continue Marketing OS onboarding."),
+    chat.task,
+  );
+  assert.equal(chat.installationCallCount(), 9);
+  assert.match(resumed.text, /All eight capability packages are installed/);
+  assert.match(resumed.text, /6 missing capability packages were installed/);
 }
 
 {
