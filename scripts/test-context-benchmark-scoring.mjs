@@ -15,6 +15,9 @@ const artifact = `## Produced Artifact
 - Claims about uptime are missing evidence.
 - Security framework claims require validation.
 - Pricing sign-off is required for $2,500/month.
+- Approved reusable proof: Wave reported a 3x improvement.
+- Product Marketing Verification: Confirm the Team Plan at $2,500/month.
+- The website is positioned as a revenue engine.
 - This draft launches 4x faster.
 - This is secure and compliant.
 

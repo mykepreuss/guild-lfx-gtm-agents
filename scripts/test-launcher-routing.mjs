@@ -23,6 +23,7 @@ const {
   removeCompiledWorkspaceContext,
   renderOnboardingStatus,
   specialistInput,
+  specialistResultStatus,
   validateSpecialistOutput,
 } = await import(path.join(launcherDir, "dist/agent.js"));
 
@@ -154,6 +155,20 @@ No handoff.
 `.trim();
 
 assert.deepEqual(validateSpecialistOutput(validArtifact), []);
+const needsInputArtifact = validArtifact.replace(
+  '"status":"ready_for_review"',
+  '"status":"needs_input"',
+);
+assert.deepEqual(
+  validateSpecialistOutput(needsInputArtifact),
+  [],
+  "a contract-valid needs_input draft may enter the cockpit as a draft",
+);
+assert.equal(
+  specialistResultStatus(needsInputArtifact),
+  "needs_input",
+  "Launcher should retain the specialist status for workstream state",
+);
 assert.ok(
   validateSpecialistOutput(
     validArtifact.replace(
@@ -184,6 +199,23 @@ assert.ok(
       "This production-ready platform instantly eliminates every bottleneck.",
     ),
   ).some((error) => error.startsWith("Safety error:")),
+);
+assert.ok(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "Orangetheory realized $6M in annual savings and 6x faster delivery.",
+    ),
+  ).some((error) => error.includes("sensitive pricing, proof")),
+);
+assert.deepEqual(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "Claim status: source_supplied_review_required — Orangetheory realized $6M in annual savings and 6x faster delivery; exact source evidence and Marketing Owner review are required before reuse.",
+    ),
+  ),
+  [],
 );
 assert.ok(
   validateSpecialistOutput(

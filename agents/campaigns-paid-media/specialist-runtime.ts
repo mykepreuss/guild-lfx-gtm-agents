@@ -34,6 +34,9 @@ const evidenceModes = [
 const approvedHipaaConstraintPattern =
   /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant,\s+and customers\s+should not provide Protected Health Information\s*\/\s*PHI\s+through the platform\./gi;
 
+const sensitiveGeneratedClaimPattern =
+  /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*(?:%|x)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i;
+
 const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
   [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],
   [/\bautomatically (?:publish|schedule|pause|scale|sync|activate)\b/i, "automatic external action"],
@@ -51,6 +54,10 @@ const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
   [/\bis HIPAA compliant\b/i, "unsupported HIPAA compliance claim"],
   [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
   [/\bscales? safely\b/i, "safety-and-scale claim"],
+  [
+    sensitiveGeneratedClaimPattern,
+    "sensitive pricing, proof, scale, trust, or performance claim",
+  ],
 ];
 
 const statusPayloadSchema = z.object({
@@ -117,8 +124,10 @@ Deterministic output contract:
 - Do not turn a source-supplied or workspace-context statement into an approved public claim merely because it is present. Pricing, proof metrics, scale, funding, revenue, compliance, security, privacy, guarantees, rankings, and performance claims require an explicit evidence label and approval state.
 - Use only facts present in the current input. Never fill gaps from model background knowledge, even for a well-known company or product. A company or product name alone does not authorize product, capability, audience, customer, market, or technical assertions.
 - A fact labeled source_supplied_review_required, secondary_estimate, blocked, withheld, unknown, or TBD may appear only as a limitation, evidence gap, unsupported claim, or approval requirement. It must not appear as reusable language, positioning, a benefit, a recommendation premise, a segment fact, a draft post, a campaign claim, or a pitch assertion under Produced Artifact.
+- A dollar amount, percentage, multiplier, customer/logo, uptime, certification, funding, valuation, scale, security, or performance fact may appear under Produced Artifact only when that same line clearly labels it approved_reusable or source_supplied_review_required and states the required evidence or owner review. Otherwise replace it with a labeled TBD or proof request.
 - If removing review-required or missing facts leaves too little substance for the requested artifact, return a useful needs_input packet with focused questions and labeled placeholders. Do not compensate by drafting from general knowledge.
 - Preserve material legal and compliance nuance exactly. In particular, "may not be HIPAA compliant" must never become "is not HIPAA compliant" or "is HIPAA compliant."
+- Omit HIPAA, PHI, and other legal or compliance constraints when they are not material to the user's requested artifact. If the input explicitly supplies an exact approved constraint for reuse, follow that instruction exactly and do not add paraphrases.
 - Avoid absolute marketing language such as eliminates, instantly, guaranteed, seamless, production-ready, high-converting, high-performance, best-in-class, leading, trusted by, secure, compliant, or without compromise unless that exact line labels the statement as source-supplied and requiring approval.
 - Before returning the artifact, inspect every Produced Artifact sentence. Remove or replace any ungrounded or review-required assertion with a labeled TBD; do not merely explain the problem elsewhere in the packet.
 - Never claim an external action or live observation occurred.
@@ -323,7 +332,7 @@ export function validateSpecialistArtifact(
   );
   if (
     /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
-      text,
+      safetyNarrative,
     )
   ) {
     issues.push({
@@ -352,7 +361,7 @@ export function redactUnsafeGeneratedLines(
   let inspectSection = false;
   const redactedLines = lines.map((line) => {
     const trimmed = line.trim();
-    if (/^## /.test(trimmed)) {
+    if ((requiredHeadings as readonly string[]).includes(trimmed)) {
       inspectSection = [
         "## Produced Artifact",
         "## Approval Gate",
@@ -373,14 +382,16 @@ export function redactUnsafeGeneratedLines(
     );
     const unsafe =
       inspectSection &&
-      sentenceParts.some(
-        (sentence) =>
-          !isExplicitlyQualifiedLine(sentence) &&
-          unsafeGeneratedLinePatterns.some(([pattern]) =>
-            pattern.test(sentence),
-          ),
-      );
-    if (!strengthensHipaa && !paraphrasesHipaa && !unsafe) return line;
+      (strengthensHipaa ||
+        paraphrasesHipaa ||
+        sentenceParts.some(
+          (sentence) =>
+            !isExplicitlyQualifiedLine(sentence) &&
+            unsafeGeneratedLinePatterns.some(([pattern]) =>
+              pattern.test(sentence),
+            ),
+        ));
+    if (!unsafe) return line;
 
     redactedExcerpts.push(trimmed.replace(/\s+/g, " ").slice(0, 180));
     const indentation = line.match(/^\s*/)?.[0] ?? "";
@@ -548,7 +559,7 @@ function extractExpectedHipaaConstraint(text: string): string | undefined {
 }
 
 function isExplicitlyQualifiedLine(line: string): boolean {
-  return /\b(?:do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires (?:separate )?(?:evidence|approval|review)|tbd|source[-_ ]supplied(?: only)?|claim status|evidence status|missing proof|limitation)\b/i.test(
+  return /\b(?:approved[-_ ]reusable|do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires? (?:separate )?(?:evidence|approval|review|validation)|tbd|source[-_ ]supplied(?:[-_ ]review[-_ ]required| only)?|review[-_ ]required|secondary[-_ ]estimate|claim status|evidence status|missing (?:proof|evidence)|proof needs?|limitation|unapproved|pending verification|subject to (?:verification|review|approval)|not company[- ]confirmed|confirm|verify|validate|review)\b/i.test(
     line,
   );
 }

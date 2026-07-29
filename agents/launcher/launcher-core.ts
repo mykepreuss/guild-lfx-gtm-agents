@@ -494,9 +494,9 @@ export function validateSpecialistOutput(
       "Evidence error: connected or live evidence requires observed_at and inspected-source coverage.",
     );
   }
-  if (statusPayload && statusPayload.status !== "ready_for_review") {
+  if (statusPayload && statusPayload.status === "blocked") {
     errors.push(
-      `Safety error: specialist reported ${statusPayload.status} status; only a ready_for_review artifact may enter the review queue.`,
+      "Safety error: specialist reported blocked status; a blocked result may not enter the artifact store.",
     );
   }
 
@@ -538,6 +538,10 @@ export function validateSpecialistOutput(
       [/\bis HIPAA compliant\b/i, "unsupported HIPAA compliance claim"],
       [/\bSOC\s*2(?:\s+Type\s+II)?\s+compliance\b/i, "compliance claim"],
       [/\bscales? safely\b/i, "safety-and-scale claim"],
+      [
+        /\$[0-9]|\b(?:funding|ARR|valuation|SOC\s*2|ISO(?:\/IEC)?\s*27001|uptime|faster|trusted by|leading|guarantee|guaranteed)\b|\b(?:secure|standards[- ]compliant|secure and compliant)\b|\b[0-9]+(?:\.[0-9]+)?\s*(?:%|x)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9][0-9.,]*\s+countries\b/i,
+        "sensitive pricing, proof, scale, trust, or performance claim",
+      ],
     ] as const) {
       if (pattern.test(line)) {
         errors.push(`Safety error: unqualified ${label}.`);
@@ -593,6 +597,27 @@ export function validateSpecialistOutput(
     );
   }
   return errors;
+}
+
+export function specialistResultStatus(
+  text: string,
+): "needs_input" | "ready_for_review" | "blocked" | undefined {
+  const statusSection = specialistSection(
+    text,
+    "## Status Payload",
+    "## Downstream Handoff",
+  );
+  const statusMatches = [
+    ...statusSection.matchAll(/```json\s*([\s\S]*?)```/gi),
+  ];
+  if (statusMatches.length !== 1) return undefined;
+  try {
+    return specialistStatusPayloadSchema.parse(
+      JSON.parse(statusMatches[0][1]),
+    ).status;
+  } catch {
+    return undefined;
+  }
 }
 
 export function extractApprovedHipaaConstraint(
@@ -653,7 +678,7 @@ function specialistSection(
 }
 
 function specialistLineIsQualified(line: string): boolean {
-  return /\b(?:do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires (?:separate )?(?:evidence|approval|review)|tbd|source[-_ ]supplied(?: only)?|claim status|evidence status|missing proof|limitation)\b/i.test(
+  return /\b(?:approved[-_ ]reusable|do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires? (?:separate )?(?:evidence|approval|review|validation)|tbd|source[-_ ]supplied(?:[-_ ]review[-_ ]required| only)?|review[-_ ]required|secondary[-_ ]estimate|claim status|evidence status|missing (?:proof|evidence)|proof needs?|limitation|unapproved|pending verification|subject to (?:verification|review|approval)|not company[- ]confirmed|confirm|verify|validate|review)\b/i.test(
     line,
   );
 }

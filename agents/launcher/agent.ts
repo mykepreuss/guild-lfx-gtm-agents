@@ -31,6 +31,7 @@ import {
   specialistInput,
   specialistInputSchema,
   specialistOutputSchema,
+  specialistResultStatus,
   suiteInstallOrder,
   validateSpecialistOutput,
   type DelegatedRoute,
@@ -65,6 +66,7 @@ export {
   renderDelegatedResult,
   renderOnboardingStatus,
   specialistInput,
+  specialistResultStatus,
   validateSpecialistOutput,
 } from "./launcher-core.js";
 
@@ -872,6 +874,12 @@ async function run(
   }
 
   try {
+    const resultStatus =
+      specialistResultStatus(completedText) ?? "ready_for_review";
+    const needsInput = resultStatus === "needs_input";
+    const blockers = needsInput
+      ? ["The specialist requires the missing inputs listed in the saved draft."]
+      : [];
     const artifact = artifactResponseSchema.parse(
       applyCockpitOperation(cockpit, "artifactStore", {
         idempotency_key: `${idempotencyPrefix}-artifact`,
@@ -880,7 +888,7 @@ async function run(
         consumed_context_revision: context.contextRevision,
         consumed_source_revisions: [],
         evidence: [{ mode: evidenceModeFromArtifact(completedText) }],
-        status: "ready_for_review",
+        status: needsInput ? "draft" : "ready_for_review",
         safety: {
           action_mode: "draft_only",
           external_mutation_requested: false,
@@ -907,6 +915,9 @@ async function run(
         },
       }),
     ).data;
+    const nextAction = needsInput
+      ? `Provide the missing inputs listed in ${config.displayName} artifact revision ${artifact.revision}, then resume this workstream.`
+      : `Review ${config.displayName} artifact revision ${artifact.revision}.`;
     const handoff = handoffResponseSchema.parse(
       applyCockpitOperation(cockpit, "handoffCreate", {
         idempotency_key: `${idempotencyPrefix}-handoff`,
@@ -923,28 +934,32 @@ async function run(
         completion_state: "pending",
       }),
     ).data;
-    const readyRun = workflowRunResponseSchema.parse(
+    const completedRun = workflowRunResponseSchema.parse(
       applyCockpitOperation(cockpit, "runUpdate", {
         runId: currentRun.run_id,
-        idempotency_key: `${idempotencyPrefix}-ready`,
+        idempotency_key: `${idempotencyPrefix}-${
+          needsInput ? "needs-input" : "ready"
+        }`,
         expected_revision: currentRun.revision,
-        status: "ready_for_review",
+        status: needsInput ? "needs_input" : "ready_for_review",
         artifact_id: artifact.artifact_id,
         artifact_revision: artifact.revision,
         handoff_id: handoff.handoff_id,
-        blockers: [],
-        next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
+        blockers,
+        next_action: nextAction,
       }),
     ).data;
     applyCockpitOperation(cockpit, "workstreamUpdate", {
       specialist: config.displayName,
-      idempotency_key: `${idempotencyPrefix}-workstream-ready`,
+      idempotency_key: `${idempotencyPrefix}-workstream-${
+        needsInput ? "needs-input" : "ready"
+      }`,
       expected_revision: workstream.revision,
-      status: "ready_for_review",
+      status: needsInput ? "needs_input" : "ready_for_review",
       latest_artifact_id: artifact.artifact_id,
       latest_artifact_revision: artifact.revision,
-      blockers: [],
-      next_action: `Review ${config.displayName} artifact revision ${artifact.revision}.`,
+      blockers,
+      next_action: nextAction,
       handoff_id: handoff.handoff_id,
     });
     completeCockpitRun(cockpit, currentRun.run_id);
@@ -954,12 +969,16 @@ async function run(
       text: [
         renderDelegatedResult(config.displayName, completedText),
         "",
+        needsInput
+          ? "The complete draft is saved in this cockpit and marked Needs input. Add the focused missing inputs listed above, then resume this workstream."
+          : "The complete draft is saved and ready for review.",
+        "",
         renderCockpitReceipt({
           artifactId: artifact.artifact_id,
           artifactRevision: artifact.revision,
-          runId: readyRun.run_id,
-          packageVersion: readyRun.package_version,
-          contextRevision: readyRun.context_revision ?? "unavailable",
+          runId: completedRun.run_id,
+          packageVersion: completedRun.package_version,
+          contextRevision: completedRun.context_revision ?? "unavailable",
         }),
       ].join("\n"),
     };

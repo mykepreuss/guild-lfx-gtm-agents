@@ -215,4 +215,83 @@ assert.equal(
   "safety-filtered artifact satisfies the shared contract",
 );
 
+const nestedUnsafeArtifact = validArtifact
+  .replace(
+    "Draft positioning for Marketing Owner review.",
+    `# Campaign Packet
+
+## Creative And Test Plan
+
+Give marketing visual autonomy while controlling a production-ready code environment.`,
+  )
+  .replace(
+    '"unsupported_claims": []',
+    '"unsupported_claims": ["No claims of HIPAA compliance allowed"]',
+  );
+const nestedUnsafeValidation = validateSpecialistArtifact(
+  nestedUnsafeArtifact,
+);
+assert.equal(
+  nestedUnsafeValidation.valid,
+  false,
+  "unsafe claims under nested specialist headings must be detected",
+);
+const nestedSafetyFiltered = redactUnsafeGeneratedLines(
+  nestedUnsafeArtifact,
+  nestedUnsafeValidation.issues,
+);
+assert.equal(
+  nestedSafetyFiltered.changed,
+  true,
+  "nested unsafe claims should be redacted without touching Status Payload JSON",
+);
+assert.equal(
+  validateSpecialistArtifact(nestedSafetyFiltered.text).valid,
+  true,
+  JSON.stringify(validateSpecialistArtifact(nestedSafetyFiltered.text).issues),
+);
+assert.doesNotMatch(
+  nestedSafetyFiltered.text
+    .split("## Produced Artifact")[1]
+    .split("## Assumptions And Missing Evidence")[0],
+  /production-ready/,
+  "nested unsafe line is absent from the usable draft",
+);
+assert.match(
+  nestedSafetyFiltered.text,
+  /No claims of HIPAA compliance allowed/,
+  "audit-only Status Payload evidence is preserved as valid JSON",
+);
+
+const unqualifiedProofArtifact = validArtifact.replace(
+  "Draft positioning for Marketing Owner review.",
+  "Orangetheory realized $6M in annual savings and 6x faster delivery.",
+);
+const unqualifiedProofValidation = validateSpecialistArtifact(
+  unqualifiedProofArtifact,
+);
+assert.equal(
+  unqualifiedProofValidation.valid,
+  false,
+  "unqualified sensitive proof claims must fail",
+);
+const filteredProofArtifact = redactUnsafeGeneratedLines(
+  unqualifiedProofArtifact,
+  unqualifiedProofValidation.issues,
+);
+assert.equal(
+  validateSpecialistArtifact(filteredProofArtifact.text).valid,
+  true,
+  "unqualified sensitive proof claims should be withheld deterministically",
+);
+const qualifiedProofArtifact = validArtifact.replace(
+  "Draft positioning for Marketing Owner review.",
+  "Claim status: source_supplied_review_required — Orangetheory realized $6M in annual savings and 6x faster delivery; exact source evidence and Marketing Owner review are required before reuse.",
+);
+assert.equal(
+  validateSpecialistArtifact(qualifiedProofArtifact).valid,
+  true,
+  "explicitly review-gated proof claims remain usable as proof needs",
+);
+
 console.log("Validated specialist runtime tests passed.");
