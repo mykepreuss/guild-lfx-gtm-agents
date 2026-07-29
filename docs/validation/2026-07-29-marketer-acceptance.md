@@ -45,15 +45,15 @@ Current private package versions:
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.27` |
+| Marketing OS Launcher | `0.3.29` |
 | Company Context Builder | `1.2.15` |
-| Market Signal | `1.2.6` |
+| Market Signal | `1.2.7` |
 | ICP | `1.2.6` |
 | Audience Segmentation | `1.2.6` |
 | Messaging | `1.2.6` |
-| Branding And Pitch Deck | `1.2.6` |
-| Social Monitoring And Content | `1.2.6` |
-| Campaigns And Paid Media | `1.2.6` |
+| Branding And Pitch Deck | `1.2.8` |
+| Social Monitoring And Content | `1.2.9` |
+| Campaigns And Paid Media | `1.2.11` |
 
 Launcher is the workspace default. Automatic updates are enabled for all nine
 packages.
@@ -99,19 +99,26 @@ the marketer journey.
 | Launcher `0.3.27` fresh baseline | Pass | Session `019faf87-4b80-351a-0000-486385b07227` returned the unchanged Webflow packet as `Ready for review` and retained artifact `6309ea75-1fea-4618-8e61-6daa44a127c7` revision 1. Evidence inspection found one runtime-start marker in Launcher and one in Builder, proving Launcher no longer duplicated its own injected runtime envelope into the specialist request. |
 | Launcher `0.3.27` fresh approval | Pass | The marketer sent the displayed command in the same Chat. Launcher approved artifact `6309ea75-1fea-4618-8e61-6daa44a127c7` revision 1, retained workflow `e8b5f081-0fb4-4d78-8ea6-0897ab1083c1`, displayed only the exact user approval sentence, stated that approval covered only the stored draft, confirmed Workspace Context was unchanged, and presented the separate exact publication phrase. |
 | Launcher `0.3.27` coded publication | Fixed; Context-screen rerun required | The exact phrase reached the correct publication branch, but Guild rejected the first `guild_get_session` call with `Unauthorized — Not authenticated`. No draft or published context version was created; the original version `019fabb4-22bf-ea2d-0000-e54c726628eb` remained the only context. This proves SDK `0.4.2` does not provide the clean organization Chat a delegated `/api/*` user identity. Launcher `0.3.28` removes the unsupported calls and returns one approved compact block with native Guild Context-screen steps. |
-| Specialist reuse without repaste | Pending | Prove in the seven representative specialist requests. |
+| Native Guild Context publication | Pass | Launcher `0.3.28` returned one approved compact context block and clear Guild Context-screen instructions. The marketer published Workspace Context v2, version `019faf95-9f10-9b1f-0000-a07a9fa6f690`, on 2026-07-29. The original unmanaged version `019fabb4-22bf-ea2d-0000-e54c726628eb` remains preserved. No external service or maintainer token was used. |
+| Specialist reuse without repaste | Pass | A brand-new ordinary Launcher Chat, session `019faf98-3cdf-351a-0000-b4ba765c3b07`, consumed context fingerprint `2b09fd7fe30cd304` for all seven specialist routes without asking the marketer to repeat Webflow context. |
 
 ### Specialist workflows
 
-| Workflow | Natural-language proof | Result |
+| Workflow | Result | Browser evidence and product decision |
 | --- | --- | --- |
-| Market Signal | Assess market and competitor signals | Pending |
-| ICP | Define the ideal enterprise customer and buying committee | Pending |
-| Audience Segmentation | Create practical audience segments and channel recommendations | Pending |
-| Messaging | Develop positioning, narrative, pillars, boilerplate, and objection handling | Pending |
-| Branding And Pitch Deck | Create a ten-slide presentation with visual direction | Pending |
-| Social Monitoring And Content | Create a four-week organic content plan and representative drafts | Pending |
-| Campaigns And Paid Media | Create an integrated campaign with budget assumptions and KPIs | Pending |
+| Market Signal | Pass after fix | Market Signal `1.2.7` returned artifact `d5db5d12-099a-4c4f-93e7-42714583214e`, workflow `1f9f7538-38a4-4da7-b667-090477ed14a2`, as `ready_for_review`. It states `source_supplied`, identifies the exact inspected coverage, and presents missing competitor, search, and community sources as optional evidence gaps rather than homework. |
+| ICP | Pass | ICP `1.2.6` returned artifact `9e8dfe1d-1d31-4210-aefc-585223bc419b`, workflow `b490d636-da3e-458d-91dc-67606c03411a`, with the enterprise profile, buying committee, pains, motivations, objections, triggers, fit criteria, evidence gaps, and a clear review action. Proposed fit thresholds remain editable planning assumptions. |
+| Audience Segmentation | Pass | Audience Segmentation `1.2.6` returned artifact `705cbdeb-0ba6-4910-be93-c5efb173a7d4`, workflow `61eb2e06-9437-4017-aee9-373d50d5e595`, with useful segment rules, channel fit, exclusions, governance notes, and no activation. |
+| Messaging | Pass | Messaging `1.2.6` returned artifact `c8f41edb-0c3e-4c7a-bdfc-61c2d790cf83`, workflow `82b72dea-f019-4bb1-aa95-c4964e651024`, with positioning, narrative, message pillars, boilerplate, answer-ready copy, objections, proof gaps, and a direct review action. |
+| Branding And Pitch Deck | Pass after fix | Branding And Pitch Deck `1.2.8` returned artifact `a7630b65-d430-435a-97d4-ae77e5d076a4`, workflow `6c99dd52-4633-477c-88c9-104b5584a783`, as `ready_for_review`. The brief contains all ten requested slides, neutral customer visual direction rather than Guild styling, and visible `Hypothesis — verify` or `TBD` proof labels. |
+| Social Monitoring And Content | Pass after fix | Social Monitoring And Content `1.2.9` returned artifact `db8c3216-de0e-413b-b446-d76ff12f075c`, workflow `6c76d5cf-f002-4a9d-b3bc-d3de256dc802`. Both the plan and draft sections contain Weeks 1–4 with substantive copy, remain channel-neutral, explicitly state that no live monitoring occurred, and perform no publishing or scheduling. |
+| Campaigns And Paid Media | Pass after fix | In a brand-new ordinary Chat, session `019fafb3-b28d-351a-0000-c1bb8f4ced04`, Launcher `0.3.29` routed the natural integrated-campaign request to Campaigns `1.2.11`. Artifact `186c3146-ce28-4875-89e8-c912e906e057`, workflow `c768fd03-e475-4026-af59-c70d87465aa3`, includes the campaign idea, audiences, message, channels, creative hypotheses, landing-page needs, KPIs, optimization recommendations, and a visibly review-required 100% planning mix with live media spend at 0%. No execution or spend occurred. |
+
+The fixed attempts remain in the evidence trail. They include overly strict
+Market Signal readiness, customer deck styling and completeness issues, a
+missing content-period draft, ambiguous integrated-campaign routing, and two
+safely blocked campaign budget repairs. Each final pass uses the corrected
+private version listed above.
 
 ## Retained evidence
 
@@ -138,6 +145,12 @@ event records for every attempt, including failures:
   `_private/evidence/2026-07-29T20-22-32-532Z-019faf87-4b80-351a-0000-486385b07227.json`
 - Safely blocked Launcher `0.3.27` coded publication:
   `_private/evidence/2026-07-29T20-25-38-846Z-019faf87-4b80-351a-0000-486385b07227.json`
+- Complete seven-specialist acceptance session, including the final
+  presentation and content-plan passes:
+  `_private/evidence/2026-07-29T21-14-50-280Z-019faf98-3cdf-351a-0000-b4ba765c3b07.json`
+- Brand-new ordinary Chat proving Launcher `0.3.29` integrated-campaign
+  routing, retained safe failures, and the final Campaigns `1.2.11` pass:
+  `_private/evidence/2026-07-29T21-15-01-092Z-019fafb3-b28d-351a-0000-c1bb8f4ced04.json`
 
 These evidence files are intentionally not committed because they contain
 private workspace transcripts. This record keeps the session IDs and the
@@ -155,13 +168,16 @@ product decisions required to reproduce and review the acceptance.
 
 ## Release status
 
-Marketer acceptance is in progress. The setup and orientation journey passes.
-Three material Company Context usability problems were found and fixed. The
-fresh Launcher `0.3.27` flow now passes plain-language intake, progressive
-review, and artifact approval in the browser; the approval receipt is clean and
-the compact brief remains deliberately unpublished behind its second gate. The
-first coded publication attempt exposed a real Guild runtime boundary and
-changed nothing. Launcher `0.3.28` replaces the unsupported API path with a
-clear native Context-screen handoff. Context-screen publication, context reuse,
-and all seven specialist workflows remain required before this record can be
-marked complete.
+Marketer browser acceptance is complete.
+
+A nontechnical marketer can understand the system, install and orient the
+suite, create a progressively useful company baseline, approve it, publish the
+compact brief through native Guild Workspace Context, and reuse that context in
+new ordinary Chats. All seven specialist outcomes route correctly and return
+company-specific, reviewable drafts. The explicitly requested presentation and
+integrated-campaign journeys pass. Failed attempts remain preserved, and no
+publishing, scheduling, spend, CRM mutation, credential setup, legal approval,
+or other external marketing execution occurred.
+
+Repository verification and the GitHub pull-request merge are recorded
+separately from this browser-acceptance result.

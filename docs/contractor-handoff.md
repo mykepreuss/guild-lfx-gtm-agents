@@ -49,15 +49,15 @@ publishing account, or advertising credential is part of the marketer journey.
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.27` |
+| Marketing OS Launcher | `0.3.29` |
 | Company Context Builder | `1.2.15` |
-| Market Signal | `1.2.6` |
+| Market Signal | `1.2.7` |
 | ICP | `1.2.6` |
 | Audience Segmentation | `1.2.6` |
 | Messaging | `1.2.6` |
-| Branding And Pitch Deck | `1.2.6` |
-| Social Monitoring And Content | `1.2.6` |
-| Campaigns And Paid Media | `1.2.6` |
+| Branding And Pitch Deck | `1.2.8` |
+| Social Monitoring And Content | `1.2.9` |
+| Campaigns And Paid Media | `1.2.11` |
 
 The clean rehearsal workspace is
 `developers-at-guild/marketing-os-clean-rehearsal-20260728`. Launcher is its
@@ -65,24 +65,30 @@ default agent and automatic updates are enabled for all nine packages.
 
 ## Acceptance Status
 
-Browser acceptance is still in progress. The clean-organization installation,
-default-agent setup, first-time orientation, plain-language company-context
-intake, progressive review, and prominent approval call to action have passed.
-The current authoritative evidence and every retained failure are summarized
-in [Marketer Acceptance — 2026-07-29](validation/2026-07-29-marketer-acceptance.md).
+Browser acceptance is complete. The authoritative result and every retained
+failure are summarized in
+[Marketer Acceptance — 2026-07-29](validation/2026-07-29-marketer-acceptance.md).
 
-The remaining acceptance gates are:
+The accepted Guild state is:
 
-- approve and publish the corrected compact company brief in the fresh
-  Launcher `0.3.27` Chat;
-- prove that a new specialist Chat reuses that context without a repaste;
-- run one representative ordinary-language request through each of the seven
-  specialists;
-- explicitly pass the presentation and integrated-campaign journeys;
-- run final repository verification and merge the existing pull request.
+- Launcher `0.3.29` is the clean rehearsal workspace default.
+- All nine private packages are installed with automatic updates enabled.
+- Company Context artifact
+  `6309ea75-1fea-4618-8e61-6daa44a127c7` revision 1 is approved.
+- Native Workspace Context v2
+  `019faf95-9f10-9b1f-0000-a07a9fa6f690` is published; the original unmanaged
+  version remains preserved.
+- A new ordinary Chat reused context fingerprint `2b09fd7fe30cd304`
+  without a repaste.
+- All seven specialist routes returned reviewable outputs.
+- Natural-language presentation and integrated-campaign requests passed.
+- No external marketing execution occurred.
 
-This document must not be treated as final acceptance until those gates and the
-acceptance record are complete.
+Guild SDK `0.4.2` did not provide delegated API identity for agent-written
+Workspace Context in the clean organization. The accepted Guild-native
+experience therefore uses the separate, explicit Context-screen publication
+step shown by Launcher. It requires no external service, shared maintainer
+token, CLI, or infrastructure credential from the marketer.
 
 ## Safety Boundary
 
@@ -104,6 +110,9 @@ monitoring; the current V1 must not imply live observation when none occurred.
   of the canonical cockpit unless imported through Launcher.
 - Guild Workspace Context holds the compact approved brief, not raw sources or
   the complete artifact history.
+- Publishing the approved compact brief requires the native Guild Context
+  screen because agent-side delegated Context mutation is not available in the
+  tested SDK/runtime.
 - Exhaustive production certification for concurrency, retries, timeout,
   tenancy, export, and deletion is outside the marketer-UX acceptance goal.
 - Read-only connectors, live monitoring, publishing, scheduling, campaign
