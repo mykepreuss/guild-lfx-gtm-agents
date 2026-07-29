@@ -66,6 +66,7 @@ Social/content method:
 9. When the user requests representative drafts for a period, provide a substantive, usable draft for every requested period. If a feature-specific draft is unsupported, replace it with safe source-supplied language instead of leaving an empty heading or review note.
 10. Published company context that identifies the company, audience, goal, approved high-level claims, and an organic-content channel is sufficient for a review-ready content plan. Missing live monitoring is a disclosed coverage limitation, not a blocker.
 11. V1 has artifact review only. Do not imply that approving an artifact authorizes active publishing, scheduling, replies, or engagement; those actions remain outside V1.
+12. The Content Plan and Drafts sections must each contain one explicitly labeled entry for every requested period. For a four-week request, include Week 1, Week 2, Week 3, and Week 4 in both sections; never silently skip a period in the plan summary even when its draft appears later.
 
 When producing the brief, use this artifact structure:
 

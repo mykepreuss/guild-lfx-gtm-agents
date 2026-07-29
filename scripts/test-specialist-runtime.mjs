@@ -89,6 +89,11 @@ assert.match(
   "artifact review must not be presented as execution approval",
 );
 assert.match(
+  socialMonitoringContentSource,
+  /include Week 1, Week 2, Week 3, and Week 4 in both sections/,
+  "four-week plans should contain four plan entries and four drafts",
+);
+assert.match(
   campaignsPaidMediaSource,
   /V1 has no activation-ready or execution-approval state\./,
   "campaign review should not imply an execution approval state",
