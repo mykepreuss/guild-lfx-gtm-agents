@@ -1,8 +1,8 @@
 # Browser UX Validation — 2026-07-28
 
-> Historical browser evidence for the previously installed private versions.
-> The active Guild-only source still requires a fresh browser acceptance pass;
-> see `2026-07-28-guild-native-cockpit.md`.
+> This record retains every failed and passing browser attempt from the July 28
+> private alpha. The final section records the fresh Guild-only acceptance pass
+> on Launcher `0.3.7` and specialists `1.2.6`.
 
 ## Scope
 
@@ -15,24 +15,94 @@ The walkthrough did not publish workspace context, install or expose
 credentials, publish or schedule content, change spend, mutate CRM data, grant
 legal approval, or perform any other external marketing action.
 
-## Live package state
+## Final private package state
 
 | Package | Live version | Default |
 | --- | --- | --- |
-| Marketing OS Launcher | 0.2.5 | yes |
-| Company Context Builder | 1.1.2 | no |
-| Market Signal | 1.1.1 | no |
-| ICP | 1.1.1 | no |
-| Audience Segmentation | 1.1.1 | no |
-| Messaging | 1.1.1 | no |
-| Branding And Pitch Deck | 1.1.1 | no |
-| Social Monitoring And Content | 1.1.1 | no |
-| Campaigns And Paid Media | 1.1.1 | no |
+| Marketing OS Launcher | 0.3.7 | yes |
+| Company Context Builder | 1.2.0 | no |
+| Market Signal | 1.2.6 | no |
+| ICP | 1.2.6 | no |
+| Audience Segmentation | 1.2.6 | no |
+| Messaging | 1.2.6 | no |
+| Branding And Pitch Deck | 1.2.6 | no |
+| Social Monitoring And Content | 1.2.6 | no |
+| Campaigns And Paid Media | 1.2.6 | no |
 
 All nine packages have automatic updates enabled. A direct catalog audit
 confirmed `is_public: false` and `PUBLISHED` status for every live version.
 
-## Results
+The exact final version IDs are:
+
+| Package | Version ID |
+| --- | --- |
+| Marketing OS Launcher | `019fab9e-fe9d-cf83-0000-d0e87362b7ca` |
+| Company Context Builder | `019fab14-9c9b-cf83-0000-3019218b1897` |
+| Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
+| ICP | `019faba1-1977-cf83-0000-3278fc178485` |
+| Audience Segmentation | `019faba2-01fe-cf83-0000-e915b775cfb9` |
+| Messaging | `019faba2-f413-cf83-0000-d81cc604f7dc` |
+| Branding And Pitch Deck | `019faba3-ed73-cf83-0000-c94902c06d34` |
+| Social Monitoring And Content | `019faba4-d92c-cf83-0000-98b5272b5c31` |
+| Campaigns And Paid Media | `019faba5-c8da-cf83-0000-503fce919ad3` |
+
+## Final Guild-only acceptance
+
+Session `019faba7-0e57-351a-0000-79b14e75b6fc` was started from the workspace
+Chat entrypoint after all final private versions had auto-updated. It proved:
+
+- a brand-new normal Chat used Launcher `0.3.7` as the default;
+- the fresh cockpit started with all eight capability workstreams at
+  `not_started`;
+- Campaigns And Paid Media `1.2.6` returned its complete approval packet in
+  the originating Chat and saved artifact
+  `9697f5d9-182e-4cfe-bc3f-7e846fe38ada` revision 1;
+- Market Signal `1.2.6` returned its complete brief in the same Chat and saved
+  artifact `71e224f6-750e-4cbf-aaf0-dfe900c86747` revision 1;
+- status then showed both workstreams as `ready_for_review`, revision 1, with
+  approval pending and the correct next review action;
+- export returned the complete structured state for the canonical Chat,
+  including two runs, two artifacts, two workstreams, handoffs, and the
+  immutable audit trail;
+- both results recorded the compiled context revision
+  `fingerprint:606a94119f7de719`, installed specialist version ID,
+  `action_mode: draft_only`, and `external_mutation_requested: false`; and
+- no workspace context, credential, campaign, content, spend, CRM record, or
+  other external state was changed.
+
+The Campaigns route is the passing rerun of a retained failure in session
+`019fab97-adb4-351a-0000-6d86bd9044da`. The earlier `1.2.5` attempt failed
+closed because the generated packet repeated a required heading and contained
+unsafe lines. The Launcher retained the failed attempt and child task
+`019fab9c-3fbf-4aa6-0000-f336e959fa9a`; it did not silently retry a substantive
+failure.
+
+The final shared runtime deterministically:
+
+- normalizes duplicate shared headings without discarding their content;
+- removes unsafe reader-facing lines while retaining the rejected excerpts in
+  the audit payload;
+- shows one concise safety-filter disclosure instead of repeated visible
+  placeholder rows; and
+- validates the final structured contract before Launcher saves or displays
+  the result.
+
+The final Campaigns and Market Signal browser responses each had zero repeated
+`TBD — generated line withheld` placeholders. Market Signal disclosed
+`source_supplied` evidence and explicitly stated that no active external
+signals were monitored.
+
+### Earlier route evidence retained
+
+Session `019fab97-adb4-351a-0000-6d86bd9044da` also returned complete
+`ready_for_review` artifacts from the other six specialist routes on `1.2.5`.
+Messaging retained the exact HIPAA/PHI constraint once; Social Monitoring
+disclosed `source_supplied` and no live monitoring. Those results and the
+Campaigns failure remain in the private evidence store. The `1.2.6` change is
+shared output normalization and presentation cleanup, covered by the full
+automated verification suite and the two final representative live reruns.
+
+## Earlier private-alpha results
 
 ### Onboarding and default entrypoint
 
@@ -120,11 +190,13 @@ action.
   retained.
 - “Concise” prompts still produce long approval packets because the specialist
   contract requires seven sections. The artifacts are complete and readable,
-  but V1 should offer a short summary view over the durable artifact once the
-  cockpit state service is deployed.
+  but a summary-first presentation would improve the public experience.
+- The final deterministic cleanup removes repeated redaction placeholders and
+  leaves one concise disclosure. The structured Status Payload is useful for
+  auditability but still makes the rendered packet feel technical.
 - Builder’s context-readiness packet remains significantly longer and noisier
   than a user needs for a readiness check. This is acceptable for private
-  evidence but should be summarized in the future cockpit status view.
+  evidence but should be summarized in the public cockpit view.
 - Ambiguous routing uses the strict LLM classifier and took about 19 seconds to
   return a clarification. Clear deterministic routes do not pay that
   classification cost.
@@ -152,24 +224,24 @@ context and runtime metadata.
 
 ## Decision
 
-The private single-workspace alpha passes normal-Chat routing,
+The final private single-workspace alpha passes normal-Chat routing,
 context-readiness regression, onboarding status, all seven specialist
-transport routes, downstream publication-boundary enforcement, hostile-request
-blocking, same-Chat recovery, and ambiguous-intent guidance. The follow-up
-content-quality probe means the currently live specialist versions do not pass
-the public claim-safety gate.
+transport routes, deterministic output safety, downstream
+publication-boundary enforcement, hostile-request blocking, same-Chat
+durability and recovery, status, structured export, and ambiguous-intent
+guidance.
 
 Public V1 remains blocked. The live browser passes do not satisfy:
 
-1. production deployment of the provider-neutral durable state service;
-2. delegated organization/workspace authentication for that service;
-3. delegated workspace-scoped context publication without a maintainer token;
-4. durable cross-session workstream resume, artifact revision, approval, and
-   handoff through the production adapter;
-5. customer export and confirmed deletion against the production adapter;
-6. clean separate-organization installation and tenant-isolation rehearsal;
-7. unaffiliated design-partner acceptance without maintainer intervention; and
-8. public Agent Hub visibility.
+1. an authorized, clean separate-organization installation and concurrency
+   rehearsal;
+2. unaffiliated design-partner acceptance without maintainer intervention;
+3. final approval and publication of the selected compact Workspace Context
+   variant through the exact two-step gate;
+4. a customer-completed confirmed deletion rehearsal, with the documented
+   distinction between cockpit state and Guild-retained Chat/context history;
+5. final summary-first UX polish for long specialist packets; and
+6. public Agent Hub visibility.
 
 No package should be made public until every remaining gate passes.
 

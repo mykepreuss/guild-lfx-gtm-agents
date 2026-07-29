@@ -13,6 +13,10 @@ The active design uses:
 - static Guild agent tools for the exact eight-package suite allowlist;
 - no external runtime persistence service.
 
+This architecture is now proven in the private workspace. It requires no
+Blaxel account, Cloud Run service, PostgreSQL database, shared maintainer Guild
+API token, or customer-visible infrastructure credentials.
+
 ## Local Evidence
 
 `scripts/test-launcher-cockpit.mjs` builds the production Launcher and verifies:
@@ -51,6 +55,10 @@ Builder runtime dependency on those integrations.
 
 - Guild task state is Chat-scoped, not a cross-Chat workspace database.
 - A new Chat receives published Workspace Context but not the old cockpit.
+- The canonical continuing Launcher Chat is therefore the durable V1 cockpit.
+  Returning to that Chat restores its artifacts, approvals, workstreams,
+  handoffs, and audit trail; starting a different Chat deliberately starts a
+  different cockpit.
 - Export is delivered in Chat; it is not a separate downloadable storage
   product.
 - Confirmed deletion clears the structured cockpit state but does not claim to
@@ -58,14 +66,54 @@ Builder runtime dependency on those integrations.
 - Static package bindings still require a clean-organization installation and
   concurrency rehearsal.
 
-## Remaining Live Evidence
+## Live Guild Evidence
 
-Local success is not treated as live Guild success. Before public release:
+All packages remained private during validation:
 
-1. publish new private Launcher and Builder versions;
-2. verify full specialist return, same-Chat resume, approval, and status in an
-   ordinary Guild Chat;
-3. execute the exact Workspace Context publication gate and record the context
-   revision;
-4. run the seven specialist routes and adversarial failures;
-5. complete clean-organization and unaffiliated design-partner acceptance.
+- Launcher `0.3.7` is the workspace default.
+- Company Context Builder is `1.2.0`.
+- All seven specialists are `1.2.6`.
+- Every package has automatic updates enabled.
+
+Final session `019faba7-0e57-351a-0000-79b14e75b6fc` started as a brand-new
+ordinary Guild Chat. It loaded a fresh Launcher cockpit, returned complete
+Campaigns And Paid Media and Market Signal artifacts from their allowlisted
+specialist child tasks, retained both artifacts as revision 1, showed both
+workstreams in status, and exported the complete structured cockpit state.
+
+The final Campaigns run installed version
+`019faba5-c8da-cf83-0000-503fce919ad3`; the final Market Signal run installed
+version `019faba0-2f9e-cf83-0000-10d529d10d0d`. Both consumed compiled context
+revision `fingerprint:606a94119f7de719`, recorded
+`external_mutation_requested: false`, and performed no external action.
+
+The final full `npm run verify` passed before publication. It covers the
+Guild-native cockpit, Builder state, all specialist contracts, exact allowlist,
+router table, state transitions, repair retention, approval, export, deletion,
+context publication, safety policy, evidence modes, catalog shape, and legacy
+compatibility checks.
+
+## Architecture Decision
+
+Guild-only is the selected public V1 architecture, subject to the honest
+Chat-scoped durability boundary above. An external database is not necessary
+for V1 because Guild task state satisfies the required canonical-cockpit
+workflow when customers continue the same Launcher Chat.
+
+An external adapter remains a future option only if the product later requires
+workspace-wide arbitrary-new-Chat resume, cross-workspace querying, or a
+separate storage administration surface.
+
+## Remaining Public-Release Evidence
+
+Before any package becomes public:
+
+1. obtain owner authorization and complete a clean separate-organization
+   installation and concurrency rehearsal;
+2. complete unaffiliated design-partner acceptance with no maintainer CLI
+   intervention;
+3. select the compact Workspace Context variant and run its exact two-step
+   approval/publication gate;
+4. complete the customer-facing confirmed-deletion rehearsal;
+5. finish summary-first polish for long specialist packets; and
+6. rerun the complete public release evidence matrix in those organizations.
