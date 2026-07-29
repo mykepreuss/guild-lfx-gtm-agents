@@ -19,6 +19,10 @@ const socialMonitoringContentSource = fs.readFileSync(
   path.join(process.cwd(), "agents/social-monitoring-content/agent.ts"),
   "utf8",
 );
+const campaignsPaidMediaSource = fs.readFileSync(
+  path.join(process.cwd(), "agents/campaigns-paid-media/agent.ts"),
+  "utf8",
+);
 assert.match(
   marketSignalSource,
   /Published company context that identifies the company, audience, and marketing goal,[\s\S]*is sufficient for a review-ready hypothesis brief\./,
@@ -68,6 +72,26 @@ assert.match(
   socialMonitoringContentSource,
   /Do not imply that approving an artifact authorizes active publishing, scheduling, replies, or engagement/,
   "artifact review must not be presented as execution approval",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /V1 has no activation-ready or execution-approval state\./,
+  "campaign review should not imply an execution approval state",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /provide a clearly labeled planning scenario with amount, currency, and period marked TBD, plus percentage allocations/,
+  "campaign drafts should answer a requested budget question without inventing spend",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /Do not invent a product edition or proper name such as "Webflow Enterprise"/,
+  "campaigns should not invent customer product editions",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /state that execution is outside V1/,
+  "campaign execution must remain explicitly outside V1",
 );
 const build = spawnSync("npm", ["run", "build"], {
   cwd: messagingDir,
