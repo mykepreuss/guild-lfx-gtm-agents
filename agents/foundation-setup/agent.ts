@@ -449,6 +449,7 @@ const sourcePacketFieldLabels = [
   "Organization",
   "Org",
   "Product",
+  "Approved company description",
   "Approved description",
   "Company description",
   "Product description",
@@ -954,6 +955,7 @@ function isAttachmentUnreadableTurn(rawContext: string): boolean {
 function hasUsableSourceContent(rawContext: string): boolean {
   const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
   const fieldCount = [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Primary audiences",
@@ -978,6 +980,7 @@ function isSparseSetupRequest(rawContext: string): boolean {
 
 function hasFieldedSourcePacket(rawContext: string): boolean {
   const fieldCount = [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Primary audiences",
@@ -1252,6 +1255,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   const sourceTextNeeded = shouldRequestReadableSourceText(rawContext);
   const explicitCompanyName = extractCompanyName(rawContext);
   const explicitDescription = extractLineAfterLabels(rawContext, [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Product description",
@@ -1571,6 +1575,7 @@ function hasExplicitContextDetails(rawContext: string): boolean {
   return Boolean(
     extractCompanyName(rawContext) ||
       extractLineAfterLabels(rawContext, [
+        "Approved company description",
         "Approved description",
         "Company description",
         "Product description",
@@ -3734,6 +3739,7 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
   const rawContext = getRawContext(input);
   const companyName = extractCompanyName(rawContext) ?? "TBD";
   const approvedDescription = extractLineAfterLabels(rawContext, [
+    "Approved company description",
     "Approved description",
     "Company description",
     "Product description",
@@ -4095,18 +4101,49 @@ function extractListAfterLabels(rawContext: string, labels: readonly string[]): 
 }
 
 function extractProofFacts(rawContext: string): string[] {
-  const line = extractLineAfterLabels(rawContext, [
+  const labels = [
     "Proof-backed claims or source excerpts",
     "Proof-backed claims",
     "Approved proof",
     "Proof points",
     "Evidence",
-  ]);
-  if (!line) return [];
-  return line
-    .split(/;/)
-    .map((value) => value.trim().replace(/[.。]+$/, "").trim())
-    .filter(Boolean);
+  ] as const;
+  const facts: string[] = [];
+  const line = extractLineAfterLabels(rawContext, labels);
+  if (line) {
+    facts.push(
+      ...line
+        .split(/;/)
+        .map((value) => value.trim().replace(/[.。]+$/, "").trim())
+        .filter(Boolean),
+    );
+  }
+
+  const proofHeader =
+    /^\s*(?:#{1,6}\s*)?(?:proof-backed claims?(?:\s+approved\b[^:]*)?|approved proof|proof points?|evidence)\s*:\s*(.*)$/i;
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = lines[index]?.match(proofHeader);
+    if (!match) continue;
+    const inline = match[1]?.trim();
+    if (inline) {
+      facts.push(
+        ...inline
+          .split(/;/)
+          .map((value) => value.trim().replace(/[.。]+$/, "").trim())
+          .filter(Boolean),
+      );
+    }
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const next = lines[cursor]?.trim() ?? "";
+      if (!next) continue;
+      const bullet = next.match(/^[-*]\s+(.+)$/);
+      if (!bullet) break;
+      const fact = bullet[1]?.trim().replace(/[.。]+$/, "").trim();
+      if (fact) facts.push(fact);
+    }
+  }
+  return [...new Set(facts)];
 }
 
 function userSuppliedClaim(claim: string): Claim {

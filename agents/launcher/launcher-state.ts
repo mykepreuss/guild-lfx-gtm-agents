@@ -258,6 +258,7 @@ export const updateWorkflowRunRequestSchema = z.object({
   idempotency_key: z.string(),
   expected_revision: z.number().int().positive(),
   status: workflowRunStatusSchema,
+  package_version: z.string().optional(),
   artifact_id: z.string().optional(),
   artifact_revision: z.number().int().positive().optional(),
   handoff_id: z.string().optional(),
@@ -584,6 +585,7 @@ export function createSessionCockpit(
       ...currentRun,
       revision: currentRun.revision + 1,
       status: input.status,
+      package_version: input.package_version ?? currentRun.package_version,
       artifact_id: input.artifact_id ?? currentRun.artifact_id,
       artifact_revision: input.artifact_revision ?? currentRun.artifact_revision,
       handoff_id: input.handoff_id ?? currentRun.handoff_id,
@@ -1280,6 +1282,8 @@ export function reduceSessionCockpitOperation(
         ...currentRun,
         revision: currentRun.revision + 1,
         status: request.status,
+        package_version:
+          request.package_version ?? currentRun.package_version,
         artifact_id: request.artifact_id ?? currentRun.artifact_id,
         artifact_revision:
           request.artifact_revision ?? currentRun.artifact_revision,

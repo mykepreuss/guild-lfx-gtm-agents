@@ -434,15 +434,12 @@ async function run(
   let resumingNeedsInput = false;
 
   if (resumeRequested(userText)) {
-    currentRun = cockpit.state.runs.find(
-        (candidate) =>
-          candidate["route"] === route &&
-          ["running", "needs_input", "ready_for_review"].includes(
-            candidate.status,
-          ),
-      );
+    currentRun = findResumableRun(cockpit.state.runs, route);
     if (currentRun) {
-      resumingNeedsInput = currentRun.status === "needs_input";
+      resumingNeedsInput =
+        currentRun.status === "needs_input" ||
+        (["blocked", "failed"].includes(currentRun.status) &&
+          hasSuccessfulArtifactCheckpoint(currentRun));
       idempotencyPrefix = `launcher-${currentRun.run_id}`;
       const originalRequest = currentRun.input_envelope.user_request;
       if (typeof originalRequest === "string" && originalRequest.trim()) {
@@ -567,7 +564,11 @@ async function run(
     }
   }
 
-  if (["blocked", "failed", "approved"].includes(currentRun.status)) {
+  if (
+    currentRun.status === "approved" ||
+    (["blocked", "failed"].includes(currentRun.status) &&
+      !resumingNeedsInput)
+  ) {
     completeCockpitRun(cockpit, currentRun.run_id);
     await task.save(cockpit.state);
     return {
@@ -581,7 +582,11 @@ async function run(
     };
   }
 
-  if (currentRun.status === "needs_input") {
+  if (
+    currentRun.status === "needs_input" ||
+    (["blocked", "failed"].includes(currentRun.status) &&
+      hasSuccessfulArtifactCheckpoint(currentRun))
+  ) {
     try {
       currentRun = workflowRunResponseSchema.parse(
         applyCockpitOperation(cockpit, "runUpdate", {
@@ -589,6 +594,7 @@ async function run(
           idempotency_key: `${idempotencyPrefix}-resume-r${currentRun.revision}`,
           expected_revision: currentRun.revision,
           status: "running",
+          package_version: packageVersion,
           blockers: [],
           next_action: `Resume ${config.displayName}.`,
         }),
@@ -1644,6 +1650,42 @@ function completeCockpitRun(
     "setState",
     completeRunState(cockpit.state, runId),
   );
+}
+
+function hasSuccessfulArtifactCheckpoint(run: WorkflowRun): boolean {
+  return Boolean(
+    run.artifact_id &&
+      run.artifact_revision &&
+      run.attempts.some((attempt) => attempt.status === "succeeded"),
+  );
+}
+
+function findResumableRun(
+  runs: WorkflowRun[],
+  route: DelegatedRoute,
+): WorkflowRun | undefined {
+  const candidates = runs.filter((candidate) => {
+    if (candidate.route !== route) return false;
+    if (
+      ["running", "needs_input", "ready_for_review"].includes(
+        candidate.status,
+      )
+    ) {
+      return true;
+    }
+    return (
+      ["blocked", "failed"].includes(candidate.status) &&
+      hasSuccessfulArtifactCheckpoint(candidate)
+    );
+  });
+  const baseRuns = candidates.filter((candidate) => {
+    const originalRequest = candidate.input_envelope.user_request;
+    return (
+      typeof originalRequest !== "string" ||
+      !resumeRequested(originalRequest)
+    );
+  });
+  return (baseRuns.length ? baseRuns : candidates)[0];
 }
 
 function isExactContextPublishConfirmation(text: string): boolean {

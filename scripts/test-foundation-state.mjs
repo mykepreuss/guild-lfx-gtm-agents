@@ -455,11 +455,19 @@ function guildChatEnvelope(text) {
         source,
         "## Focused resume input",
         "Resume Company Context artifact revision 1 using the source and draft already retained in this Marketing OS cockpit.",
+        "Do not ask me to repaste the original source.",
+        "",
         "Approved channels: website, blog, customer stories, email, and organic social.",
-        "Approved company description: Webflow provides a visual website platform for enterprise marketing teams.",
-        "Proof-backed claims: The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
-        "Goals: Help enterprise marketing and creative teams build and optimize web experiences.",
-        "Keep evidence mode source_supplied and everything draft-only.",
+        "",
+        "Approved company description: Webflow provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility for enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+        "",
+        "Proof-backed claims approved for reusable context after this customer review:",
+        "- The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+        "- The approved primary audiences are enterprise marketing teams, designers, developers, agencies, freelancers, and startups.",
+        "",
+        "Goals: Help enterprise marketing and creative teams build and optimize web experiences while engineering retains governance and integration control.",
+        "",
+        "Do not approve any other facts from revision 1. Keep every remaining withheld claim and existing do-not-use qualification unchanged, including the exact qualified HIPAA/PHI wording from the supplied source. Keep evidence mode source_supplied and everything draft-only. Do not publish Workspace Context or perform any external action.",
       ].join("\n\n"),
     },
     resumeHarness.task,
@@ -478,6 +486,32 @@ function guildChatEnvelope(text) {
   assert.doesNotMatch(
     resumedDraft.output.text,
     /Requested downstream goal: Social Monitoring And Content/,
+  );
+  assert.ok(
+    resumeHarness.readState().lastOutput.approvedFacts.some((claim) =>
+      /Webflow provides a visual website platform combining site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility/i.test(
+        claim.claim,
+      )
+    ),
+    "focused resume must retain the explicitly approved company description",
+  );
+  assert.ok(
+    resumeHarness.readState().lastOutput.proofBackedClaims.some((claim) =>
+      /The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility/i.test(
+        claim.claim,
+      )
+    ),
+    "focused resume must import multiline proof-backed claims",
+  );
+  assert.match(
+    resumedDraft.output.text,
+    /Webflow may not be HIPAA compliant/i,
+    "focused resume must preserve the exact qualified HIPAA wording from the retained source",
+  );
+  assert.doesNotMatch(
+    resumedDraft.output.text,
+    /Webflow (?:is|is not) HIPAA compliant|lack of HIPAA compatibility/i,
+    "focused resume must not strengthen or invert the qualified HIPAA wording",
   );
 
   const prematureApproval = await foundationAgent.start(

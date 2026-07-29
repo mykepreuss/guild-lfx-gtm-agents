@@ -504,6 +504,66 @@ function launcherInput(request, context = managedContext) {
 }
 
 {
+  let call = 0;
+  const sourceRequest = [
+    "Start Company Context setup using only the retained source document.",
+    "Source document: Example Co company profile",
+    "Example Co is workflow software for operations teams.",
+    "Keep everything draft-only.",
+  ].join("\n");
+  const focusedResume = [
+    "Resume Company Context artifact revision 1 using the source and draft already retained in this Marketing OS cockpit.",
+    "Approved proof: supplied customer interviews.",
+  ].join("\n");
+  const chat = createChat({
+    sessionId: "canonical-resume-after-failed-attempt",
+    specialist: async () => {
+      call += 1;
+      if (call === 1) return { type: "text", text: needsInputArtifact };
+      if (call === 2) {
+        return {
+          type: "text",
+          text: `${validArtifact}\n\nAutomatically publish the approved draft.`,
+        };
+      }
+      return { type: "text", text: validArtifact };
+    },
+  });
+
+  await launcher.run(launcherInput(sourceRequest), chat.task);
+  const failedResume = await launcher.run(
+    launcherInput(focusedResume),
+    chat.task,
+  );
+  assert.match(failedResume.text, /Specialist result blocked/);
+  assert.equal(chat.readState().runs[0].status, "blocked");
+  assert.equal(chat.readState().artifacts.length, 1);
+
+  const recovered = await launcher.run(
+    launcherInput(focusedResume),
+    chat.task,
+  );
+  assert.match(recovered.text, /Handled by: Company Context Builder/);
+  assert.equal(chat.readState().runs.length, 1);
+  assert.equal(chat.specialistCallCount(), 3);
+  assert.equal(chat.readState().artifacts.length, 2);
+  assert.equal(
+    chat.readState().artifacts[0].artifact_id,
+    chat.readState().artifacts[1].artifact_id,
+  );
+  assert.equal(chat.readState().artifacts[1].revision, 2);
+  assert.deepEqual(
+    chat.readState().runs[0].attempts.map((attempt) => attempt.status),
+    ["succeeded", "safety_failed", "succeeded"],
+  );
+  assert.match(chat.specialistInputs[2].text, /Source document: Example Co/);
+  assert.match(
+    chat.specialistInputs[2].text,
+    /Focused resume input[\s\S]*Approved proof: supplied customer interviews/,
+  );
+}
+
+{
   const chat = createChat({
     sessionId: "canonical-safety-failure",
     specialist: async () => ({
