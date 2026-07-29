@@ -2,7 +2,7 @@
 
 > This record retains every failed and passing browser attempt from the July 28
 > private alpha. The final section records the fresh Guild-only acceptance pass
-> on Launcher `0.3.13`, Company Context Builder `1.2.5`, and specialists
+> on Launcher `0.3.14`, Company Context Builder `1.2.5`, and specialists
 > `1.2.6`.
 
 ## Scope
@@ -20,7 +20,7 @@ legal approval, or perform any other external marketing action.
 
 | Package | Live version | Default |
 | --- | --- | --- |
-| Marketing OS Launcher | 0.3.13 | yes |
+| Marketing OS Launcher | 0.3.14 | yes |
 | Company Context Builder | 1.2.5 | no |
 | Market Signal | 1.2.6 | no |
 | ICP | 1.2.6 | no |
@@ -37,12 +37,12 @@ The exact final version IDs are:
 
 | Package | Version ID |
 | --- | --- |
-| Marketing OS Launcher | `019fabef-671c-cf83-0000-ce3df809571b` |
+| Marketing OS Launcher | `019fac04-7261-cf83-0000-96e0a90b9ba6` |
 | Company Context Builder | `019fabf9-6502-cf83-0000-84c2dd6a04a9` |
 | Market Signal | `019faba0-2f9e-cf83-0000-10d529d10d0d` |
 | ICP | `019faba1-1977-cf83-0000-3278fc178485` |
 | Audience Segmentation | `019faba2-01fe-cf83-0000-e915b775cfb9` |
-| Messaging | `019faba2-f413-cf83-0000-d81cc604f7dc` |
+| Messaging | `019faba2-f413-cf83-0000-1211032600ce` |
 | Branding And Pitch Deck | `019faba3-ed73-cf83-0000-c94902c06d34` |
 | Social Monitoring And Content | `019faba4-d92c-cf83-0000-98b5272b5c31` |
 | Campaigns And Paid Media | `019faba5-c8da-cf83-0000-503fce919ad3` |
@@ -112,6 +112,47 @@ artifact `945ceece-2a87-41cd-b7ee-5c5056ee26d4` revision 1 from workflow run
 The live Workspace Context was still
 `019f10b8-0faa-9b1f-0000-0f14b2f84fea` after this final rerun. No approval or
 publication occurred.
+
+## Confirmed deletion in a disposable Chat
+
+The first disposable deletion-rehearsal attempt,
+`019fac02-4dd0-351a-0000-d5312b7c7f3c`, retained a routing failure. The safe
+Messaging request included a coordinated clause saying not to publish,
+schedule, spend, mutate CRM data, configure credentials, or perform external
+actions. Launcher `0.3.13` interpreted a later item in that negated list as an
+affirmative restricted-operation request and blocked it before delegation.
+
+Launcher `0.3.14` now treats a coordinated negated safety clause as a safety
+constraint while still blocking affirmative pivots such as “but schedule” and
+separate clauses such as “do not publish; configure credentials.” The exact
+failed prompt and both adversarial counterexamples are covered by the routing
+suite.
+
+Fresh normal-Chat session `019fac05-f2b9-351a-0000-bf20c4cff828` then passed
+the complete customer-facing deletion lifecycle:
+
+1. The exact previously blocked prompt routed only to Messaging `1.2.6`.
+2. Messaging returned a complete `ready_for_review` packet and Launcher stored
+   artifact `77d70254-7313-481b-9083-2b9810fa1ed0` revision 1 from workflow
+   run `0c10624d-67c0-4df6-abef-f51a19808e4e`.
+3. Status showed `Messaging | Ready for review | r1 | Pending`.
+4. `Delete the Marketing OS cockpit.` returned the exact confirmation phrase
+   and disclosed that Guild Chat history and Workspace Context would remain.
+5. A status request before confirmation still showed Messaging revision 1.
+6. The exact confirmation
+   `delete marketing os cockpit state from this chat` returned
+   `Marketing OS Cockpit Deleted`.
+7. Post-deletion status showed all eight capability workstreams as
+   `not_started`, with no artifact revision.
+8. Post-deletion export contained empty `runs`, `artifacts`, `workstreams`, and
+   `handoffs`, plus one immutable `cockpit_state_deleted` audit receipt.
+
+The deletion receipt accurately stated that workflow runs, specialist
+attempts, artifact bodies, approvals, handoffs, workstreams, and the local
+index were removed from this Chat state. It did not claim to erase
+Guild-retained Chat history or Workspace Context. The live Workspace Context
+revision remained `019f10b8-0faa-9b1f-0000-0f14b2f84fea`, and no external
+marketing action occurred.
 
 ## Final Guild-only acceptance
 
@@ -329,8 +370,8 @@ The final private single-workspace alpha passes normal-Chat routing,
 context-readiness regression, onboarding status, all seven specialist
 transport routes, deterministic output safety, downstream
 publication-boundary enforcement, hostile-request blocking, same-Chat
-durability and recovery, status, structured export, and ambiguous-intent
-guidance.
+durability and recovery, status, structured export, two-step confirmed
+deletion, and ambiguous-intent guidance.
 
 Public V1 remains blocked. The live browser passes do not satisfy:
 
@@ -339,10 +380,8 @@ Public V1 remains blocked. The live browser passes do not satisfy:
 2. unaffiliated design-partner acceptance without maintainer intervention;
 3. final approval and publication of the selected compact Workspace Context
    variant through the exact two-step gate;
-4. a customer-completed confirmed deletion rehearsal, with the documented
-   distinction between cockpit state and Guild-retained Chat/context history;
-5. live Company Context lifecycle and publication proof; and
-6. public Agent Hub visibility.
+4. live Workspace Context publication and rollback proof; and
+5. public Agent Hub visibility.
 
 No package should be made public until every remaining gate passes.
 

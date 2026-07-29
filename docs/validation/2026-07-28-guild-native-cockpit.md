@@ -70,7 +70,7 @@ Builder runtime dependency on those integrations.
 
 All packages remained private during validation:
 
-- Launcher `0.3.13` is the workspace default.
+- Launcher `0.3.14` is the workspace default.
 - Company Context Builder is `1.2.5`.
 - All seven specialists are `1.2.6`.
 - Every package has automatic updates enabled.
@@ -125,6 +125,18 @@ before the complete packet and stored artifact
 `945ceece-2a87-41cd-b7ee-5c5056ee26d4` revision 1 as `ready_for_review`.
 Workspace Context remained unchanged.
 
+Disposable session `019fac05-f2b9-351a-0000-bf20c4cff828` proved the complete
+customer-facing deletion lifecycle on Launcher `0.3.14`. A non-exact deletion
+request returned only the confirmation gate and left Messaging artifact
+revision 1 intact. The exact phrase deleted the structured cockpit state,
+post-deletion status showed every workstream as `not_started`, and export
+contained empty runs, artifacts, workstreams, and handoffs with only the
+`cockpit_state_deleted` audit receipt retained.
+
+The receipt explicitly disclosed that Guild Chat history and Workspace Context
+were not deleted. The live context revision remained
+`019f10b8-0faa-9b1f-0000-0f14b2f84fea`.
+
 ## Architecture Decision
 
 Guild-only is the selected public V1 architecture, subject to the honest
@@ -146,7 +158,6 @@ Before any package becomes public:
    intervention;
 3. approve the staged compact Workspace Context artifact and run its exact
    second-step publication gate;
-4. complete the customer-facing confirmed-deletion rehearsal;
-5. prove live Workspace Context publication and rollback with a deliberately
+4. prove live Workspace Context publication and rollback with a deliberately
    approved artifact; and
-6. rerun the complete public release evidence matrix in those organizations.
+5. rerun the complete public release evidence matrix in those organizations.
