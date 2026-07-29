@@ -11,6 +11,10 @@ const marketSignalSource = fs.readFileSync(
   path.join(process.cwd(), "agents/market-signal/agent.ts"),
   "utf8",
 );
+const brandingPitchDeckSource = fs.readFileSync(
+  path.join(process.cwd(), "agents/branding-pitch-deck/agent.ts"),
+  "utf8",
+);
 assert.match(
   marketSignalSource,
   /Published company context that identifies the company, audience, and marketing goal,[\s\S]*is sufficient for a review-ready hypothesis brief\./,
@@ -25,6 +29,21 @@ assert.match(
   marketSignalSource,
   /Use status needs_input only when the company, audience, or marketing goal is missing/,
   "Market Signal should reserve needs_input for missing essential context",
+);
+assert.match(
+  brandingPitchDeckSource,
+  /Never apply Guild colors, typography, or visual conventions to a customer deliverable\./,
+  "customer collateral should not inherit the Guild demo brand",
+);
+assert.match(
+  brandingPitchDeckSource,
+  /Do not expand it into specific features, technical behavior, integrations, standards, reliability, security, performance, or implementation details unless those details appear in approved evidence\./,
+  "high-level approved capabilities should not authorize invented deck details",
+);
+assert.match(
+  brandingPitchDeckSource,
+  /A separate Proof Needed line does not make an unsupported content bullet safe\./,
+  "unsupported slide bullets must be labeled where they appear",
 );
 const build = spawnSync("npm", ["run", "build"], {
   cwd: messagingDir,
