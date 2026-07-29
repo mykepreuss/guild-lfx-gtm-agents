@@ -299,11 +299,30 @@ assert.match(
 );
 assert.match(
   summarizedBuilderResult,
-  /\| Includes \| Company Context Draft \(company-context\) \|/,
+  /\| Includes \| Company description · Audiences · Marketing goal · Approved claims · Channels · Constraints \|/,
 );
 assert.doesNotMatch(
   summarizedBuilderResult.split("## Complete validated draft")[0],
   /Save And Approval State/,
+);
+const summarizedReadyBuilderResult = renderDelegatedResult(
+  "Company Context Builder",
+  validArtifact,
+  {
+    artifactRevision: 1,
+    status: "ready_for_review",
+    nextAction:
+      "Approve this useful baseline now by sending: `Approve Company Context Builder artifact revision 1.` You can add or revise context later.",
+  },
+);
+assert.match(summarizedReadyBuilderResult, /## Ready to approve/);
+assert.match(
+  summarizedReadyBuilderResult,
+  /This baseline is complete enough to power specialist drafts/,
+);
+assert.match(
+  summarizedReadyBuilderResult,
+  /\*\*Approve now:\*\* `Approve Company Context Builder artifact revision 1\.`/,
 );
 assert.ok(
   validateSpecialistOutput(

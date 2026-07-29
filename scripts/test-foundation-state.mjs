@@ -307,6 +307,84 @@ function guildChatEnvelope(text) {
 
 {
   const harness = createTask({
+    sessionId: "foundation-marketer-baseline",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Set up Marketing OS for Webflow.",
+    "",
+    "Company description:",
+    "Webflow is a visual website platform that helps marketing, design, and development teams build and manage websites together.",
+    "",
+    "Primary audiences:",
+    "Enterprise marketing leaders, web teams, designers, developers, and digital agencies.",
+    "",
+    "Current marketing goal:",
+    "Help enterprise teams launch and improve web experiences faster while keeping brand and engineering governance.",
+    "",
+    "Approved claims:",
+    "Webflow combines visual site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+    "The platform serves marketing teams, designers, developers, agencies, freelancers, and startups.",
+    "",
+    "Channels in scope:",
+    "Website, blog, customer stories, email, organic social, presentations, and campaign planning.",
+    "",
+    "Important constraints:",
+    "Do not invent customer results, pricing, security, compliance, or performance claims. Keep unknown facts as TBD.",
+    "",
+    "Keep everything draft-only.",
+  ].join("\n");
+  const result = await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "ready_for_review");
+  assert.equal(
+    harness.readState().lastOutput.statusPayload.readiness,
+    "review_ready",
+  );
+  assert.equal(
+    harness.readState().durableContextArtifactStatus,
+    "ready_for_review",
+  );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.goals,
+    [
+      "Help enterprise teams launch and improve web experiences faster while keeping brand and engineering governance",
+    ],
+    "a marketing goal should remain an intention rather than becoming a blocked performance claim",
+  );
+  assert.equal(
+    harness.readState().lastOutput.contextArtifacts.proofAndConstraints
+      .approvedClaims.some((claim) =>
+        /combines visual site design, CMS, hosting/i.test(claim.claim)
+      ),
+    true,
+    "explicitly labeled approved claims should be retained for artifact review",
+  );
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.length,
+    0,
+    "unknown-proof constraints should remain constraints rather than blocked claims",
+  );
+  assert.match(result.output.text, /"status": "ready_for_review"/);
+  assert.match(
+    result.output.text,
+    /Current marketing goal: Help enterprise teams launch and improve web experiences faster/,
+  );
+  assert.match(
+    result.output.text,
+    /Important constraints: Do not invent customer results, pricing, security, compliance, or performance claims/,
+  );
+  assert.match(
+    result.output.text,
+    /Approve this baseline company description, audiences, goal, reusable claims, channels, and constraints/,
+  );
+}
+
+{
+  const harness = createTask({
     sessionId: "foundation-rich-prose-source",
     workspaceReadMode: "missing",
   });
@@ -341,6 +419,37 @@ function guildChatEnvelope(text) {
   assert.doesNotMatch(
     harness.readState().lastOutput.consumedContext.missing.join(", "),
     /Approved description/,
+  );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-marketer-sensitive-claim",
+    workspaceReadMode: "missing",
+  });
+  const source = [
+    "Set up Marketing OS for Example Co.",
+    "Company description: Example Co is a website platform.",
+    "Primary audiences: marketing teams and web teams.",
+    "Current marketing goal: create a useful launch plan.",
+    "Approved claims: Example Co guarantees 99.99% uptime.",
+    "Channels in scope: website, email, and presentations.",
+    "Important constraints: Keep unknown facts as TBD.",
+  ].join("\n");
+  await foundationAgent.start(
+    { type: "text", text: source },
+    harness.task,
+  );
+  assert.notEqual(
+    harness.readState().lastOutput.status,
+    "ready_for_review",
+    "progressive disclosure must not bypass review for a sensitive unsupported claim",
+  );
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.some((claim) =>
+      /99\.99% uptime/i.test(claim.claim)
+    ),
+    true,
   );
 }
 

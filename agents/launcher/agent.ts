@@ -948,8 +948,10 @@ async function run(
       }),
     ).data;
     const nextAction = needsInput
-      ? `Provide the missing inputs listed in ${config.displayName} artifact revision ${artifact.revision}, then resume this workstream.`
-      : `Review ${config.displayName} artifact revision ${artifact.revision}.`;
+      ? `Provide the missing core inputs listed in ${config.displayName} artifact revision ${artifact.revision}, then resume this workstream. Optional enhancements can be added later.`
+      : route === "company_context"
+        ? `Approve this useful baseline now by sending: \`Approve Company Context Builder artifact revision ${artifact.revision}.\` You can add or revise context later.`
+        : `Review ${config.displayName} artifact revision ${artifact.revision}.`;
     const handoff = handoffResponseSchema.parse(
       applyCockpitOperation(cockpit, "handoffCreate", {
         idempotency_key: `${idempotencyPrefix}-handoff-r${artifact.revision}`,

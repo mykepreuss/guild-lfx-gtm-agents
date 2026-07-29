@@ -215,6 +215,15 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
+type MarketerContextPacket = {
+  companyName: string;
+  description: string;
+  audiences: string[];
+  goals: string[];
+  approvedClaims: string[];
+  channels: string[];
+  constraints: string[];
+};
 type WorkspaceContextAudit = z.infer<typeof workspaceContextAuditSchema>;
 type WorkspaceContextCompaction = z.infer<typeof workspaceContextCompactionSchema>;
 type CompactedWorkspaceContext = {
@@ -458,12 +467,19 @@ const sourcePacketFieldLabels = [
   "Primary audience",
   "Audiences",
   "Audience",
+  "Current marketing goal",
+  "Marketing goal",
   "Current goals",
   "Goals",
+  "Approved claims",
+  "Approved facts",
+  "Claims approved for reuse",
   "Channels in scope",
   "Approved channels",
   "Channel scope",
   "Channels",
+  "Important constraints",
+  "Constraints",
   "Proof-backed claims or source excerpts",
   "Proof-backed claims",
   "Approved proof",
@@ -1262,7 +1278,22 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     "Description",
   ]) ?? extractCompanyDescriptionFromProse(rawContext, explicitCompanyName);
   const explicitAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
-  const explicitGoals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
+  const explicitGoals = extractBlockAfterLabels(rawContext, [
+    "Current marketing goal",
+    "Marketing goal",
+    "Current goals",
+    "Goals",
+  ]);
+  const explicitApprovedClaims = extractBlockAfterLabels(rawContext, [
+    "Approved claims",
+    "Approved facts",
+    "Claims approved for reuse",
+  ]);
+  const explicitConstraints = extractBlockAfterLabels(rawContext, [
+    "Important constraints",
+    "Constraints",
+    "Anything not approved for reuse",
+  ]);
   const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
   const blockers = new Set(output.statusPayload.blockers);
   let missing = new Set(output.consumedContext.missing);
@@ -1337,6 +1368,26 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     );
     missing.delete("Approved channel scope");
     missing.delete("Channel scope");
+  }
+
+  for (const fact of explicitApprovedClaims) {
+    if (isSensitiveClaim(fact)) {
+      blockedClaims.push(sensitiveClaimGuardrail(fact));
+      claimsNeedingApproval.push(sensitiveClaimNeedsApproval(fact));
+      continue;
+    }
+    addUserSuppliedClaim(output.approvedFacts, fact);
+    addUserSuppliedClaim(
+      output.contextArtifacts.proofAndConstraints.approvedClaims,
+      fact,
+    );
+  }
+  if (explicitConstraints.length > 0) {
+    output.contextArtifacts.proofAndConstraints.constraints =
+      mergeDefaultConstraints([
+        ...explicitConstraints,
+        ...output.contextArtifacts.proofAndConstraints.constraints,
+      ]);
   }
 
   for (const fact of extractProofFacts(rawContext)) {
@@ -1546,7 +1597,265 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     ].join("\n");
   }
 
+  return finalizeCompleteMarketerContextPacket(output, rawContext);
+}
+
+function finalizeCompleteMarketerContextPacket(
+  output: Output,
+  rawContext: string,
+): Output {
+  const packet = extractMarketerContextPacket(rawContext);
+  if (!packet) return output;
+
+  const sensitiveReusableFacts = [
+    packet.description,
+    ...packet.approvedClaims,
+  ].filter(isGuardedReusableClaim);
+  if (sensitiveReusableFacts.length > 0) {
+    return output;
+  }
+
+  const approvedFacts = [
+    userSuppliedClaim(`Company name: ${packet.companyName}`),
+    userSuppliedClaim(packet.description),
+    ...packet.approvedClaims.map(userSuppliedClaim),
+  ];
+  const optionalEvidenceGaps = packet.approvedClaims.length > 0
+    ? [
+        "Customer results, pricing, security, compliance, and quantified performance proof remain TBD unless separately supplied and approved.",
+      ]
+    : [
+        "Proof points and public claims remain TBD; planning drafts may proceed without inventing them.",
+      ];
+  const operatingConstraints = mergeDefaultConstraints(packet.constraints);
+
+  output.status = "ready_for_review";
+  output.conversationIntent = "source_available";
+  output.consumedContext = {
+    used: [
+      "Company description",
+      "Primary audiences",
+      "Current marketing goal",
+      packet.approvedClaims.length > 0
+        ? "Approved claims"
+        : "Company description as the only currently reusable factual claim",
+      "Channels in scope",
+      packet.constraints.length > 0
+        ? "Important constraints"
+        : "Default draft-only Marketing OS constraints",
+    ],
+    missing: [],
+    sourceLabels: ["User-provided text input"],
+  };
+  output.contextArtifacts.companyContext = {
+    status: "draft",
+    companyName: packet.companyName,
+    category: "TBD — refine when useful; not required to begin.",
+    primaryAudiences: packet.audiences,
+    goals: packet.goals,
+    missingContext: [],
+  };
+  output.contextArtifacts.messagingSource = {
+    status: "draft",
+    overview: packet.description,
+    positioning:
+      "TBD — develop in Messaging from the approved company description, audiences, goal, and claims.",
+    proofNeeds: optionalEvidenceGaps,
+    answerReadyLanguage: packet.approvedClaims,
+  };
+  output.contextArtifacts.brandKit = {
+    status: "draft",
+    voice:
+      "TBD — add approved brand voice guidance when available; this does not block marketing drafts.",
+    visualDirection:
+      "TBD — add approved visual guidance when available; this does not block presentation outlines or design briefs.",
+    constraints: [
+      "Keep brand recommendations draft-only until approved brand guidance is supplied.",
+    ],
+  };
+  output.contextArtifacts.audienceSegments = packet.audiences.map(
+    (audience) => ({
+      status: "draft",
+      name: audience,
+      description:
+        "User-supplied audience. ICP and Audience Segmentation may add pains, fit, buying roles, and exclusions as reviewable hypotheses.",
+      evidenceStatus: "user_supplied",
+      missingEvidence: [],
+    }),
+  );
+  output.contextArtifacts.channelRegistry = {
+    status: "draft",
+    approvedChannels: packet.channels,
+    channelsTbd: [],
+    blockedActions: operatingConstraints,
+  };
+  output.contextArtifacts.proofAndConstraints = {
+    status: "draft",
+    approvedClaims: approvedFacts,
+    blockedClaims: [],
+    constraints: operatingConstraints,
+  };
+  output.contextArtifacts.dashboardSignals = {
+    status: "draft",
+    readiness: "review_ready",
+    blockers: [],
+    nextReviewSignals: [
+      "Approve this baseline company context.",
+      "Add proof, brand guidance, or more detail later when it improves a specific workflow.",
+    ],
+  };
+  output.workspaceContextDraft = renderMarketerWorkspaceContextDraft(packet);
+  output.approvedFacts = approvedFacts;
+  output.extractedClaims = approvedFacts;
+  output.proofBackedClaims = [];
+  output.claimsNeedingApproval = [];
+  output.assumptionsAndMissingEvidence = [];
+  output.openQuestions = [];
+  output.approvalGates = [
+    {
+      ownerRole: "Company Context Owner",
+      decision:
+        "Approve this baseline company description, audiences, goal, reusable claims, channels, and constraints.",
+      requiredBefore: "Publishing the compact brief for specialist reuse.",
+      status: "needed",
+    },
+  ];
+  output.aeoReadiness = {
+    status: "draft",
+    entityClarity:
+      "The approved company description can serve as the baseline entity summary.",
+    answerReadyOpportunities: [
+      "What the company is",
+      "Who it serves",
+      "What the current marketing goal is",
+    ],
+    missingProof: optionalEvidenceGaps,
+    recommendedWebInputs: [],
+  };
+  output.statusPayload = {
+    ...output.statusPayload,
+    companyName: packet.companyName,
+    readiness: "review_ready",
+    nextAgents: [
+      "Market Signal",
+      "ICP",
+      "Audience Segmentation",
+      "Messaging",
+      "Branding And Pitch Deck",
+      "Social Monitoring And Content",
+      "Campaigns And Paid Media",
+    ],
+    blockers: [],
+    requiredArtifacts: [...defaultRequestedArtifacts],
+    evidence_mode: "source_supplied",
+    source_coverage: [
+      "Company description",
+      "Audiences",
+      "Marketing goal",
+      "Approved claims",
+      "Channel scope",
+      "Constraints",
+    ],
+    coverage_limitations: [
+      "Only the user-supplied context was inspected. No live website, connector, or monitoring source was used.",
+    ],
+    safety: {
+      ...output.statusPayload.safety,
+      action_mode: "draft_only",
+      external_mutation_requested: false,
+      blocked_actions: operatingConstraints,
+      unsupported_claims: [],
+      evidence_gaps: optionalEvidenceGaps,
+    },
+  };
+  output.downstreamHandoff = defaultDownstreamHandoff();
+
   return output;
+}
+
+function extractMarketerContextPacket(
+  rawContext: string,
+): MarketerContextPacket | undefined {
+  if (
+    !/\b(?:current marketing goal|approved claims|important constraints)\s*:/i.test(
+      rawContext,
+    )
+  ) {
+    return undefined;
+  }
+  const companyName = extractCompanyName(rawContext);
+  const description =
+    extractLineAfterLabels(rawContext, [
+      "Approved company description",
+      "Approved description",
+      "Company description",
+      "Product description",
+      "Description",
+    ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
+  const audiences = extractListAfterLabels(rawContext, [
+    "Primary audiences",
+    "Primary audience",
+    "Audiences",
+    "Audience",
+  ]);
+  const goals = extractBlockAfterLabels(rawContext, [
+    "Current marketing goal",
+    "Marketing goal",
+    "Current goals",
+    "Goals",
+  ]);
+  const approvedClaims = extractBlockAfterLabels(rawContext, [
+    "Approved claims",
+    "Approved facts",
+    "Claims approved for reuse",
+  ]);
+  const channels = extractListAfterLabels(rawContext, [
+    "Channels in scope",
+    "Approved channels",
+    "Channel scope",
+    "Channels",
+  ]);
+  const constraints = extractBlockAfterLabels(rawContext, [
+    "Important constraints",
+    "Constraints",
+    "Anything not approved for reuse",
+  ]);
+
+  if (
+    !companyName ||
+    !description ||
+    audiences.length === 0 ||
+    goals.length === 0 ||
+    channels.length === 0
+  ) {
+    return undefined;
+  }
+
+  return {
+    companyName,
+    description,
+    audiences,
+    goals,
+    approvedClaims,
+    channels,
+    constraints,
+  };
+}
+
+function renderMarketerWorkspaceContextDraft(
+  packet: MarketerContextPacket,
+): string {
+  return [
+    `Company: ${packet.companyName}`,
+    "Readiness: review_ready",
+    `Company description: ${packet.description}`,
+    `Primary audiences: ${packet.audiences.join(", ")}`,
+    `Current marketing goal: ${packet.goals.join(" ")}`,
+    `Approved claims: ${packet.approvedClaims.length > 0 ? packet.approvedClaims.join(" ") : "None yet; do not invent proof."}`,
+    `Channels in scope: ${packet.channels.join(", ")}`,
+    `Important constraints: ${packet.constraints.length > 0 ? packet.constraints.join(" ") : "Keep unknown facts as TBD."}`,
+    "Operating rule: create reviewable drafts, distinguish facts from assumptions, and take no external action.",
+  ].join("\n");
 }
 
 function isSparse(rawContext: string): boolean {
@@ -1582,8 +1891,13 @@ function hasExplicitContextDetails(rawContext: string): boolean {
         "Description",
         "Primary audiences",
         "Primary audience",
+        "Current marketing goal",
+        "Marketing goal",
         "Current goals",
         "Goals",
+        "Approved claims",
+        "Approved facts",
+        "Claims approved for reuse",
         "Proof-backed claims or source excerpts",
         "Proof-backed claims",
         "Approved proof",
@@ -1593,6 +1907,8 @@ function hasExplicitContextDetails(rawContext: string): boolean {
         "Approved channels",
         "Channel scope",
         "Channels",
+        "Important constraints",
+        "Constraints",
       ]),
   );
 }
@@ -4071,15 +4387,72 @@ function isGenericExtractedName(value: string): boolean {
 
 function extractLineAfterLabels(rawContext: string, labels: readonly string[]): string | undefined {
   const sortedLabels = [...labels].sort((a, b) => b.length - a.length);
-  for (const rawLine of rawContext.split(/\r?\n/)) {
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const rawLine = lines[index] ?? "";
     const line = rawLine.trim().replace(/^[-*]\s+/, "");
     for (const label of sortedLabels) {
       const match = line.match(new RegExp(`(?:^|[.;。]\\s*)${escapeRegExp(label)}\\s*:\\s*(.+)$`, "i"));
       const value = match?.[1] ? cleanLabeledFieldValue(match[1]) : undefined;
       if (value) return value;
+
+      if (!new RegExp(`^${escapeRegExp(label)}\\s*:\\s*$`, "i").test(line)) {
+        continue;
+      }
+      for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+        const next = (lines[cursor] ?? "").trim().replace(/^[-*]\s+/, "");
+        if (!next) continue;
+        if (isSourcePacketFieldLabel(next)) break;
+        const followingValue = cleanLabeledFieldValue(next);
+        if (followingValue) return followingValue;
+        break;
+      }
     }
   }
   return undefined;
+}
+
+function extractBlockAfterLabels(
+  rawContext: string,
+  labels: readonly string[],
+): string[] {
+  const sortedLabels = [...labels].sort((a, b) => b.length - a.length);
+  const lines = rawContext.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = (lines[index] ?? "").trim().replace(/^[-*]\s+/, "");
+    const label = sortedLabels.find((candidate) =>
+      new RegExp(`^${escapeRegExp(candidate)}\\s*:`, "i").test(line)
+    );
+    if (!label) continue;
+
+    const values: string[] = [];
+    const inline = line.replace(
+      new RegExp(`^${escapeRegExp(label)}\\s*:\\s*`, "i"),
+      "",
+    );
+    const cleanedInline = cleanLabeledFieldValue(inline);
+    if (cleanedInline) values.push(cleanedInline);
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const rawNext = lines[cursor] ?? "";
+      const next = rawNext.trim().replace(/^[-*]\s+/, "");
+      if (!next) {
+        if (values.length > 0) break;
+        continue;
+      }
+      if (isSourcePacketFieldLabel(next)) break;
+      const value = cleanLabeledFieldValue(next);
+      if (value) values.push(value);
+    }
+    return [...new Set(values)];
+  }
+  return [];
+}
+
+function isSourcePacketFieldLabel(value: string): boolean {
+  return sourcePacketFieldLabels.some((label) =>
+    new RegExp(`^${escapeRegExp(label)}\\s*:`, "i").test(value)
+  );
 }
 
 function cleanLabeledFieldValue(value: string): string | undefined {

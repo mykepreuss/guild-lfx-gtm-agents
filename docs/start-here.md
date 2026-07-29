@@ -77,7 +77,14 @@ Company Context Builder will show:
 - What remains unapproved or needs evidence.
 - What it needs from you next.
 
-Review the summary before approving it. Marketing OS keeps context approval
+When the essentials are present—company description, audiences, marketing
+goal, channel scope, and constraints—the baseline is ready to approve. Missing
+case studies, proof points, brand guidance, or other useful detail appears as
+an optional improvement, not homework that prevents you from starting.
+
+Review the summary, use the exact approval command shown by Launcher, and then
+publish the compact brief to the workspace. You can add or revise company
+context later as the work evolves. Marketing OS keeps artifact approval
 separate from publishing that brief to the workspace.
 
 ## Request Marketing Work

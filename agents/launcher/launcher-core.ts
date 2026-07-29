@@ -859,6 +859,19 @@ export function renderDelegatedResult(
   const savedRevision = options.artifactRevision
     ? `Revision ${options.artifactRevision}`
     : "Saved in this cockpit";
+  const readyContextCallout =
+    displayName === "Company Context Builder" &&
+    status === "ready_for_review" &&
+    options.artifactRevision
+      ? [
+          "",
+          "## Ready to approve",
+          "",
+          "This baseline is complete enough to power specialist drafts. You can improve it later without restarting.",
+          "",
+          `**Approve now:** \`Approve Company Context Builder artifact revision ${options.artifactRevision}.\``,
+        ]
+      : [];
 
   return [
     "# Marketing OS",
@@ -875,6 +888,7 @@ export function renderDelegatedResult(
     `| Evidence | ${escapeTableCell(presentation.evidenceMode)} |`,
     `| Includes | ${escapeTableCell(presentation.includedSections)} |`,
     `| Saved artifact | ${escapeTableCell(savedRevision)} |`,
+    ...readyContextCallout,
     "",
     `**Next action:** ${nextAction}`,
     "",
@@ -909,7 +923,9 @@ function specialistPresentationMetadata(
   const documentTitle =
     specialistText.match(/^#\s+(.+?)\s*$/m)?.[1]?.trim();
   const title = documentTitle ?? headings[0] ?? `${displayName} draft`;
-  const included = [
+  const included = displayName === "Company Context Builder"
+    ? "Company description · Audiences · Marketing goal · Approved claims · Channels · Constraints"
+    : [
     ...new Set(
       headings.filter(
         (heading) =>
@@ -917,9 +933,9 @@ function specialistPresentationMetadata(
           heading !== "Save And Approval State",
       ),
     ),
-  ]
-    .slice(0, 6)
-    .join(" · ");
+      ]
+        .slice(0, 6)
+        .join(" · ");
   const evidenceSection = specialistSection(
     specialistText,
     "## Assumptions And Missing Evidence",
