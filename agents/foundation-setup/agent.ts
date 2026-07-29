@@ -1615,6 +1615,15 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
       continue;
     }
 
+    if (!sourceEvidenceLabelsAllowReuse(claim.claim, rawContext)) {
+      sensitive.push({
+        ...sensitiveClaimGuardrail(claim.claim),
+        notes:
+          "The supplied source labels this material as review-required, secondary, blocked, or unknown. Only explicitly approved_reusable material may enter reusable context.",
+      });
+      continue;
+    }
+
     if (isSensitiveClaim(claim.claim)) {
       sensitive.push(sensitiveClaimGuardrail(claim.claim));
       continue;
@@ -1637,6 +1646,57 @@ function normalizeApprovedClaims(claims: Claim[], rawContext: string): { approve
   }
 
   return { approved: dedupeClaims(approved), downgraded: dedupeClaims(downgraded), sensitive: dedupeClaims(sensitive) };
+}
+
+export function sourceEvidenceLabelsAllowReuse(
+  claim: string,
+  rawContext: string,
+): boolean {
+  if (
+    !/\[(?:approved_reusable|source_supplied_review_required|secondary_estimate|blocked_action|unknown)\]/i.test(
+      rawContext,
+    )
+  ) {
+    return true;
+  }
+  const approvedReusableContext =
+    extractApprovedReusableContext(rawContext);
+  return (
+    isCompanyNameClaimGrounded(claim, approvedReusableContext) ||
+    isGroundedInInput(claim, approvedReusableContext)
+  );
+}
+
+function extractApprovedReusableContext(rawContext: string): string {
+  const approvedLines: string[] = [];
+  let collecting = false;
+  for (const rawLine of rawContext.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const approvedMarker = line.match(
+      /\[approved_reusable\]\s*`?\s*(.*)$/i,
+    );
+    if (approvedMarker) {
+      collecting = true;
+      if (approvedMarker[1]?.trim()) {
+        approvedLines.push(approvedMarker[1].trim());
+      }
+      continue;
+    }
+    if (
+      /^#{1,6}\s/.test(line) ||
+      /^[-*]\s+/.test(line) ||
+      /\[(?:source_supplied_review_required|secondary_estimate|blocked_action|unknown)\]/i.test(
+        line,
+      )
+    ) {
+      collecting = false;
+      continue;
+    }
+    if (collecting && line) {
+      approvedLines.push(line);
+    }
+  }
+  return approvedLines.join(" ");
 }
 
 function isCompanyNameClaimGrounded(claim: string, rawContext: string): boolean {
@@ -3223,8 +3283,8 @@ function isPricingOrSensitiveEdit(rawContext: string): boolean {
   return /\b(pricing|price|compliance|security|privacy|performance|production-ready|production readiness|guarantee|legal)\b/i.test(rawContext);
 }
 
-function isSensitiveClaim(claim: string): boolean {
-  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|only|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\$[0-9]/i.test(claim);
+export function isSensitiveClaim(claim: string): boolean {
+  return /\b(pricing|price|privacy|security|secure|compliance|compliant|soc\s*2|hipaa|gdpr|retention|guarantee|guaranteed|performance|faster|conversion|revenue|arr|funding|valuation|production-ready|production readiness|uptime|availability|sla|user base|team members|countries|customer count|ranking|ranked|leading|leader|#1|best|only|benchmark|roi)\b|\b[0-9][0-9.,]*\s*(?:m|million|k|thousand)?\s+users\b|\b[0-9]+(?:\.[0-9]+)?\s*%|\b[0-9]+(?:\.[0-9]+)?\s*x\b|\b[0-9]+(?:[.,][0-9]+)?\+?\s+(?:pages|brands?|teams?|bookings?|mqls?|countries)\b|\$[0-9]/i.test(claim);
 }
 
 function isGuardedReusableClaim(claim: string): boolean {
@@ -4016,8 +4076,10 @@ ${formatAudienceSegments(output.contextArtifacts.audienceSegments)}
 
 ### Proof And Constraints Draft (proof-and-constraints)
 - Status: ${output.contextArtifacts.proofAndConstraints.status}
-- Approved claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.approvedClaims)}
-- Blocked or do-not-use claims: ${formatInlineClaims(output.contextArtifacts.proofAndConstraints.blockedClaims)}
+- Approved claims:
+${formatClaims(output.contextArtifacts.proofAndConstraints.approvedClaims)}
+- Blocked or do-not-use claims:
+${formatClaims(output.contextArtifacts.proofAndConstraints.blockedClaims)}
 - Constraints: ${formatList(output.contextArtifacts.proofAndConstraints.constraints)}
 
 ### Dashboard Signals Draft (dashboard-signals)
@@ -4192,10 +4254,6 @@ function formatAudienceSegments(segments: readonly AudienceSegment[]): string {
     .join("\n");
 }
 
-function formatInlineClaims(claims: readonly Claim[]): string {
-  return claims.length ? claims.map((claim) => claim.claim).join("; ") : "TBD";
-}
-
 function formatBulletList(values: readonly string[]): string {
   if (!values.length) return "- None.";
   return values.map((value) => `- ${value}`).join("\n");
@@ -4218,7 +4276,12 @@ function formatSchemaIssues(issues: z.ZodIssue[]): string {
 
 function formatClaims(claims: readonly Claim[]): string {
   if (!claims.length) return "- None identified.";
-  return claims.map((claim) => `- ${claim.claim} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`).join("\n");
+  return claims
+    .map(
+      (claim) =>
+        `- ${claim.claim.replace(/\s+/g, " ").trim()} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`,
+    )
+    .join("\n");
 }
 
 function formatEvidenceSectionClaims(claims: readonly Claim[]): string {

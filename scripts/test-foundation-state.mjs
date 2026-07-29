@@ -30,7 +30,9 @@ const {
   stripCitationMarkers,
   removeFencedBlocks,
   convertMarkdownTablesToBullets,
+  isSensitiveClaim,
   replaceManagedWorkspaceContextBlock,
+  sourceEvidenceLabelsAllowReuse,
 } = await import(path.join(foundationDir, "dist/agent.js"));
 
 function createTask({
@@ -367,6 +369,27 @@ assert.match(
   cleanedFixture,
   /- Attribute: Legal entity; Current finding: Webflow, Inc\./,
 );
+const compressedContext = fs.readFileSync(
+  path.join(rootDir, "scripts/fixtures/context-benchmark/compressed.md"),
+  "utf8",
+);
+assert.equal(
+  sourceEvidenceLabelsAllowReuse("Company name: Webflow", compressedContext),
+  true,
+);
+assert.equal(
+  sourceEvidenceLabelsAllowReuse(
+    "Wave achieved a 3x speed improvement and a 4% to 21% organic traffic increase.",
+    compressedContext,
+  ),
+  false,
+);
+assert.equal(
+  sourceEvidenceLabelsAllowReuse("Current CEO: Linda Tong", compressedContext),
+  false,
+);
+assert.equal(isSensitiveClaim("Wave achieved a 3x improvement."), true);
+assert.equal(isSensitiveClaim("Organic traffic increased by 4%."), true);
 
 console.log(
   "Foundation Guild Chat state, approval, Launcher publication handoff, context readiness, and routing tests OK.",
