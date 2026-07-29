@@ -170,7 +170,8 @@ export function deterministicRoute(text: string): Route | undefined {
 function deterministicRouteDecision(
   text: string,
 ): { route: Route; reason: string } | undefined {
-  const normalized = text.toLowerCase();
+  const routingText = routingIntentText(text);
+  const normalized = routingText.toLowerCase();
   const blockedPatterns: Array<[RegExp, string]> = [
     [
       /\b(?:ignore|override|bypass)\b[\s\S]{0,100}\b(?:route|allowlist|safety|instructions?)\b/i,
@@ -190,7 +191,13 @@ function deterministicRouteDecision(
     ],
   ];
   for (const [pattern, reason] of blockedPatterns) {
-    const match = text.match(pattern);
+    const match = routingText.match(pattern);
+    if (
+      match?.index !== undefined &&
+      routingMatchIsNegated(routingText, match.index)
+    ) {
+      continue;
+    }
     if (match) {
       return { route: "blocked", reason: `${reason}: ${match[0].slice(0, 120)}` };
     }
@@ -198,10 +205,10 @@ function deterministicRouteDecision(
 
   if (
     /\b(?:onboard|onboarding|install|installation|suite status|setup status|set up status|verify suite)\b[\s\S]{0,80}\b(?:marketing os|suite|agents?|packages?|workspace)\b/i.test(
-      text,
+      routingText,
     ) ||
     /\b(?:marketing os|suite)\b[\s\S]{0,50}\b(?:onboard|onboarding|install|installation)\b/i.test(
-      text,
+      routingText,
     )
   ) {
     return { route: "onboarding", reason: "suite_onboarding_or_status_intent" };
@@ -209,7 +216,7 @@ function deterministicRouteDecision(
 
   if (
     /\b(?:set up|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
-      text,
+      routingText,
     )
   ) {
     return { route: "company_context", reason: "clear_context_setup_intent" };
@@ -217,17 +224,17 @@ function deterministicRouteDecision(
 
   if (
     /\b(?:marketing os|workstreams?|cockpit)\b[\s\S]{0,80}\b(?:status|progress|resume|next action|what(?:'s| is) next)\b/i.test(
-      text,
+      routingText,
     ) ||
     /\b(?:status|progress|resume|what(?:'s| is) next)\b[\s\S]{0,80}\b(?:marketing os|workstreams?|cockpit)\b/i.test(
-      text,
+      routingText,
     )
   ) {
     return { route: "cockpit", reason: "cockpit_status_or_resume_intent" };
   }
 
   if (
-    /\bapprove\b[\s\S]{0,160}\b(?:artifact|revision)\b/i.test(text)
+    /\bapprove\b[\s\S]{0,160}\b(?:artifact|revision)\b/i.test(routingText)
   ) {
     return { route: "cockpit", reason: "artifact_approval_intent" };
   }
@@ -279,6 +286,21 @@ function deterministicRouteDecision(
   return uniqueMatches.length === 1
     ? { route: uniqueMatches[0], reason: `clear_${uniqueMatches[0]}_intent` }
     : undefined;
+}
+
+function routingIntentText(text: string): string {
+  const sourceBoundary = text.search(
+    /\n\s*(?:#{1,6}\s+\S|(?:candidate|source|reference)\s+(?:brief|material|text|packet)\s*:)/i,
+  );
+  if (sourceBoundary > 0) {
+    return text.slice(0, sourceBoundary).trim();
+  }
+  return text.slice(0, 4000);
+}
+
+function routingMatchIsNegated(text: string, matchIndex: number): boolean {
+  const prefix = text.slice(Math.max(0, matchIndex - 40), matchIndex);
+  return /\b(?:do not|don't|never|must not|should not|no)\s*$/i.test(prefix);
 }
 
 function classifierPrompt(text: string, repair: boolean): string {
