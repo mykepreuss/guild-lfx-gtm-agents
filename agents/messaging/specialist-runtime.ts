@@ -173,14 +173,16 @@ export function createValidatedSpecialistAgent(
       let repairSource = initialText;
       let repairIssues = initialValidation.issues;
       if (!initialValidation.formatOnly) {
-        if (
-          initialValidation.issues.every(
-            (issue) => issue.kind === "safety",
-          )
-        ) {
+        const safetyIssues = initialValidation.issues.filter(
+          (issue) => issue.kind === "safety",
+        );
+        const hasEvidenceFailure = initialValidation.issues.some(
+          (issue) => issue.kind === "evidence",
+        );
+        if (safetyIssues.length > 0 && !hasEvidenceFailure) {
           const redacted = redactUnsafeGeneratedLines(
             initialText,
-            initialValidation.issues,
+            safetyIssues,
             validationOptions,
           );
           if (redacted.changed) {
