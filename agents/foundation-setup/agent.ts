@@ -3345,7 +3345,7 @@ export function preservesQualifiedHipaaNuance(
   if (!/\bmay not be HIPAA compliant\b/i.test(rawContext)) {
     return true;
   }
-  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA (?:compliance|compatibility|certification)\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA (?:compliant|compatible|certified)\b|\bnot HIPAA (?:compliant|compatible|certified)\b|\bHIPAA[- ](?:noncompliant|incompatible)\b/i.test(
+  return !/\b(?:lack(?:s|ing)?(?: of)?|without|no) HIPAA (?:compliance|compatibility|certification)\b|\b(?:is|are|remains?|claims? to be|certified as) HIPAA (?:compliant|compatible|certified)\b|\bnot HIPAA (?:compliant|compatible|certified)\b|\bHIPAA[- ](?:noncompliant|incompatible)\b|\b(?:strict\s+)?non[- ]HIPAA (?:compliance|compatibility|certification)\b/i.test(
     claim,
   );
 }
@@ -4502,8 +4502,19 @@ function formatClaims(claims: readonly Claim[]): string {
   if (!claims.length) return "- None identified.";
   return claims
     .map(
-      (claim) =>
-        `- ${claim.claim.replace(/\s+/g, " ").trim()} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`,
+      (claim) => {
+        const qualification =
+          claim.status === "blocked"
+            ? "Blocked: "
+            : claim.status === "do_not_use"
+              ? "Do not use: "
+              : claim.status === "missing"
+                ? "Missing evidence: "
+                : claim.status === "assumption"
+                  ? "Assumption: "
+                  : "";
+        return `- ${qualification}${claim.claim.replace(/\s+/g, " ").trim()} (${claim.status}${claim.source ? `, source: ${claim.source}` : ""})`;
+      },
     )
     .join("\n");
 }

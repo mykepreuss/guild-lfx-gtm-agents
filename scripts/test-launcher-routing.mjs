@@ -210,6 +210,19 @@ No handoff.
 `.trim();
 
 assert.deepEqual(validateSpecialistOutput(validArtifact), []);
+assert.deepEqual(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "- Blocked: Webflow reports $335 million in funding. It reports 3.5 million users. (blocked, source: sensitive_claim_guardrail)",
+    ),
+    {
+      allowContextEvidenceReconciliation: true,
+    },
+  ),
+  [],
+  "a multi-sentence withheld claim remains safe when its qualification leads the rendered line",
+);
 const needsInputArtifact = validArtifact.replace(
   '"status":"ready_for_review"',
   '"status":"needs_input"',

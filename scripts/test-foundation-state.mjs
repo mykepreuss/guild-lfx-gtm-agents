@@ -510,8 +510,13 @@ function guildChatEnvelope(text) {
   );
   assert.doesNotMatch(
     resumedDraft.output.text,
-    /Webflow (?:is|is not) HIPAA compliant|lack of HIPAA compatibility/i,
+    /Webflow (?:is|is not) HIPAA compliant|lack of HIPAA compatibility|non[- ]HIPAA compliance/i,
     "focused resume must not strengthen or invert the qualified HIPAA wording",
+  );
+  assert.match(
+    resumedDraft.output.text,
+    /Blocked: .*Webflow may not be HIPAA compliant/i,
+    "withheld claims must carry their qualification at the beginning of the rendered line",
   );
 
   const prematureApproval = await foundationAgent.start(
