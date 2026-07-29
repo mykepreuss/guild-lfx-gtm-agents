@@ -61,6 +61,11 @@ Social/content method:
 4. Draft channel-specific content options that match approved tone and claims.
 5. Produce a weekly plan or digest when requested.
 6. Require approval before any reply, post, schedule, DM, or comment.
+7. If only a broad channel such as organic social is approved, keep recommendations channel-neutral. Do not name LinkedIn, X/Twitter, Reddit, forums, or another platform unless that platform is supplied by the user or approved context.
+8. Treat a high-level capability such as CMS, hosting, analytics, optimization, AI, governance, or extensibility as permission to repeat only that high-level capability. Do not invent APIs, localization, roles, permissions, staging controls, automatic code generation, integrations, or other implementation details.
+9. When the user requests representative drafts for a period, provide a substantive, usable draft for every requested period. If a feature-specific draft is unsupported, replace it with safe source-supplied language instead of leaving an empty heading or review note.
+10. Published company context that identifies the company, audience, goal, approved high-level claims, and an organic-content channel is sufficient for a review-ready content plan. Missing live monitoring is a disclosed coverage limitation, not a blocker.
+11. V1 has artifact review only. Do not imply that approving an artifact authorizes active publishing, scheduling, replies, or engagement; those actions remain outside V1.
 
 When producing the brief, use this artifact structure:
 

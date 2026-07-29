@@ -15,6 +15,10 @@ const brandingPitchDeckSource = fs.readFileSync(
   path.join(process.cwd(), "agents/branding-pitch-deck/agent.ts"),
   "utf8",
 );
+const socialMonitoringContentSource = fs.readFileSync(
+  path.join(process.cwd(), "agents/social-monitoring-content/agent.ts"),
+  "utf8",
+);
 assert.match(
   marketSignalSource,
   /Published company context that identifies the company, audience, and marketing goal,[\s\S]*is sufficient for a review-ready hypothesis brief\./,
@@ -44,6 +48,26 @@ assert.match(
   brandingPitchDeckSource,
   /A separate Proof Needed line does not make an unsupported content bullet safe\./,
   "unsupported slide bullets must be labeled where they appear",
+);
+assert.match(
+  socialMonitoringContentSource,
+  /Do not name LinkedIn, X\/Twitter, Reddit, forums, or another platform unless that platform is supplied by the user or approved context\./,
+  "content planning should not invent a specific social platform",
+);
+assert.match(
+  socialMonitoringContentSource,
+  /provide a substantive, usable draft for every requested period\./,
+  "content plans should not silently omit a requested draft",
+);
+assert.match(
+  socialMonitoringContentSource,
+  /Missing live monitoring is a disclosed coverage limitation, not a blocker\./,
+  "source-supplied content planning should remain progressively useful",
+);
+assert.match(
+  socialMonitoringContentSource,
+  /Do not imply that approving an artifact authorizes active publishing, scheduling, replies, or engagement/,
+  "artifact review must not be presented as execution approval",
 );
 const build = spawnSync("npm", ["run", "build"], {
   cwd: messagingDir,
