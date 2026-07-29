@@ -834,8 +834,18 @@ function specialistPresentationMetadata(
   ]
     .map((match) => match[1].trim())
     .filter(Boolean);
-  const title = headings[0] ?? `${displayName} draft`;
-  const included = [...new Set(headings.slice(1))]
+  const documentTitle =
+    specialistText.match(/^#\s+(.+?)\s*$/m)?.[1]?.trim();
+  const title = documentTitle ?? headings[0] ?? `${displayName} draft`;
+  const included = [
+    ...new Set(
+      headings.filter(
+        (heading) =>
+          heading !== title &&
+          heading !== "Save And Approval State",
+      ),
+    ),
+  ]
     .slice(0, 6)
     .join(" · ");
   const evidenceSection = specialistSection(

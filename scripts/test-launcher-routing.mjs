@@ -210,6 +210,34 @@ assert.match(
 );
 assert.match(summarizedResult, /## Complete validated draft/);
 assert.match(summarizedResult, /## Status Payload/);
+const summarizedBuilderResult = renderDelegatedResult(
+  "Company Context Builder",
+  validArtifact
+    .replace(
+      "## Consumed Context",
+      "# Company Context Approval Packet\n\n## Consumed Context",
+    )
+    .replace(
+      "Draft artifact.",
+      "### Save And Approval State\nDraft retained.\n\n### Company Context Draft (company-context)\nDraft artifact.",
+    ),
+  {
+    artifactRevision: 1,
+    status: "needs_input",
+  },
+);
+assert.match(
+  summarizedBuilderResult,
+  /\| Draft \| Company Context Approval Packet \|/,
+);
+assert.match(
+  summarizedBuilderResult,
+  /\| Includes \| Company Context Draft \(company-context\) \|/,
+);
+assert.doesNotMatch(
+  summarizedBuilderResult.split("## Complete validated draft")[0],
+  /Save And Approval State/,
+);
 assert.ok(
   validateSpecialistOutput(
     validArtifact.replace(
