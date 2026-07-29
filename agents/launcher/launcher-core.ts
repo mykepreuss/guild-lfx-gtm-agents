@@ -208,6 +208,14 @@ function deterministicRouteDecision(
   }
 
   if (
+    /\b(?:set up|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
+      text,
+    )
+  ) {
+    return { route: "company_context", reason: "clear_context_setup_intent" };
+  }
+
+  if (
     /\b(?:marketing os|workstreams?|cockpit)\b[\s\S]{0,80}\b(?:status|progress|resume|next action|what(?:'s| is) next)\b/i.test(
       text,
     ) ||
@@ -222,14 +230,6 @@ function deterministicRouteDecision(
     /\bapprove\b[\s\S]{0,160}\b(?:artifact|revision)\b/i.test(text)
   ) {
     return { route: "cockpit", reason: "artifact_approval_intent" };
-  }
-
-  if (
-    /\b(?:set up|build|create|prepare|draft|refresh|update)\s+(?:(?:the|our|a|an|new)\s+){0,2}(?:company context|workspace context|marketing os(?:\s+(?:company|workspace))?\s+context)\b/i.test(
-      text,
-    )
-  ) {
-    return { route: "company_context", reason: "clear_context_setup_intent" };
   }
 
   const matches: DelegatedRoute[] = [];

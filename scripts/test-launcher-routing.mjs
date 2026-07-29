@@ -39,6 +39,10 @@ const routingCases = [
     "Prepare a new Company Context Approval Packet from this candidate brief.",
     "company_context",
   ],
+  [
+    "Prepare a new Company Context Approval Packet from this candidate brief.\n\n# Guild Marketing OS Context Benchmark — Compressed\nStatus: benchmark_only",
+    "company_context",
+  ],
   ["Draft our workspace context for review.", "company_context"],
   ["Summarize competitor and market signals", "market_signal"],
   ["Draft an ICP and ideal customer profile", "icp"],
