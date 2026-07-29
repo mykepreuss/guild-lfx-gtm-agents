@@ -31,6 +31,9 @@ const evidenceModes = [
   "live_monitoring",
 ] as const;
 
+const approvedHipaaConstraintPattern =
+  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant; customers do not provide Protected Health Information \(PHI\) through the platform\./gi;
+
 const unsafeGeneratedLinePatterns: Array<[RegExp, string]> = [
   [/\b(?:published|scheduled|activated|synced|installed|configured) successfully\b/i, "external-action completion"],
   [/\bautomatically (?:publish|schedule|pause|scale|sync|activate)\b/i, "automatic external action"],
@@ -297,6 +300,7 @@ export function validateSpecialistArtifact(
     extractSection(text, "## Downstream Handoff", "\u0000"),
   ].join("\n");
   issues.push(...validateProducedArtifactSafety(safetyNarrative));
+  issues.push(...validateHipaaConstraintLanguage(safetyNarrative));
   if (
     /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
       text,
@@ -339,6 +343,7 @@ export function redactUnsafeGeneratedLines(
       /\b(?:is|was|assumed to)\s+(?:not|never)\s+(?:be\s+)?HIPAA compliant\b/i.test(
         trimmed,
       );
+    const paraphrasesHipaa = hasDisallowedHipaaLanguage(trimmed);
     const sentenceParts = trimmed.split(
       /(?<=[.!?])\s+(?=[A-Z])/,
     );
@@ -351,7 +356,7 @@ export function redactUnsafeGeneratedLines(
             pattern.test(sentence),
           ),
       );
-    if (!strengthensHipaa && !unsafe) return line;
+    if (!strengthensHipaa && !paraphrasesHipaa && !unsafe) return line;
 
     redactedExcerpts.push(trimmed.replace(/\s+/g, " ").slice(0, 180));
     const indentation = line.match(/^\s*/)?.[0] ?? "";
@@ -455,6 +460,42 @@ function validateProducedArtifactSafety(
   }
 
   return issues;
+}
+
+function validateHipaaConstraintLanguage(text: string): ValidationIssue[] {
+  const exactMatches = text.match(
+    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+  ) ?? [];
+  const issues: ValidationIssue[] = [];
+  if (exactMatches.length > 1) {
+    issues.push({
+      kind: "safety",
+      message:
+        "The approved HIPAA constraint appears more than once. Preserve the exact source wording once and refer to it elsewhere only as the approved HIPAA constraint.",
+    });
+  }
+  if (hasDisallowedHipaaLanguage(text)) {
+    issues.push({
+      kind: "safety",
+      message:
+        "The HIPAA constraint was paraphrased or expanded. Preserve the exact source wording and refer to it elsewhere only as the approved HIPAA constraint.",
+    });
+  }
+  return issues;
+}
+
+function hasDisallowedHipaaLanguage(text: string): boolean {
+  const withoutExactConstraint = text.replace(
+    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+    "",
+  );
+  const withoutApprovedReference = withoutExactConstraint.replace(
+    /\b(?:the\s+)?approved HIPAA constraint\b/gi,
+    "",
+  );
+  return /\bHIPAA\b|\bPHI\b|Protected Health Information/i.test(
+    withoutApprovedReference,
+  );
 }
 
 function isExplicitlyQualifiedLine(line: string): boolean {

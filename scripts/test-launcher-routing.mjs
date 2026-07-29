@@ -155,6 +155,25 @@ assert.ok(
     ),
   ).some((error) => error.startsWith("Safety error:")),
 );
+assert.ok(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "We adhere strictly to the approved HIPAA constraint. Customers do not input or store PHI within the platform.",
+    ),
+  ).some((error) =>
+    error.includes("HIPAA constraint was paraphrased or expanded"),
+  ),
+);
+assert.deepEqual(
+  validateSpecialistOutput(
+    validArtifact.replace(
+      "Draft artifact.",
+      "Claim status: do_not_use_as_positive_claim — Webflow may not be HIPAA compliant; customers do not provide Protected Health Information (PHI) through the platform.",
+    ),
+  ),
+  [],
+);
 assert.deepEqual(
   validateSpecialistOutput(
     `${validArtifact}\nTell the user to publish approved context to workspace context.`,

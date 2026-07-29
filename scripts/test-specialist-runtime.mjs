@@ -24,6 +24,9 @@ const {
   validateSpecialistArtifact,
 } = await import(path.join(messagingDir, "dist/specialist-runtime.js"));
 
+const approvedHipaaConstraint =
+  "Webflow may not be HIPAA compliant; customers do not provide Protected Health Information (PHI) through the platform.";
+
 const validArtifact = `## Consumed Context
 
 Published Webflow context and the user's draft-only request.
@@ -110,6 +113,43 @@ assert.equal(
   validateSpecialistArtifact(strengthenedHipaaArtifact).valid,
   false,
   "HIPAA nuance must not be strengthened",
+);
+
+const paraphrasedHipaaArtifact = validArtifact.replace(
+  "Draft positioning for Marketing Owner review.",
+  "We adhere strictly to the approved HIPAA constraint. Customers do not input or store PHI within the platform.",
+);
+const paraphrasedHipaaValidation = validateSpecialistArtifact(
+  paraphrasedHipaaArtifact,
+);
+assert.equal(
+  paraphrasedHipaaValidation.valid,
+  false,
+  "HIPAA constraint must not be paraphrased or expanded",
+);
+const filteredHipaaParaphrase = redactUnsafeGeneratedLines(
+  paraphrasedHipaaArtifact,
+  paraphrasedHipaaValidation.issues,
+);
+assert.equal(
+  filteredHipaaParaphrase.changed,
+  true,
+  "HIPAA paraphrase should be redacted deterministically",
+);
+assert.equal(
+  validateSpecialistArtifact(filteredHipaaParaphrase.text).valid,
+  true,
+  "redacted HIPAA paraphrase should satisfy the specialist contract",
+);
+
+const exactHipaaArtifact = validArtifact.replace(
+  "Draft positioning for Marketing Owner review.",
+  `Claim status: do_not_use_as_positive_claim — ${approvedHipaaConstraint}`,
+);
+assert.equal(
+  validateSpecialistArtifact(exactHipaaArtifact).valid,
+  true,
+  "the exact approved HIPAA constraint remains valid",
 );
 
 let calls = 0;

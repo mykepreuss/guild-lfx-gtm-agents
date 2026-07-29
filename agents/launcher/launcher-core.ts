@@ -108,6 +108,9 @@ const requiredHeadings = [
   "## Downstream Handoff",
 ] as const;
 
+const approvedHipaaConstraintPattern =
+  /\b[A-Z][A-Za-z0-9&.'’ -]{0,120} may not be HIPAA compliant; customers do not provide Protected Health Information \(PHI\) through the platform\./gi;
+
 const specialistStatusPayloadSchema = z.object({
   evidence_mode: z.enum([
     "source_supplied",
@@ -527,6 +530,25 @@ export function validateSpecialistOutput(
         errors.push(`Safety error: unqualified ${label}.`);
       }
     }
+  }
+  const exactHipaaMatches = safetyNarrative.match(
+    new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+  ) ?? [];
+  const hipaaRemainder = safetyNarrative
+    .replace(
+      new RegExp(approvedHipaaConstraintPattern.source, "gi"),
+      "",
+    )
+    .replace(/\b(?:the\s+)?approved HIPAA constraint\b/gi, "");
+  if (exactHipaaMatches.length > 1) {
+    errors.push(
+      "Safety error: the exact approved HIPAA constraint appears more than once.",
+    );
+  }
+  if (/\bHIPAA\b|\bPHI\b|Protected Health Information/i.test(hipaaRemainder)) {
+    errors.push(
+      "Safety error: the approved HIPAA constraint was paraphrased or expanded.",
+    );
   }
 
   for (const pattern of [
