@@ -113,6 +113,21 @@ assert.match(
   /state that execution is outside V1/,
   "campaign execution must remain explicitly outside V1",
 );
+assert.match(
+  campaignsPaidMediaSource,
+  /creative and content 30%, landing-page production 25%, customer-proof development 15%, measurement planning 15%, contingency 15%, and live media spend 0%/,
+  "campaign budget assumptions should include a complete illustrative allocation",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /Prefix them with "Hypothesis — verify:" and avoid absolute or execution-implying phrases/,
+  "campaign creative should not present unsupported outcomes as facts",
+);
+assert.match(
+  campaignsPaidMediaSource,
+  /Never label a proposed creative angle as an approved claim\./,
+  "approved capabilities and proposed campaign copy should remain distinct",
+);
 const build = spawnSync("npm", ["run", "build"], {
   cwd: messagingDir,
   encoding: "utf8",
