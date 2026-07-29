@@ -261,6 +261,22 @@ function deterministicRouteDecision(
     return { route: "cockpit", reason: "artifact_approval_intent" };
   }
 
+  const explicitMultiWorkflowCampaign =
+    /\b(?:messaging|positioning|ideal customer profile|\bicp\b|audience segmentation|pitch deck|presentation|content plan)\b[\s\S]{0,30}\band\b[\s\S]{0,40}\b(?:paid media\s+)?campaign\b/i.test(
+      normalized,
+    );
+  if (
+    !explicitMultiWorkflowCampaign &&
+    /\b(?:create|plan|draft|prepare|develop)\b[\s\S]{0,80}\b(?:integrated\s+)?campaign\b/i.test(
+      normalized,
+    )
+  ) {
+    return {
+      route: "campaigns_paid_media",
+      reason: "clear_integrated_campaign_intent",
+    };
+  }
+
   const matches: DelegatedRoute[] = [];
   if (
     /\b(?:market signal|competitor|competition|market research|community signal|search signal)\b/i.test(

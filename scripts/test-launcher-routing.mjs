@@ -112,6 +112,10 @@ const routingCases = [
   ["Prepare a brand brief and pitch deck", "branding_pitch_deck"],
   ["Draft a social content calendar", "social_monitoring_content"],
   ["Plan a paid media campaign", "campaigns_paid_media"],
+  [
+    "Create an integrated campaign for Webflow's enterprise audience, including campaign idea, audiences, messaging, channels, creative concepts, landing-page needs, budget assumptions, KPIs, and optimization recommendations. Keep it draft-only and do not execute or spend.",
+    "campaigns_paid_media",
+  ],
   ["Publish this campaign now", "blocked"],
   ["Do not publish; configure credentials for the campaign.", "blocked"],
   ["Do not publish, but schedule the campaign.", "blocked"],
