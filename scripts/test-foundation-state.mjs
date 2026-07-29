@@ -31,6 +31,7 @@ const {
   removeFencedBlocks,
   convertMarkdownTablesToBullets,
   isSensitiveClaim,
+  normalizeBlockedClaims,
   replaceManagedWorkspaceContextBlock,
   sourceEvidenceLabelsAllowReuse,
 } = await import(path.join(foundationDir, "dist/agent.js"));
@@ -390,6 +391,23 @@ assert.equal(
 );
 assert.equal(isSensitiveClaim("Wave achieved a 3x improvement."), true);
 assert.equal(isSensitiveClaim("Organic traffic increased by 4%."), true);
+assert.deepEqual(
+  normalizeBlockedClaims([
+    {
+      claim: "Webflow has $200 million ARR.",
+      status: "user_supplied",
+    },
+  ]),
+  [
+    {
+      claim: "Webflow has $200 million ARR.",
+      status: "blocked",
+      source: "sensitive_claim_guardrail",
+      notes:
+        "The claim is in the blocked-claims collection and cannot be reused without separate evidence and owner approval.",
+    },
+  ],
+);
 
 console.log(
   "Foundation Guild Chat state, approval, Launcher publication handoff, context readiness, and routing tests OK.",

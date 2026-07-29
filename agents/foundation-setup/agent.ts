@@ -1427,7 +1427,8 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   output.extractedClaims = dedupeClaims([...output.extractedClaims, ...output.approvedFacts, ...output.assumptionsAndMissingEvidence])
     .filter((claim) => !isGuardedReusableClaim(claim.claim));
   output.proofBackedClaims = dedupeClaims(output.proofBackedClaims.filter(isReusableProofClaim));
-  output.contextArtifacts.proofAndConstraints.blockedClaims = dedupeClaims(blockedClaims);
+  output.contextArtifacts.proofAndConstraints.blockedClaims =
+    normalizeBlockedClaims(blockedClaims);
   output.claimsNeedingApproval = normalizeClaimsNeedingApproval([
     ...claimsNeedingApproval,
     ...output.contextArtifacts.proofAndConstraints.blockedClaims,
@@ -3480,6 +3481,25 @@ function hasSensitiveClaimGuardrails(output: Output): boolean {
 
 function normalizeClaimsNeedingApproval(claims: readonly Claim[]): Claim[] {
   return dedupeClaims(claims.map((claim) => isGuardedReusableClaim(claim.claim) ? sensitiveClaimNeedsApproval(claim.claim) : claim));
+}
+
+export function normalizeBlockedClaims(claims: readonly Claim[]): Claim[] {
+  return dedupeClaims(
+    claims.map((claim) => {
+      if (claim.status === "blocked" || claim.status === "do_not_use") {
+        return claim;
+      }
+      return {
+        ...claim,
+        status: "blocked" as const,
+        source: claim.source ?? "sensitive_claim_guardrail",
+        notes: appendNote(
+          claim.notes,
+          "The claim is in the blocked-claims collection and cannot be reused without separate evidence and owner approval.",
+        ),
+      };
+    }),
+  );
 }
 
 function scrubGuardedString(value: string, fallback: string): string {
