@@ -94,6 +94,11 @@ assert.match(
   "four-week plans should contain four plan entries and four drafts",
 );
 assert.match(
+  socialMonitoringContentSource,
+  /Week \$\{week\} requires a substantive representative draft body grounded only in approved context\./,
+  "four-week content validation should reject empty requested-period drafts",
+);
+assert.match(
   campaignsPaidMediaSource,
   /V1 has no activation-ready or execution-approval state\./,
   "campaign review should not imply an execution approval state",

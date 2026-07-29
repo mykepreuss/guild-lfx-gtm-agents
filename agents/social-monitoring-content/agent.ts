@@ -46,6 +46,49 @@ export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_social_monitoring_content",
   description:
     "Combines Guild Marketing OS social and community monitoring with approved-message content planning, owned content ideas, digest opportunities, channel-specific drafts, and claim/proof checks.",
+  validateArtifact: (text, originalRequest) => {
+    if (!/\b(?:four|4)[ -]week\b/i.test(originalRequest)) return [];
+
+    const producedArtifact =
+      text.split("## Produced Artifact")[1]?.split(
+        "## Assumptions And Missing Evidence",
+      )[0] ?? "";
+    const contentPlan =
+      producedArtifact.split("## Content Plan")[1]?.split("## Drafts")[0] ?? "";
+    const drafts =
+      producedArtifact.split("## Drafts")[1]?.split(
+        "## Proof And Brand Check",
+      )[0] ?? "";
+    const issues: Array<{ kind: "format"; message: string }> = [];
+
+    for (const week of [1, 2, 3, 4]) {
+      if (!new RegExp(`\\bWeek ${week}\\b`, "i").test(contentPlan)) {
+        issues.push({
+          kind: "format",
+          message: `Content Plan is missing Week ${week}.`,
+        });
+      }
+
+      const draftMatch = drafts.match(
+        new RegExp(
+          `(?:^|\\n)###\\s+Week ${week}\\b[^\\n]*\\n([\\s\\S]*?)(?=\\n###\\s+Week [1-4]\\b|$)`,
+          "i",
+        ),
+      );
+      const substantiveBody = draftMatch?.[1]
+        ?.replace(/[*_`#()[\]"':-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!substantiveBody || substantiveBody.length < 60) {
+        issues.push({
+          kind: "format",
+          message: `Week ${week} requires a substantive representative draft body grounded only in approved context.`,
+        });
+      }
+    }
+
+    return issues;
+  },
   systemPrompt: `
 You are the Guild Marketing OS Social Monitoring And Content Agent running in Guild.
 

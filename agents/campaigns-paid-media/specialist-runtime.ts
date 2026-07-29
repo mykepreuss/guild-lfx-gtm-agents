@@ -78,7 +78,7 @@ const statusPayloadSchema = z.object({
 type Input = z.infer<typeof inputSchema>;
 type Output = z.infer<typeof outputSchema>;
 
-type ValidationIssue = {
+export type ValidationIssue = {
   kind: "format" | "evidence" | "safety";
   message: string;
 };
@@ -97,6 +97,10 @@ export type ValidatedSpecialistConfig = {
   identifier: string;
   description: string;
   systemPrompt: string;
+  validateArtifact?: (
+    text: string,
+    originalRequest: string,
+  ) => ValidationIssue[];
 };
 
 const deterministicContract = `
@@ -144,6 +148,11 @@ export function createValidatedSpecialistAgent(
     tools: noTools,
     async run(input: Input, task: Task): Promise<Output> {
       const system = `${config.systemPrompt}\n\n${deterministicContract}`;
+      const validate = (text: string): SpecialistValidation =>
+        mergeValidationIssues(
+          validateSpecialistArtifact(text, validationOptions),
+          config.validateArtifact?.(text, input.text) ?? [],
+        );
       const validationOptions = {
         expectedHipaaConstraint: extractExpectedHipaaConstraint(input.text),
       };
@@ -155,15 +164,14 @@ export function createValidatedSpecialistAgent(
       const initialText = normalizeDuplicateSharedHeadings(
         initial.text.trim(),
       );
-      const initialValidation = validateSpecialistArtifact(
-        initialText,
-        validationOptions,
-      );
+      const initialValidation = validate(initialText);
 
       if (initialValidation.valid) {
         return { type: "text", text: initialText };
       }
 
+      let repairSource = initialText;
+      let repairIssues = initialValidation.issues;
       if (!initialValidation.formatOnly) {
         if (
           initialValidation.issues.every(
@@ -175,31 +183,43 @@ export function createValidatedSpecialistAgent(
             initialValidation.issues,
             validationOptions,
           );
-          if (
-            redacted.changed &&
-            validateSpecialistArtifact(redacted.text, validationOptions).valid
-          ) {
-            return { type: "text", text: redacted.text };
+          if (redacted.changed) {
+            const redactedValidation = validate(redacted.text);
+            if (redactedValidation.valid) {
+              return { type: "text", text: redacted.text };
+            }
+            if (redactedValidation.formatOnly) {
+              repairSource = redacted.text;
+              repairIssues = redactedValidation.issues;
+            } else {
+              return {
+                type: "text",
+                text: renderBlockedArtifact(redactedValidation.issues),
+              };
+            }
+          } else {
+            return {
+              type: "text",
+              text: renderBlockedArtifact(initialValidation.issues),
+            };
           }
+        } else {
+          return {
+            type: "text",
+            text: renderBlockedArtifact(initialValidation.issues),
+          };
         }
-        return {
-          type: "text",
-          text: renderBlockedArtifact(initialValidation.issues),
-        };
       }
 
       const repair = await task.llm.generateText({
         system,
-        prompt: buildFormatRepairPrompt(input.text, initialText, initialValidation.issues),
+        prompt: buildFormatRepairPrompt(input.text, repairSource, repairIssues),
         stream: false,
       });
       const repairedText = normalizeDuplicateSharedHeadings(
         repair.text.trim(),
       );
-      const repairedValidation = validateSpecialistArtifact(
-        repairedText,
-        validationOptions,
-      );
+      const repairedValidation = validate(repairedText);
       if (repairedValidation.valid) {
         return { type: "text", text: repairedText };
       }
@@ -210,6 +230,19 @@ export function createValidatedSpecialistAgent(
       };
     },
   });
+}
+
+function mergeValidationIssues(
+  validation: SpecialistValidation,
+  additionalIssues: ValidationIssue[],
+): SpecialistValidation {
+  if (additionalIssues.length === 0) return validation;
+  const issues = [...validation.issues, ...additionalIssues];
+  return {
+    valid: false,
+    issues,
+    formatOnly: issues.every((issue) => issue.kind === "format"),
+  };
 }
 
 export function validateSpecialistArtifact(
@@ -585,6 +618,10 @@ ${issues.map((issue) => `- ${issue.message}`).join("\n")}
 
 Original artifact:
 ${initialText}
+
+If a requested-period draft body is empty after deterministic safety filtering,
+fill only that missing body with useful copy grounded in the approved facts already
+present in Consumed Context. Keep unsupported details out; do not add new facts.
 `.trim();
 }
 
