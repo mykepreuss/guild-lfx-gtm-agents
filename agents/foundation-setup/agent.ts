@@ -493,10 +493,13 @@ async function runFoundationTurn(
   state: AgentState,
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
   const rawContext = getRawContext(input);
-  const conversationIntent = inputUsesInjectedManagedContext(input)
+  const focusedContextResume = isFocusedContextResume(rawContext);
+  const conversationIntent = inputUsesInjectedManagedContext(input) ||
+      focusedContextResume
     ? "source_available"
     : classifyConversationIntent(rawContext);
-  const requestedDownstreamAgent = isExplicitDownstreamRequest(rawContext)
+  const requestedDownstreamAgent = !focusedContextResume &&
+      isExplicitDownstreamRequest(rawContext)
     ? detectRequestedDownstreamAgent(rawContext)
     : undefined;
 
@@ -895,6 +898,7 @@ function getOperatingConstraints(_input: Input): string[] {
 }
 
 function classifyConversationIntent(rawContext: string): ConversationIntent {
+  if (isFocusedContextResume(rawContext)) return "source_available";
   if (isApprovalOrEdit(rawContext)) return "approval_or_edit";
   if (isSaveStateQuestion(rawContext)) return "save_state_question";
   if (isAttachmentUnreadableTurn(rawContext)) return "attachment_unreadable";
@@ -904,6 +908,12 @@ function classifyConversationIntent(rawContext: string): ConversationIntent {
   }
   if (!hasUsableSourceContent(rawContext)) return "missing_context";
   return "source_available";
+}
+
+function isFocusedContextResume(rawContext: string): boolean {
+  return /\bresume\s+company context(?:\s+artifact)?\s+revision\s+\d+\b/i.test(
+    rawContext,
+  ) || /(?:^|\n)\s*##\s+Focused resume input\s*$/im.test(rawContext);
 }
 
 function isSaveStateQuestion(rawContext: string): boolean {

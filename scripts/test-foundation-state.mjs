@@ -444,6 +444,42 @@ function guildChatEnvelope(text) {
     "Builder must collapse paraphrases already covered by the canonical blocked-action categories",
   );
 
+  const resumeHarness = createTask({
+    sessionId: "foundation-focused-resume",
+    workspaceReadMode: "missing",
+  });
+  const resumedDraft = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        source,
+        "## Focused resume input",
+        "Resume Company Context artifact revision 1 using the source and draft already retained in this Marketing OS cockpit.",
+        "Approved channels: website, blog, customer stories, email, and organic social.",
+        "Approved company description: Webflow provides a visual website platform for enterprise marketing teams.",
+        "Proof-backed claims: The platform includes site design, CMS, hosting, collaboration, analytics, optimization, AI, and extensibility.",
+        "Goals: Help enterprise marketing and creative teams build and optimize web experiences.",
+        "Keep evidence mode source_supplied and everything draft-only.",
+      ].join("\n\n"),
+    },
+    resumeHarness.task,
+  );
+  assert.equal(resumedDraft.type, "output");
+  assert.equal(
+    resumeHarness.readState().lastOutput.conversationIntent,
+    "source_available",
+    "focused Company Context resume must take precedence over nearby social/channel language",
+  );
+  assert.notEqual(
+    resumeHarness.readState().lastOutput.status,
+    "blocked",
+    "focused Company Context resume must remain in the context workflow",
+  );
+  assert.doesNotMatch(
+    resumedDraft.output.text,
+    /Requested downstream goal: Social Monitoring And Content/,
+  );
+
   const prematureApproval = await foundationAgent.start(
     { type: "text", text: "Context approved save to workspace context" },
     harness.task,
