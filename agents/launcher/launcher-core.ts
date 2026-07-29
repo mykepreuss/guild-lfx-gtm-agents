@@ -598,7 +598,14 @@ export function validateSpecialistOutput(
       );
       continue;
     }
-    if (specialistLineIsQualified(line)) continue;
+    if (
+      specialistLineIsQualified(
+        line,
+        allowContextEvidenceReconciliation,
+      )
+    ) {
+      continue;
+    }
     for (const [pattern, label] of [
       [/\b(?:eliminate|eliminates|eliminated)\b/i, "absolute eliminate claim"],
       [/\binstantly\b/i, "instant-result claim"],
@@ -755,7 +762,16 @@ function specialistSection(
   return text.slice(bodyStart, end === -1 ? undefined : end).trim();
 }
 
-function specialistLineIsQualified(line: string): boolean {
+function specialistLineIsQualified(
+  line: string,
+  allowContextMarketingGoal = false,
+): boolean {
+  if (
+    allowContextMarketingGoal &&
+    /^(?:-\s*)?(?:current marketing goal|goals):\s*\S/i.test(line)
+  ) {
+    return true;
+  }
   return /\b(?:approved[-_ ]reusable|do not use|do not claim|must not claim|blocked|unsupported|needs evidence|requires? (?:separate )?(?:evidence|approval|review|validation)|tbd|source[-_ ]supplied(?:[-_ ]review[-_ ]required| only)?|review[-_ ]required|secondary[-_ ]estimate|claim status|evidence status|missing (?:proof|evidence)|proof needs?|limitation|unapproved|pending verification|subject to (?:verification|review|approval)|not company[- ]confirmed|confirm|verify|validate|review)\b/i.test(
     line,
   );

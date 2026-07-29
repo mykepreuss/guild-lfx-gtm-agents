@@ -236,6 +236,27 @@ assert.deepEqual(
   [],
   "a multi-sentence withheld claim remains safe when its qualification leads the rendered line",
 );
+const contextGoalIntentArtifact = validArtifact.replace(
+  "Draft artifact.",
+  [
+    "- Goals: Help enterprise teams launch and improve web experiences faster.",
+    "Current marketing goal: Help enterprise teams launch and improve web experiences faster.",
+    "Goals: Help enterprise teams launch and improve web experiences faster.",
+  ].join("\n"),
+);
+assert.ok(
+  validateSpecialistOutput(contextGoalIntentArtifact).some((error) =>
+    error.includes("sensitive pricing, proof"),
+  ),
+  "goal wording must not weaken safety validation for ordinary specialist routes",
+);
+assert.deepEqual(
+  validateSpecialistOutput(contextGoalIntentArtifact, {
+    allowContextEvidenceReconciliation: true,
+  }),
+  [],
+  "Company Context must treat explicitly labeled marketing goals as intentions rather than performance claims",
+);
 const needsInputArtifact = validArtifact.replace(
   '"status":"ready_for_review"',
   '"status":"needs_input"',
