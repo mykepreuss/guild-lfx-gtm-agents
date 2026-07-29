@@ -3447,14 +3447,24 @@ function scrubReusableGuardedClaims(output: Output): void {
     };
   });
 
-  output.aeoReadiness.entityClarity = scrubGuardedString(
-    output.aeoReadiness.entityClarity,
-    "Draft entity clarity pending approved evidence.",
-  );
-  output.aeoReadiness.answerReadyOpportunities = scrubGuardedList(
-    output.aeoReadiness.answerReadyOpportunities,
-    ["What the company is", "Who it serves", "Why it matters", "What proof supports claims"],
-  );
+  if (hasGuardrailClaims || !output.persistenceState.approved_in_session) {
+    output.aeoReadiness.entityClarity = "Draft entity clarity pending approved evidence.";
+    output.aeoReadiness.answerReadyOpportunities = [
+      "What the company is",
+      "Who it serves",
+      "Why it matters",
+      "What proof supports claims",
+    ];
+  } else {
+    output.aeoReadiness.entityClarity = scrubGuardedString(
+      output.aeoReadiness.entityClarity,
+      "Draft entity clarity pending approved evidence.",
+    );
+    output.aeoReadiness.answerReadyOpportunities = scrubGuardedList(
+      output.aeoReadiness.answerReadyOpportunities,
+      ["What the company is", "Who it serves", "Why it matters", "What proof supports claims"],
+    );
+  }
   output.aeoReadiness.missingProof = scrubGuardedList(output.aeoReadiness.missingProof, [
     "Approved description",
     "Canonical URLs",
@@ -4158,7 +4168,7 @@ ${output.approvalGates
 - Entity clarity: ${output.aeoReadiness.entityClarity}
 - Answer-ready opportunities: ${formatList(output.aeoReadiness.answerReadyOpportunities)}
 - Missing proof: ${formatList(output.aeoReadiness.missingProof)}
-- Recommended web inputs: ${formatList(output.aeoReadiness.recommendedWebInputs)}
+- Recommended web inputs for review: ${formatList(output.aeoReadiness.recommendedWebInputs)}
 
 ## Status Payload
 \`\`\`json

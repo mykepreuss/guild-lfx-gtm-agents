@@ -191,6 +191,16 @@ function guildChatEnvelope(text) {
     /Review required — Legal Reviewer:/,
     "approval-gate lines should be explicitly qualified for the shared safety validator",
   );
+  assert.match(
+    draft.output.text,
+    /Entity clarity: Draft entity clarity pending approved evidence\./,
+    "unapproved Builder drafts should not promote model-generated entity-clarity claims",
+  );
+  assert.match(
+    draft.output.text,
+    /Recommended web inputs for review:/,
+    "recommended research inputs should be visibly review-qualified",
+  );
   const evidenceSection = draft.output.text
     .split("## Assumptions And Missing Evidence")[1]
     .split("## Approval Gate")[0];
