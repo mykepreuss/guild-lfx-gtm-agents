@@ -184,7 +184,11 @@ function deterministicRouteDecision(
       "disallowed_agent_invocation",
     ],
     [
-      /\b(?:publish|schedule|send|launch|activate|sync)\b[\s\S]{0,80}\b(?:campaign|content|post|message|email|ads?|result|artifact|changes?)\b/i,
+      /\b(?:publish|schedule|send|activate|sync)\b[\s\S]{0,80}\b(?:campaign|content|post|message|email|ads?|result|artifact|changes?)\b/i,
+      "external_execution_request",
+    ],
+    [
+      /(?:^|[.!?;\n]\s*|\b(?:and|then|also|please|now)\s+|\b(?:can|could|would|will)\s+you\s+|\b(?:want|need|ask)\s+(?:you\s+)?to\s+|\blet'?s\s+)launch\b[\s\S]{0,40}\b(?:campaign|ads?|it)\b/i,
       "external_execution_request",
     ],
     [
