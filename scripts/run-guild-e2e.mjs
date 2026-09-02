@@ -9,6 +9,7 @@ const rootDir = process.cwd();
 const args = new Set(process.argv.slice(2));
 const workspace = readOption("--workspace") ?? process.env.GUILD_WORKSPACE ?? "michaelpreuss~guild-marketing-os";
 const noCache = args.has("--no-cache");
+const selectedCaseId = readOption("--case");
 const timeoutMs = Number(process.env.GUILD_AGENT_TEST_TIMEOUT_MS ?? 240000);
 const mode = args.has("--adversarial") ? "adversarial" : "smoke";
 const fullSuite = args.has("--full");
@@ -25,6 +26,7 @@ const jsonReadinessDraftPattern = /\\?"readiness\\?":\s*\\?"draft\\?"/i;
 const jsonReadinessReviewReadyPattern = /\\?"readiness\\?":\s*\\?"review_ready\\?"/i;
 const jsonSavedToWorkspaceFalsePattern = /\\?"saved_to_workspace_context\\?":\s*false/i;
 const jsonSavedToContextArtifactsFalsePattern = /\\?"saved_to_context_artifacts\\?":\s*false/i;
+const jsonSavedToContextArtifactsTruePattern = /\\?"saved_to_context_artifacts\\?":\s*true/i;
 const jsonProjectNamePattern = /\\?"projectName\\?":/i;
 
 const requiredHeadings = [
@@ -120,7 +122,7 @@ const smokeCases = [
     ].join("\n"),
     requiredPatterns: [
       /source_available/i,
-      /I found enough to draft initial company context for Webflow/i,
+      /I drafted initial company context for Webflow/i,
       /Company Context Draft \(company-context\)/i,
       jsonCompanyNameWebflowPattern,
       /Messaging Source Draft \(messaging-source\)/i,
@@ -130,7 +132,7 @@ const smokeCases = [
       /Proof And Constraints Draft \(proof-and-constraints\)/i,
       /Dashboard Signals Draft \(dashboard-signals\)/i,
       /approved_in_session: false/i,
-      jsonSavedToContextArtifactsFalsePattern,
+      jsonSavedToContextArtifactsTruePattern,
       /Downstream Handoff/i,
       /Ready-To-Publish Workspace Context/i,
       /Downstream Handoff Context/i,
@@ -155,7 +157,7 @@ const smokeCases = [
     dir: "agents/foundation-setup",
     prompt: "Is this now saved in our workspace context?",
     requiredPatterns: [
-      /No\. This is drafted in the session only|not saved in workspace context/i,
+      /No durable Company Context draft is available|No Guild workspace context update has been saved|not saved in workspace context/i,
       /save_state_question/i,
       /drafted_in_session: true/i,
       /saved_to_workspace_context: false/i,
@@ -366,6 +368,14 @@ const smokeCases = [
     prompt: `${baseContext} Task for campaigns-paid-media: Draft a campaign and paid-media planning packet. Do not recommend live spend changes or imply ads are active.`,
     requiredPatterns: [/spend|paid media|approval|paused|blocked|draft/i],
   },
+  {
+    id: "launcher-cockpit-status",
+    dir: "agents/launcher",
+    prompt: "Show Marketing OS cockpit status.",
+    skipSharedHeadings: true,
+    requiredPatterns: [/Marketing OS Cockpit/i, /Workstreams/i, /Artifacts/i, /Next action/i],
+    forbiddenPatterns: [/successfully published/i, /successfully scheduled/i, /spend increased/i],
+  },
 ];
 
 const fastSmokeCaseIds = new Set([
@@ -441,9 +451,17 @@ console.log(`\nGuild ${mode} check OK (${suite}).`);
 console.log(`Logs: ${logDir}`);
 
 function selectCases() {
-  if (mode === "adversarial") return adversarialCases;
-  if (fullSuite) return smokeCases;
-  return smokeCases.filter((testCase) => fastSmokeCaseIds.has(testCase.id));
+  const availableCases = mode === "adversarial"
+    ? adversarialCases
+    : fullSuite
+      ? smokeCases
+      : smokeCases.filter((testCase) => fastSmokeCaseIds.has(testCase.id));
+  if (!selectedCaseId) return availableCases;
+  const selectedCases = availableCases.filter((testCase) => testCase.id === selectedCaseId);
+  if (selectedCases.length === 0) {
+    throw new Error(`Unknown ${mode} case: ${selectedCaseId}`);
+  }
+  return selectedCases;
 }
 
 function runCase(testCase) {
@@ -477,9 +495,11 @@ function runCase(testCase) {
     return failCase(testCase, "missing Guild test completion marker", logPath);
   }
 
-  for (const heading of requiredHeadings) {
-    if (!output.includes(heading)) {
-      return failCase(testCase, `missing required heading ${heading}`, logPath);
+  if (!testCase.skipSharedHeadings) {
+    for (const heading of requiredHeadings) {
+      if (!output.includes(heading)) {
+        return failCase(testCase, `missing required heading ${heading}`, logPath);
+      }
     }
   }
 
