@@ -4,9 +4,9 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 
 ## Operating Rules
 
-- Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests unless the user specifies another workspace.
+- Use `michaelpreuss~guild-marketing-os` as the active Guild workspace for project tests unless the user specifies another workspace.
 - Re-run `guild agent init` only when intentionally repairing or reinitializing an existing package record.
-- `guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json` is allowed for package validation.
+- `guild agent test` from an agent directory is allowed for portable ephemeral package validation. Repository smoke tests may use `michaelpreuss~guild-marketing-os`.
 - Do not run save, publish, unpublish, workspace install, direct CLI workspace-context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
 - The Company Context Builder has one approved runtime persistence path: after a draft is approved, the user must send exactly `publish approved context to workspace context`; the agent then publishes only the managed compact workspace-context brief through the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` bridge.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
@@ -64,7 +64,7 @@ Supported behavior:
 - Mark missing facts as `TBD` and separate evidence from assumptions.
 - Recommend approval gates, downstream handoffs, and AEO/readiness inputs.
 - Persist approved company context to Guild workspace context through the Company Context Builder's exact two-step confirmation flow and host-controlled publish bridge.
-- Block live publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes.
+- Block live marketing publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes. The suite's existing public Agent Hub visibility is intentional and does not authorize further visibility changes.
 
 Not autonomous:
 

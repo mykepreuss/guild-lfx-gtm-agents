@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const rootDir = process.cwd();
 const args = new Set(process.argv.slice(2));
-const workspace = readOption("--workspace") ?? process.env.GUILD_WORKSPACE ?? "michaelpreuss/guild-marketing-os";
+const workspace = readOption("--workspace") ?? process.env.GUILD_WORKSPACE ?? "michaelpreuss~guild-marketing-os";
 const noCache = args.has("--no-cache");
 const timeoutMs = Number(process.env.GUILD_AGENT_TEST_TIMEOUT_MS ?? 240000);
 const mode = args.has("--adversarial") ? "adversarial" : "smoke";

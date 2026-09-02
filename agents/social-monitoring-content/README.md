@@ -1,24 +1,72 @@
-# Guild Marketing OS Social Monitoring And Content
+# Social Signals And Content
+
+Turns supplied or approved social and community signals into reviewable content plans and draft responses in Guild Chat without monitoring channels, publishing, scheduling, or engaging.
 
 Guild package: `guild-marketing-os-social-monitoring-content`
-Package owner: `michaelpreuss`
 
-## Purpose
+## Behavior
 
-Turns approved social and community signals into opportunity rankings, content plans, channel-specific drafts, proof checks, and approval-ready engagement recommendations.
+- Ranks supplied social and community opportunities by audience relevance, momentum, originality, proof readiness, brand fit, channel fit, and claim risk.
+- Produces content themes, channel-specific plans, post drafts, reply options, digest opportunities, and proof checks.
+- Distinguishes source-supplied observations from recommendations, hypotheses, and missing evidence.
+- Returns four substantive weekly draft sections when the request asks for a four-week content plan.
+- Does **not** monitor live channels, scrape communities, publish, schedule, reply, comment, or send direct messages.
+- Never claims live observation or engagement unless an approved connected source was actually inspected.
 
-## Guild Usage
+## Suite position
 
-Use after approved messaging, brand voice, segments, and channel scope are available. Provide social or community excerpts, monitoring scope, cadence, content goals, proof constraints, and platform-specific restrictions.
+- Front door: use Marketing OS Launcher for normal suite routing; use this agent directly only for focused social-signal or content work.
+- Required before this agent: approved messaging, brand voice, audience segments, channel scope, proof constraints, and supplied social or community evidence.
+- Next agent after a successful run: a human content or community owner; campaign and messaging gaps can return through Launcher.
 
-## Operating Boundary
+Use a dedicated Marketing OS workspace with approved Workspace Context when drafts should reflect reusable company context.
 
-Review-only. This agent does not publish, schedule, reply, DM, comment, or scrape private communities.
+## Quickstart
 
-## Test
+1. Create or select a dedicated Guild workspace and add **Social Monitoring And Content** from Agent Hub.
+2. Add approved Workspace Context or include the relevant messaging, audience, brand, proof, and channel constraints in the request.
+3. Paste or provide the social and community signals to analyze.
+4. Open a new Chat with this agent and send the request below. For the coordinated suite workflow, send it to Marketing OS Launcher instead.
 
-From this package directory:
+## Plain-text workflow request
+
+> Turn the supplied community excerpts into a four-week content plan with one substantive draft per week. Rank the opportunities, preserve the source limitations, and flag every claim that needs proof or approval.
+
+## What to send
+
+- Supplied social posts, community excerpts, monitoring exports, research notes, or approved connected-source results.
+- Approved messaging, audience, brand voice, content goals, channel constraints, and review owners.
+- Observation dates and known coverage gaps when the source set is time-sensitive.
+- `Draft response options for these supplied posts without publishing them` — returns review-only reply options.
+
+Outside Chat, send a text payload such as:
+
+```json
+{ "type": "text", "text": "Create a four-week content plan from these supplied community excerpts: ..." }
+```
+
+## Output
+
+Every substantial response uses these sections in order:
+
+1. `Consumed Context`
+2. `Produced Artifact`
+3. `Assumptions And Missing Evidence`
+4. `Approval Gate`
+5. `AEO / AI-Readiness Contribution`
+6. `Status Payload`
+7. `Downstream Handoff`
+
+The Status Payload reports `source_supplied`, `connected_read_only`, or `live_monitoring` evidence mode and a status of `needs_input`, `ready_for_review`, or `blocked`. `action_mode` remains `draft_only`.
+
+## Development
+
+From `<agent-directory>`:
 
 ```sh
-guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
+npm install
+npm run build
+guild agent test
 ```
+
+`guild agent test` creates an ephemeral version from the local agent repository. Guild authentication is required; no private author workspace is required. Live channel monitoring is intentionally deferred.

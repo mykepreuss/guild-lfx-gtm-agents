@@ -1,62 +1,74 @@
-# Guild Marketing OS Company Context Builder
+# Company Context Builder
 
-Guild package: `guild-marketing-os-company-context-builder`
+Turns supplied company information into a reviewable Marketing OS context foundation in Guild Chat without publishing Workspace Context or executing marketing actions.
 
-Status: Guild Chat context lifecycle source ready for private-alpha proof.
+## Behavior
 
-## Purpose
+- Converts readable source text into company facts, audiences, messaging sources, brand guidance, channel scope, proof constraints, dashboard signals, and AEO-readiness notes.
+- Separates approved facts, user-supplied claims, assumptions, missing evidence, blocked claims, and do-not-use claims.
+- Retains source text, artifact revision, and approval state in the direct Builder Chat.
+- Produces a compact Workspace Context candidate for review and a handoff to downstream Marketing OS agents.
+- Does **not** publish Workspace Context from a direct Builder Chat, install agents, schedule work, spend budget, or mutate external systems.
+- Never turns artifact approval into execution approval or fills missing company facts from model background knowledge.
 
-Company Context Builder turns readable source text into a Company Context
-Approval Packet containing company facts, audiences, messaging sources, brand
-guidance, channel scope, proof constraints, dashboard signals, missing
-evidence, AEO readiness, and a compact Workspace Context candidate.
+## Suite position
 
-Launcher routes first-run context setup here. For downstream marketing requests
-Builder identifies itself as context-only and sends the user to Launcher or the
-named specialist.
+- Front door: use Marketing OS Launcher for the normal suite workflow; Launcher routes first-run context setup here.
+- Required before this agent: readable company or project source text and an owner who can review the resulting facts and claims.
+- Next agent after approval: return to Launcher, publish the compact context through its separate confirmation gate, then request the relevant specialist.
 
-## Chat State
+Use a dedicated Marketing OS workspace so approved company context does not mix with unrelated product context.
 
-In a direct Builder Chat, the source text, artifact reference, revision, and
-approval state are kept in Guild task state. No external state service is
-required.
+## Quickstart
 
-When Builder runs through Launcher, Launcher is the durable artifact owner and
-records the packet, approval, publication provenance, workstream, and handoff
-in the canonical cockpit.
+1. Create or select a dedicated Guild workspace.
+2. From the workspace, open **Agents**, choose **Add agent**, and install **Marketing OS Launcher**. Launcher will request this agent during setup.
+3. Open the continuing Launcher Chat and send readable company source text or the request below.
+4. Review the resulting Company Context artifact and approve the exact revision shown in Launcher.
 
-## Approval And Publication
+## Plain-text workflow request
 
-The lifecycle remains deliberately two-step:
+> Build a reviewable company-context foundation from the source text I provide. Separate approved facts from assumptions, flag missing evidence, and prepare the smallest useful Workspace Context candidate.
 
-1. Review and approve the exact Company Context artifact revision.
-2. Send exactly `publish approved context to workspace context`.
+## What to send
 
-Direct Builder Chat does not publish Workspace Context. It directs the user
-back to the canonical Launcher Chat so the separate publication gate and its
-provenance stay in one cockpit.
+- Company or project name, approved description, primary audiences, current marketing goal, approved claims, claim restrictions, and intended channels.
+- Pasted source text or excerpts the running agent can read.
+- `What company-context information is still missing?` — returns focused gaps without inventing answers.
+- `Approve Company Context Builder artifact revision 1` — when sent through Launcher, approves only the named artifact revision.
 
-Launcher performs the workspace-scoped Guild publication, preserving unmanaged
-manual context and recording the resulting context ID and revision.
+Outside Chat, send a text payload such as:
 
-## Operating Boundary
-
-Builder is review-first and context-only. It does not schedule, install, spend,
-sync, trigger, change public visibility, mutate external systems, or turn
-artifact approval into execution approval.
-
-Readable source text must be available in the Chat. If an attachment cannot be
-read by the running Guild agent, Builder asks for the relevant text instead of
-inventing context.
-
-## Verification
-
-From the repository root:
-
-```sh
-npm run test:foundation-state
-npm run verify
+```json
+{ "type": "text", "text": "Build a company-context foundation from the source text below: ..." }
 ```
 
-Private live Guild publication evidence is still required before public
-release.
+After the exact artifact revision is approved, Workspace Context publication occurs only from the canonical Launcher Chat with this exact phrase:
+
+`publish approved context to workspace context`
+
+## Output
+
+Every substantial Company Context packet uses these sections in order:
+
+1. `Consumed Context` — supplied sources, conversation intent, and missing inputs.
+2. `Produced Artifact` — context drafts, save and approval state, Workspace Context candidate, and downstream context.
+3. `Assumptions And Missing Evidence` — evidence labels, claims requiring review, and open questions.
+4. `Approval Gate` — decisions and owners required before reuse or publication.
+5. `AEO / AI-Readiness Contribution` — entity clarity, answer coverage, and source gaps.
+6. `Status Payload` — structured status, persistence state, source confidence, and readiness.
+7. `Downstream Handoff` — the next Marketing OS agent and what it can safely consume.
+
+Packet status is `needs_input`, `ready_for_review`, or `blocked`. Workspace Context remains unchanged until the separate Launcher confirmation succeeds.
+
+## Development
+
+From `<agent-directory>`:
+
+```sh
+npm install
+npm run build
+guild agent test
+```
+
+`guild agent test` creates an ephemeral version from the local agent repository. Guild authentication is required; no private author workspace is required.

@@ -1,24 +1,69 @@
-# Guild Marketing OS Market Signal
+# Market Signal
 
-Guild package: `guild-marketing-os-market-signal`
-Package owner: `michaelpreuss`
+Turns approved source material into an evidence-labeled Market Signal Brief in Guild Chat without crawling sources, claiming live coverage, or executing marketing actions.
 
-## Purpose
+## Behavior
 
-Turns approved source material into evidence-labeled market, search, answer-engine, developer, community, and social signals for downstream ICP, messaging, content, AEO, and campaign work.
+- Organizes supplied market, peer, competitor, community, search, answer-engine, developer, and social evidence into ranked themes.
+- Separates verified quotes, paraphrased source claims, unverified signals, synthesized patterns, and hypotheses.
+- Identifies audience language, positioning signals, contradictions, coverage gaps, and downstream implications.
+- Returns a reviewable brief with an evidence mode, source coverage, limitations, and safety status.
+- Does **not** crawl private or public sources, contact people, publish findings, or change systems.
+- Never claims comprehensive or live market coverage unless an approved connected source was actually inspected.
 
-## Guild Usage
+## Suite position
 
-Use after the Company Context Builder has published compact workspace context. Provide the source scope, date range, competitor or peer set, and known coverage gaps; ask for source gaps rather than comprehensive coverage when evidence is thin.
+- Front door: use Marketing OS Launcher for normal suite routing; use this agent directly only for a focused Market Signal Brief.
+- Required before this agent: approved company context plus the source excerpts, URLs, notes, or connected-source access that define the evidence scope.
+- Next agent after a successful run: ICP, Messaging, Answer Engine/Web work, or Campaigns through Launcher.
 
-## Operating Boundary
+Use a dedicated Marketing OS workspace with approved Workspace Context when the brief should be company-specific.
 
-Review-only. This agent does not crawl private sources, publish, contact people, change systems, or claim comprehensive market coverage.
+## Quickstart
 
-## Test
+1. Create or select a dedicated Guild workspace and add **Market Signal** from Agent Hub.
+2. Add approved Workspace Context or include the relevant company facts in the request.
+3. Open a new Chat with this agent and send the request below. For the coordinated suite workflow, send it to Marketing OS Launcher instead.
 
-From this package directory:
+## Plain-text workflow request
+
+> Review the supplied competitor pages and community excerpts, rank the strongest market signals, separate evidence from inference, and show what the findings imply for ICP and messaging.
+
+## What to send
+
+- The intended market, audience, timeframe, peer or competitor set, and decision the brief should support.
+- Source excerpts, URLs, research notes, or explicitly approved connected-source access.
+- Known source bias, freshness limits, missing channels, and claims that require extra scrutiny.
+- `Identify the highest-value evidence gaps before we update positioning` — returns a focused research-gap brief.
+
+Outside Chat, send a text payload such as:
+
+```json
+{ "type": "text", "text": "Review these supplied competitor and community sources and prepare a Market Signal Brief: ..." }
+```
+
+## Output
+
+Every substantial response uses these sections in order:
+
+1. `Consumed Context`
+2. `Produced Artifact`
+3. `Assumptions And Missing Evidence`
+4. `Approval Gate`
+5. `AEO / AI-Readiness Contribution`
+6. `Status Payload`
+7. `Downstream Handoff`
+
+The Status Payload reports `source_supplied`, `connected_read_only`, or `live_monitoring` evidence mode and a status of `needs_input`, `ready_for_review`, or `blocked`. `action_mode` remains `draft_only`.
+
+## Development
+
+From `<agent-directory>`:
 
 ```sh
-guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json
+npm install
+npm run build
+guild agent test
 ```
+
+`guild agent test` creates an ephemeral version from the local agent repository. Guild authentication is required; no private author workspace is required.

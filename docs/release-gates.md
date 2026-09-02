@@ -1,9 +1,11 @@
 # Public V1 Release Gates
 
-Status on 2026-07-29: **marketer acceptance passed; Guild-only private alpha**
+Status on 2026-09-02: **public Agent Hub availability; draft-only public alpha**
 
-Public visibility is treated as permanent. No Launcher or capability package
-may be made public while any blocking row below remains open.
+Public visibility is intentional and permanent for Launcher and the eight
+capability packages. Open gates below block broader promotion,
+production-readiness claims, and execution capabilities; they do not block
+continued public availability of the draft-only suite.
 
 | Gate | Current evidence | Status |
 | --- | --- | --- |
@@ -32,7 +34,7 @@ may be made public while any blocking row below remains open.
 | Context-size benchmark | Final serial confirmation selected compressed at ~1,805 tokens: 7/7 complete, no lost golden facts, zero unqualified sensitive claims, and zero validation errors; the candidate is staged as an unapproved cockpit artifact | Pass; exact approval/publication to working Workspace Context pending |
 | Clean separate-organization rehearsal | `developers-at-guild/marketing-os-clean-rehearsal-20260728` completed private package installation, default-agent setup, company-context approval/publication, new-Chat context reuse, all seven specialist routes, presentation creation, content planning, and integrated-campaign creation. | Pass |
 | Unaffiliated design-partner acceptance | Not run | **Blocked** |
-| Public Agent Hub visibility | All packages remain private | **Blocked until every prior gate passes** |
+| Public Agent Hub visibility | All nine packages report public, ready, and active; public availability is intentional so other Guild users can install and fork the suite. | **Pass by product-owner decision on 2026-09-02** |
 
 The Guild-only persistence decision is recorded in
 [`docs/adr/0001-public-v1-persistence-boundary.md`](adr/0001-public-v1-persistence-boundary.md).
@@ -41,10 +43,10 @@ The explicit suite-binding decision is recorded in
 
 ## Required rollout order
 
-1. Keep Launcher and all eight capability packages private.
-2. Publish new private test versions through the guarded release helper.
+1. Keep Launcher and all eight capability packages public and draft-only.
+2. Publish updates through the guarded release helper after local verification.
 3. Run the canonical-cockpit browser suite in
-   `michaelpreuss/guild-marketing-os`: onboarding, context setup, artifact
+   `michaelpreuss~guild-marketing-os`: onboarding, context setup, artifact
    approval, exact context publication, each specialist, status, same-Chat
    resume, handoff, export, confirmed deletion in a disposable Chat, missing
    package, timeout, malformed output, stale context, hostile request, and
@@ -55,7 +57,7 @@ The explicit suite-binding decision is recorded in
    `developers-at-guild/marketing-os-clean-rehearsal-20260728`.
 6. Run unaffiliated design-partner acceptance with no maintainer CLI or
    infrastructure credentials.
-7. Only then consider public Agent Hub visibility.
+7. Only then consider broader promotion or production-readiness claims.
 
 ## Evidence handling
 

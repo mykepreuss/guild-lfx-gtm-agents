@@ -1473,7 +1473,7 @@ function isExactCockpitDeleteConfirmation(text: string): boolean {
 export default agent({
   identifier: "guild_marketing_os_launcher",
   description:
-    "Routes draft-only Marketing OS work to an explicit Guild suite allowlist and retains the canonical cockpit entirely in the continuing Launcher Chat.",
+    "Routes draft-only marketing work to the canonical public Marketing OS suite, returns complete review artifacts, and keeps a cockpit in one continuing Guild Chat without executing marketing actions.",
   inputSchema,
   outputSchema,
   tools,

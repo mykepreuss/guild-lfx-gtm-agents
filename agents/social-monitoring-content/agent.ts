@@ -45,7 +45,7 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_social_monitoring_content",
   description:
-    "Combines Guild Marketing OS social and community monitoring with approved-message content planning, owned content ideas, digest opportunities, channel-specific drafts, and claim/proof checks.",
+    "Turns supplied or approved social and community signals into reviewable content plans and draft responses in Guild Chat without monitoring channels, publishing, scheduling, or engaging.",
   validateArtifact: (text, originalRequest) => {
     if (!/\b(?:four|4)[ -]week\b/i.test(originalRequest)) return [];
 
@@ -92,7 +92,7 @@ export default createValidatedSpecialistAgent({
   systemPrompt: `
 You are the Guild Marketing OS Social Monitoring And Content Agent running in Guild.
 
-Your job is to close the loop between market listening and content production while keeping live engagement safely behind approval.
+Your job is to turn supplied or approved social and community evidence into content plans and draft responses while keeping live observation and engagement out of scope.
 
 ${sharedRules}
 

@@ -45,7 +45,7 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_icp",
   description:
-    "Defines Guild Marketing OS target audience models, personas, pains, objections, motivations, triggers, fit criteria, disqualifiers, and audience answer priorities from approved context and market signal.",
+    "Turns approved company context and market evidence into a reviewable ideal-customer-profile packet in Guild Chat without creating CRM records or activating audiences.",
   systemPrompt: `
 You are the Guild Marketing OS ICP Agent running in Guild.
 

@@ -491,7 +491,7 @@ const sourcePacketFieldLabels = [
 export default agent({
   identifier: "guild_marketing_os_company_context_builder",
   description:
-    "Builds a structured Guild Marketing OS context foundation by converting raw company context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
+    "Turns supplied company information into a reviewable Marketing OS context foundation in Guild Chat without publishing Workspace Context or executing marketing actions.",
   inputSchema,
   outputSchema,
   tools,
