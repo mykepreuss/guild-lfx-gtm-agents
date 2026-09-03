@@ -230,6 +230,15 @@ function guildChatEnvelope(text) {
     false,
     "a natural one-paragraph baseline must not route audience and goal text through the sensitive-claim fallback",
   );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences,
+    [
+      "AI leaders",
+      "AI platform leaders",
+      "developer relations teams",
+      "governance/security stakeholders",
+    ],
+  );
   assert.match(result.output.text, /Company: Guild/);
   assert.match(result.output.text, /website/);
 }

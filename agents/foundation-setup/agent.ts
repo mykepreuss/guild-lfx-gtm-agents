@@ -4541,6 +4541,12 @@ function extractListAfterLabels(rawContext: string, labels: readonly string[]): 
     .split(/,|;|\s+and\s+/i)
     .map((value) => value.trim())
     .map((value) => value.replace(/^(and|or)\s+/i, "").replace(/[.。]+$/, "").trim())
+    .filter(
+      (value) =>
+        !/^treat\s+(?:these|them)\s+as\s+(?:reviewable\s+)?hypotheses(?:\s+for\s+review)?$/i.test(
+          value,
+        ),
+    )
     .filter(Boolean);
 }
 
