@@ -22,8 +22,8 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 - The seven downstream agents are prompt-only review agents. They must set `useWorkspaceAgents: false` unless explicit orchestration is designed and approved.
 - `context-hub/` holds source-controlled templates for approved context artifacts. These are not the runtime injection layer.
 - `workspace-context/` holds maintainer reference text for Guild workspace context. Managed compact company-context briefs are owned by the Company Context Builder publish flow.
-- `guild-skills/` holds source markdown and catalog records for private Guild Skills. Skills contain reusable methods, not customer-specific facts.
 - `services/workspace-context-publish-bridge/` holds the host-controlled Blaxel bridge used for chat-native workspace-context publishing.
+- The suite has no Guild Skills source package or runtime dependency. Agents remain self-contained; do not recreate the archived private method skills without an approved architecture change.
 
 ## Workspace Context And Artifacts
 
@@ -31,7 +31,7 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 - The Company Context Builder drafts approved context artifacts and can publish a managed Guild workspace-context block after the exact two-step confirmation.
 - The full approved source corpus remains in Company Context Builder session state for audit. Do not publish the raw corpus into Guild workspace context.
 - The bridge handles workspace resolution, unmanaged-context preservation, managed-block replacement, draft creation, publish, and rollback metadata. The deployed agent should not call raw internal Guild workspace-context endpoints.
-- Downstream agents treat sources in this order: published Guild workspace context, approved context artifacts, current-session user input, activated Skills for methods, and approved connected data.
+- Downstream agents treat sources in this order: published Guild workspace context, approved context artifacts, current-session user input, and approved connected data.
 - Do not embed customer-specific facts into Agent Hub package behavior.
 - Run `npm run check:context` when changing `context-hub/`.
 
@@ -78,6 +78,6 @@ Before broad production use, add explicit orchestration, broader structured cont
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name confidential source artifacts, private people, buyers, or unconfirmed client details.
-- Keep `agents/`, `context-hub/`, `workspace-context/`, `guild-skills/`, and `services/` free of confidential source material.
+- Keep `agents/`, `context-hub/`, `workspace-context/`, and `services/` free of confidential source material.
 - If a detail came from private context, generalize it or keep it out of the repo.
 - Prefer fixture project names and generic platform labels over real client systems unless approved.

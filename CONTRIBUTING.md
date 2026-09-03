@@ -20,8 +20,6 @@ Contributions should improve one of these areas:
 - `agents/<agent>/agent.ts` files are the Guild-native agent sources.
 - `context-hub/` contains starter templates for approved company context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild workspace context.
-- `guild-skills/` contains source markdown for future Guild Skills.
-
 Do not recreate the old local lab, generated demo packets, or local-only exemplar packages.
 
 ## Public-Safety Rules
@@ -48,7 +46,7 @@ From the repo root:
 npm run verify
 ```
 
-When changing approved context artifacts, agent catalog entries, platform context, skill source, or Guild-native agent source, run verification before committing.
+When changing approved context artifacts, agent catalog entries, platform context, or Guild-native agent source, run verification before committing.
 
 For agent prompt or behavior changes, run the fast Guild smoke while iterating. It covers the Company Context Builder/chat UX paths and avoids the slower all-agent LLM packet suite:
 

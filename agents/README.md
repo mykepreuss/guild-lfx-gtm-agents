@@ -33,8 +33,8 @@ The seven specialists are self-contained coded draft/review agents. They use
 copied from `_shared/specialist-runtime.ts`. The runtime enforces the Marketing
 OS headings, evidence mode, typed safety envelope, approval gate, status
 payload, and handoff; it permits one format-only repair and never silently
-retries evidence or safety failures. Private Guild Skills are optional
-maintainer assets, not runtime dependencies.
+retries evidence or safety failures. The specialists have no Guild Skills
+runtime dependency.
 
 ## Intended Guild user flow
 

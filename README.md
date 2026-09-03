@@ -177,8 +177,8 @@ Blocked in V1:
 - Legal approval.
 - Treating artifact approval as execution approval.
 
-All public agents are self-contained. `guild-skills/` can remain useful to
-maintainers but is never an installation or runtime dependency.
+All public agents are self-contained and have no private Guild Skills runtime
+dependency.
 
 ## Repository Map
 
@@ -188,7 +188,6 @@ maintainers but is never an installation or runtime dependency.
 - `agents/<specialist>/` — the seven structured specialist packages.
 - `context-hub/` — approved context artifact templates.
 - `workspace-context/` — compact managed Workspace Context reference.
-- `guild-skills/` — optional maintainer references.
 - `scripts/` — local verification, evidence, benchmark, and guarded publishing.
 - `services/guild-marketing-os-state/` — contingency external adapter.
 - `services/workspace-context-publish-bridge/` — legacy private compatibility
