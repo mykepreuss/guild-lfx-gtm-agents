@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_social_monitoring_content",
   description:
     "Turns supplied or approved social and community signals into reviewable content plans and draft responses in Guild Chat without monitoring channels, publishing, scheduling, or engaging.",
   validateArtifact: (text, originalRequest) => {

@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_campaigns_paid_media",
   description:
     "Turns approved context, audiences, messaging, and constraints into a reviewable campaign-planning packet in Guild Chat without launching campaigns, changing spend, or activating audiences.",
   validateArtifact: (text, originalRequest) => {

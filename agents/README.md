@@ -22,9 +22,12 @@ artifact, and shows provenance and the next handoff in the originating chat.
 Only Launcher may delegate. It must never expose itself or arbitrary customer
 workspace agents as callable tools.
 
-Company Context Builder owns context setup and the exact two-step context
-publication gate. It reads current published workspace context before making a
-readiness claim. When a user asks for downstream work, Builder identifies
+Company Context Builder owns context drafting. Launcher owns artifact approval
+and the exact confirmation gate in the canonical cockpit, then returns an
+approved compact block for the user to publish in Guild's Context screen.
+Neither agent publishes Workspace Context automatically. Builder reads current
+published workspace context before making a readiness claim. When a user asks
+for downstream work, Builder identifies
 itself as context-only and directs the request to Launcher or the named
 specialist; it does not turn the instruction into a new company packet.
 
@@ -43,9 +46,13 @@ runtime dependency.
 3. Approve Launcher’s installation request for Context Builder.
 4. Approve each specialist request, one at a time.
 5. Continue in the same Chat with Launcher selected or @mentioned; no default-agent setting is required.
-6. Supply readable source through Context Builder, approve the artifact, and use the
-   exact publication phrase.
-7. Ask Launcher for specialist work and resume workstreams without repasting
+6. Supply readable source through Launcher, which routes it to Context Builder.
+   Approve the artifact in Launcher and send exactly
+   `publish approved context to workspace context`.
+7. Follow Launcher's instructions to preserve existing workspace notes, append
+   the approved block in Guild's Context screen, and click **Publish**.
+8. Start a new Launcher Chat to use the published context, then request specialist
+   work and resume workstreams within that Chat without repasting
    prior artifacts.
 
 The nine packages are intentionally public in Agent Hub so other Guild users
@@ -64,6 +71,12 @@ block the current public, draft-only suite.
   bindings are regenerated against that owner's eight capability agent IDs.
 - Do not imply that a Launcher-only fork automatically discovers or calls
   sibling forks.
+
+Canonical bindings are intentional, not an independent-suite fork guarantee.
+Installing or forking Launcher alone does not redirect calls to other agents
+owned by the installer. Keep the canonical bindings unless the maintainer
+explicitly chooses the fully independent suite workflow above; do not edit
+Guild-managed `guild.json` to attempt rebinding.
 
 ## Rules
 

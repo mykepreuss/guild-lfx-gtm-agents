@@ -497,7 +497,6 @@ const sourcePacketFieldLabels = [
 ].sort((a, b) => b.length - a.length);
 
 export default agent({
-  identifier: "guild_marketing_os_company_context_builder",
   description:
     "Turns supplied company information into a reviewable Marketing OS context foundation in Guild Chat without publishing Workspace Context or executing marketing actions.",
   inputSchema,

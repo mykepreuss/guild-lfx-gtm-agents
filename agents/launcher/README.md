@@ -56,9 +56,11 @@ Outside Chat, send a text payload such as:
 { "type": "text", "text": "Create an ICP from the approved company context" }
 ```
 
-Workspace Context publication requires an approved Company Context artifact and this exact second confirmation in the canonical Launcher Chat:
+Preparing Workspace Context for publication requires an approved Company Context artifact and this exact second confirmation in the canonical Launcher Chat:
 
 `publish approved context to workspace context`
+
+Launcher returns the approved compact block and instructions to preserve existing workspace notes, append the block in Guild's **Context** screen, and click **Publish**. The phrase does not publish automatically. Start a new Launcher Chat after publication to use the updated context.
 
 Deleting structured cockpit state also requires a separate exact confirmation:
 

@@ -18,7 +18,7 @@ Turns supplied company information into a reviewable Marketing OS context founda
 
 - Front door: use Marketing OS Launcher for the normal suite workflow; Launcher routes first-run context setup here.
 - Required before a review-ready artifact: a company name, approved description, primary audience, current marketing goal, approved channel scope, and an owner who can review them. Proof and brand guidance can be added later.
-- Next agent after approval: return to Launcher, publish the compact context through its separate confirmation gate, then request the relevant specialist.
+- Next agent after approval: return to Launcher for its separate confirmation gate, publish the prepared compact block in Guild's Context screen, then request the relevant specialist.
 
 Use a dedicated Marketing OS workspace so approved company context does not mix with unrelated product context.
 
@@ -51,9 +51,11 @@ Outside Chat, send a text payload such as:
 { "type": "text", "text": "Build a company-context foundation from the source text below: ..." }
 ```
 
-After the exact artifact revision is approved, Workspace Context publication occurs only from the canonical Launcher Chat with this exact phrase:
+After the exact artifact revision is approved in the canonical Launcher Chat, send this exact phrase there to prepare Workspace Context for publication:
 
 `publish approved context to workspace context`
+
+Launcher returns the approved compact block for the user to append in Guild's **Context** screen while preserving existing notes, then click **Publish**. Neither this phrase nor approval in a direct Builder Chat publishes automatically. Start a new Launcher Chat after publication to use the updated context.
 
 ## Output
 
@@ -67,7 +69,7 @@ Every substantial Company Context packet uses these sections in order:
 6. `Status Payload` — structured status, persistence state, source confidence, and readiness.
 7. `Downstream Handoff` — the next Marketing OS agent and what it can safely consume.
 
-Packet status is `needs_input`, `ready_for_review`, or `blocked`. Workspace Context remains unchanged until the separate Launcher confirmation succeeds.
+Packet status is `needs_input`, `ready_for_review`, or `blocked`. Workspace Context remains unchanged until the user publishes the prepared block in Guild's Context screen.
 
 ## Development
 

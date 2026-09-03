@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_icp",
   description:
     "Turns approved company context and market evidence into a reviewable ideal-customer-profile packet in Guild Chat without creating CRM records or activating audiences.",
   systemPrompt: `
