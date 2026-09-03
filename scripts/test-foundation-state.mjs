@@ -48,17 +48,21 @@ function createTask({
 }) {
   let state;
   let llmCalls = 0;
+  let saveCalls = 0;
+  let toolCalls = 0;
   const task = {
     sessionId,
     console,
     llm: {
-      async generateText() {
+      async generateText(input) {
         const response = llmTexts?.[llmCalls] ?? llmText;
         llmCalls += 1;
-        return { text: response };
+        if (response instanceof Error) throw response;
+        return { text: typeof response === "function" ? await response(input.prompt) : response };
       },
     },
     async save(nextState) {
+      saveCalls += 1;
       state = structuredClone(nextState);
     },
     async restore() {
@@ -66,6 +70,7 @@ function createTask({
     },
     tools: {
       async guild_get_session() {
+        toolCalls += 1;
         return {
           id: sessionId,
           workspace: {
@@ -88,6 +93,7 @@ function createTask({
         };
       },
       async guild_get_workspace() {
+        toolCalls += 1;
         const managedContext =
           workspaceReadMode === "published"
             ? [
@@ -130,6 +136,8 @@ function createTask({
     llmCallCount() {
       return llmCalls;
     },
+    saveCallCount() { return saveCalls; },
+    toolCallCount() { return toolCalls; },
   };
 }
 
@@ -1040,16 +1048,9 @@ assert.equal(
 
 {
   const semanticAction = JSON.stringify({
-    intent: "provide_or_answer_context",
-    candidate_refs: ["draft_1"],
-    approval_commitment: "none",
-    field_updates: [
-      {
-        field: "channels",
-        operation: "append",
-        supporting_span: "website and email",
-      },
-    ],
+    intent: "channel_update",
+    updates: [{ source_ref: "source_1", operation: "append", commitment: "confirmed", replaces: [],
+      values: [{ value: "website", supporting_span: "website" }, { value: "email", supporting_span: "email" }] }],
   });
   const llmTexts = ["not json", semanticAction];
   const harness = createTask({
@@ -1095,7 +1096,7 @@ assert.equal(
   );
   assert.deepEqual(
     harness.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels,
-    ["website and email"],
+    ["website", "email"],
   );
 }
 
@@ -1105,12 +1106,6 @@ assert.equal(
     workspaceReadMode: "missing",
     llmTexts: [
       "not json",
-      JSON.stringify({
-        intent: "persistence_status",
-        candidate_refs: ["draft_1"],
-        approval_commitment: "none",
-        field_updates: [],
-      }),
       JSON.stringify({
         intent: "approve_draft",
         candidate_refs: ["draft_1"],
@@ -1137,7 +1132,7 @@ assert.equal(
     { type: "text", text: "Tell me whether that got saved" },
     harness.task,
   );
-  assert.match(status.output.text, /retained in this Guild Chat|durably stored/i);
+  assert.match(status.output.text, /saved in this Chat/i);
   assert.equal(harness.readState().approvedOutput, undefined);
   const reviewed = await foundationAgent.start(
     { type: "text", text: "Looks good" },
@@ -1268,6 +1263,208 @@ for (const [approvalText, shouldApprove] of [
   );
   assert.match(result.output.text, /# Company Context Clarification/);
   assert.deepEqual(harness.readState(), before);
+}
+
+const { resolveChannelScope, channelSources } = await import(path.join(foundationDir, "dist/channel-resolution.js"));
+const { isPersistenceStatusQuestion, renderPersistenceStatus } = await import(path.join(foundationDir, "dist/persistence-status.js"));
+const channelBase = [
+  "Company name: Acme",
+  "Approved description: Acme organizes draft content and reviewer notes.",
+  "Primary audiences: marketing leaders.",
+  "Current marketing goal: improve message consistency.",
+  "Important constraints: Draft planning only; no customer outreach.",
+].join("\n");
+const channelUpdate = (values, { ref = "source_1", operation = "append", commitment = "confirmed", replaces = [] } = {}) => ({
+  source_ref: ref, operation, commitment,
+  values: values.map(value => ({ value, supporting_span: value })),
+  replaces: replaces.map(value => ({ value, supporting_span: value })),
+});
+const channelJson = (...updates) => JSON.stringify({ intent: "channel_update", updates });
+
+{
+  let calls = 0;
+  const task = { llm: { async generateText() { calls++; throw new Error("Exact labels must not call the LLM"); } } };
+  const exact = await resolveChannelScope([{ ref: "source_1", text: "Approved channels: website, Website and email." }], [], false, task);
+  assert.deepEqual(exact.channels, ["website", "email"]);
+  const qualified = await resolveChannelScope([{ ref: "source_1", text: "Channels: maybe LinkedIn later" }], ["website"], false, task);
+  assert.equal(qualified.kind, "clarify");
+  assert.equal(calls, 0);
+}
+
+// Direct answers retain unrelated fields even if extraction tries to overwrite them.
+{
+  const h = createTask({ sessionId: "natural-channel-source-packet", workspaceReadMode: "missing", llmTexts: [channelJson(channelUpdate(["website", "email"])), "not json"] });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels are website and email.` }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.equal(h.readState().lastOutput.status, "ready_for_review");
+}
+
+for (const [message, updates, expected] of [
+  ["Approved channels are website and email", channelUpdate(["website", "email"]), ["website", "email"]],
+  ["website and email", channelUpdate(["website", "email"]), ["website", "email"]],
+]) {
+  const answers = ["not json", channelJson(updates)];
+  const h = createTask({ sessionId: `channel-answer-${message.length}`, workspaceReadMode: "missing", llmTexts: answers });
+  await foundationAgent.start({ type: "text", text: channelBase }, h.task);
+  const before = h.readState();
+  const drift = structuredClone(before.lastOutput);
+  drift.contextArtifacts.companyContext.primaryAudiences = ["invented audience"];
+  drift.contextArtifacts.companyContext.goals = ["invented goal"];
+  answers.push(JSON.stringify(drift));
+  await foundationAgent.start({ type: "text", text: message }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, expected, message);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences, before.lastOutput.contextArtifacts.companyContext.primaryAudiences);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.goals, before.lastOutput.contextArtifacts.companyContext.goals);
+  assert.equal(h.readState().lastOutput.status, "ready_for_review");
+  assert.equal(h.llmCallCount(), 3, "one interpretation plus one extraction for the follow-up");
+}
+
+for (const [message, update, expected] of [
+  ["Add customer stories", channelUpdate(["customer stories"]), ["website", "email", "customer stories"]],
+  ["Add conferences", channelUpdate(["conferences"]), ["website", "email", "conferences"]],
+  ["Use only SMS", channelUpdate(["SMS"], { operation: "replace" }), ["SMS"]],
+  ["Use only website", channelUpdate(["website"], { operation: "replace" }), ["website"]],
+  ["Use blog instead of email", channelUpdate(["blog"], { operation: "replace", replaces: ["email"] }), ["website", "blog"]],
+  ["Email is not approved", channelUpdate(["Email"], { operation: "remove", commitment: "excluded" }), ["website"]],
+  ["Remove website and email", channelUpdate(["website", "email"], { operation: "remove", commitment: "excluded" }), []],
+]) {
+  const h = createTask({ sessionId: `channel-edit-${message}`, workspaceReadMode: "missing", llmTexts: ["not json", channelJson(update), "not json"] });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels: website and email.` }, h.task);
+  const before = h.readState().lastOutput.contextArtifacts.companyContext;
+  await foundationAgent.start({ type: "text", text: message }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, expected, message);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences, before.primaryAudiences);
+  if (!expected.length) assert.notEqual(h.readState().lastOutput.status, "ready_for_review");
+}
+
+// Failures and tentative declarations must not reach extraction or task.save.
+for (const [message, response] of [
+  ["website and email", channelJson(channelUpdate(["website", "email"]))], // ambiguous: audiences also missing
+  ["Maybe LinkedIn later", channelJson(channelUpdate(["LinkedIn"], { commitment: "tentative" }))],
+  ["Email is not approved", channelJson(channelUpdate(["Email"]))],
+  ["Use only website", channelJson(channelUpdate(["website"]))],
+  ["Approved channels are email", "not json"],
+  ["Approved channels are email", new Error("LLM unavailable")],
+  ["Approved channels are email", channelJson(channelUpdate(["email"], { ref: "unknown" }))],
+  ["Approved channels are email", channelJson(channelUpdate(["LinkedIn"]))],
+  ["Approved channels are email", channelJson(channelUpdate(["mail"]))],
+  ["Approved channels are email", channelJson(channelUpdate(["email"]), channelUpdate(["email"]))],
+]) {
+  const h = createTask({ sessionId: `channel-failure-${message}`, workspaceReadMode: "missing", llmTexts: ["not json", response] });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const before = h.readState();
+  const saves = h.saveCallCount();
+  const result = await foundationAgent.start({ type: "text", text: message }, h.task);
+  assert.match(result.output.text, /# Company Context Clarification/);
+  assert.deepEqual(h.readState(), before);
+  assert.equal(h.saveCallCount(), saves);
+  assert.equal(h.llmCallCount(), 2);
+}
+
+{
+  // One resolution call for the entire replay; latest replacement wins over old TBD and additions.
+  const text = `${channelBase}\nChannels in scope: TBD\n\n## Retained prior follow-up inputs\nApply these user inputs in order.\n### Follow-up 1\nApproved channels are website and email\n\n## Focused resume input\nUse blog instead of email`;
+  const { sources } = channelSources(text);
+  assert.equal(sources.length, 3);
+  assert.ok(sources.every(source => !source.text.includes("Apply these user inputs")));
+  let calls = 0;
+  const scope = await resolveChannelScope(sources, [], true, { llm: { async generateText() {
+    calls++;
+    return { text: channelJson(channelUpdate(["website", "email"], { ref: "source_2" }), channelUpdate(["blog"], { ref: "source_3", operation: "replace", replaces: ["email"] })) };
+  } } });
+  assert.equal(calls, 1);
+  assert.deepEqual(scope.channels, ["website", "blog"]);
+  const h = createTask({ sessionId: "cold-channel-replay", workspaceReadMode: "missing", llmTexts: [channelJson(channelUpdate(["website", "email"], { ref: "source_2" }), channelUpdate(["blog"], { ref: "source_3", operation: "replace", replaces: ["email"] })), "not json"] });
+  await foundationAgent.start({ type: "text", text }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "blog"]);
+  assert.equal(h.readState().lastOutput.status, "ready_for_review");
+}
+
+{
+  const h = createTask({ sessionId: "sole-channel-question", workspaceReadMode: "missing", llmTexts: ["not json", channelJson(channelUpdate(["website", "email"])), "not json"] });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const state = h.readState();
+  state.lastOutput.openQuestions = ["Which channels are approved for planning?"];
+  await h.task.save(state);
+  await foundationAgent.start({ type: "text", text: "website and email" }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+}
+
+{
+  const h = createTask({ sessionId: "channel-sensitive-followup", workspaceReadMode: "missing", llmTexts: ["not json", channelJson(channelUpdate(["website", "email"])), "not json"] });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved claims: Acme guarantees 100% uptime.` }, h.task);
+  await foundationAgent.start({ type: "text", text: "Approved channels are website and email" }, h.task);
+  assert.ok(h.readState().lastOutput.claimsNeedingApproval.some(item => /uptime/i.test(item.claim)));
+  assert.ok(!h.readState().lastOutput.contextArtifacts.proofAndConstraints.approvedClaims.some(item => /uptime/i.test(item.claim)));
+}
+
+// Persistence replies are reads: no state save, extraction, tools, or placeholder packet.
+{
+  const text = `${channelBase}\nChannels: TBD\n## Retained prior follow-up inputs\nApply these user inputs in order.\n### Follow-up 1\nMaybe LinkedIn later\n## Focused resume input\nApproved channels are website and email`;
+  const h = createTask({ sessionId: "cold-tentative-history", workspaceReadMode: "missing", llmTexts: [channelJson(channelUpdate(["LinkedIn"], { ref: "source_2", commitment: "tentative" }), channelUpdate(["website", "email"], { ref: "source_3" })), "not json"] });
+  await foundationAgent.start({ type: "text", text }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+}
+{
+  const h = createTask({ sessionId: "cold-bare-channel", workspaceReadMode: "missing", llmTexts: [channelJson(channelUpdate(["website", "email"], { ref: "source_2" })), "not json"] });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nChannels: TBD\n## Focused resume input\nwebsite and email` }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+}
+{
+  const h = createTask({ sessionId: "cold-ambiguous-channel", workspaceReadMode: "missing", llmTexts: [channelJson(channelUpdate(["website", "email"], { ref: "source_2" }))] });
+  const result = await foundationAgent.start({ type: "text", text: `${channelBase.replace("Primary audiences: marketing leaders.\n", "")}\n## Focused resume input\nwebsite and email` }, h.task);
+  assert.match(result.output.text, /Clarification/);
+  assert.equal(h.readState(), undefined);
+  assert.equal(h.saveCallCount(), 0);
+  assert.equal(h.llmCallCount(), 1);
+}
+
+for (const mode of ["empty", "draft", "approved", "incomplete", "historical", "inconsistent"]) {
+  const h = createTask({ sessionId: `status-${mode}`, workspaceReadMode: "missing" });
+  if (mode !== "empty") {
+    await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels: website.` }, h.task);
+    const state = h.readState();
+    if (mode === "approved") {
+      state.approvedOutput = structuredClone(state.lastOutput);
+      state.durableContextArtifactStatus = "approved";
+    }
+    if (mode === "incomplete") delete state.durableContextArtifactId;
+    if (mode === "inconsistent") state.durableContextArtifactStatus = "approved";
+    if (mode === "historical") {
+      state.workspaceContextId = "historical-context";
+      state.workspaceContextStatus = "published";
+      state.durablePublishedContextRevision = 1;
+    }
+    await h.task.save(state);
+  }
+  for (const text of ["Tell me whether that got saved", "Was it saved?", "Did it save?", "Has it been published", "Is it approved?"]) {
+    const before = h.readState();
+    const counts = [h.saveCallCount(), h.llmCallCount(), h.toolCallCount()];
+    const result = await foundationAgent.start({ type: "text", text }, h.task);
+    assert.match(result.output.text, /^# Company Context Status/);
+    assert.doesNotMatch(result.output.text, /TBD|needs_input|## Produced Artifact|## Approval Gate|encrypted|durably/);
+    assert.deepEqual(h.readState(), before);
+    assert.deepEqual([h.saveCallCount(), h.llmCallCount(), h.toolCallCount()], counts);
+    if (mode === "empty") assert.match(result.output.text, /No Company Context draft/);
+    if (mode === "approved") assert.match(result.output.text, /this revision is approved/);
+    if (mode === "historical") assert.match(result.output.text, /does not establish that the latest draft is published/);
+    if (["incomplete", "inconsistent"].includes(mode)) assert.match(result.output.text, /incomplete or inconsistent/);
+  }
+}
+assert.doesNotMatch(renderPersistenceStatus({}), /revision|encrypted|durably/);
+for (const text of ["Save this", "Approve it", "Show me the approved claims", "Tell me whether it saved then approve it"]) {
+  assert.equal(isPersistenceStatusQuestion(text), false, text);
+}
+{
+  const h = createTask({ sessionId: "semantic-read-only-status", workspaceReadMode: "missing", llmTexts: ["not json", JSON.stringify({ intent: "persistence_status", candidate_refs: ["draft_1"], approval_commitment: "none", field_updates: [] })] });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels: website.` }, h.task);
+  const before = h.readState();
+  const saves = h.saveCallCount();
+  const result = await foundationAgent.start({ type: "text", text: "Any update on persistence?" }, h.task);
+  assert.match(result.output.text, /# Company Context Status/);
+  assert.deepEqual(h.readState(), before);
+  assert.equal(h.saveCallCount(), saves);
+  assert.equal(h.llmCallCount(), 2);
 }
 
 console.log(

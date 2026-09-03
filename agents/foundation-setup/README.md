@@ -10,6 +10,8 @@ Turns supplied company information into a reviewable Marketing OS context founda
 - Retains source text, artifact revision, and approval state in the direct Builder Chat.
 - Accepts short, conversational answers to outstanding questions and reconciles them with the retained draft instead of requiring a complete packet on every turn.
 - Understands natural edit and persistence-status requests while keeping approval, evidence, and publication transitions explicit.
+- Resolves confirmed planning channels from natural answers in direct Chat and Launcher resumes; tentative suggestions do not become approved channel scope.
+- Answers persistence questions with a concise status receipt, without creating a draft, changing approval, or checking workspace-wide publication.
 - Produces a compact Workspace Context candidate for review and a handoff to downstream Marketing OS agents.
 - Does **not** publish Workspace Context from a direct Builder Chat, install agents, schedule work, spend budget, or mutate external systems.
 - Never turns artifact approval into execution approval or fills missing company facts from model background knowledge.
@@ -41,7 +43,10 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 - `What company-context information is still missing?` — returns focused gaps without inventing answers.
 - `Marketing leaders at B2B SaaS companies` — can answer a pending audience question without repeating the other company fields.
 - `Remove developers from the audience` — revises only the named field and preserves the rest of the retained source.
-- `Tell me whether that got saved` — reports persistence state without creating a new draft.
+- `Approved channels are website and email` — records two planning channels while preserving the other company fields.
+- `website and email` — answers a channel question only when it is the sole outstanding question or channel scope is the sole unresolved core field; otherwise Builder clarifies.
+- `Add customer stories` — adds a planning channel. `Use website instead of email` replaces only email; `Use only website` replaces the entire channel scope.
+- `Tell me whether that got saved` — returns a short `Company Context Status` receipt with the stored artifact reference, approval state, and any recorded publication receipt. It does not create or change a draft. Historical publication receipts do not prove that the latest draft is published.
 - `Approve Company Context Builder artifact revision 1` — when sent through Launcher, approves only the named artifact revision.
 - `Approve it` — explicitly approves the current uniquely resolved review-ready draft; `Looks good` alone does not approve it.
 
@@ -59,7 +64,7 @@ Launcher returns the approved compact block for the user to append in Guild's **
 
 ## Output
 
-Every substantial Company Context packet uses these sections in order:
+Full Company Context draft packets use these sections in order; read-only persistence questions use the compact `Company Context Status` response instead:
 
 1. `Consumed Context` — supplied sources, conversation intent, and missing inputs.
 2. `Produced Artifact` — context drafts, save and approval state, Workspace Context candidate, and downstream context.

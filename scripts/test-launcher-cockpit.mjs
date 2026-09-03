@@ -1017,6 +1017,71 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
   assert.equal(chat.specialistCallCount(), 1);
 }
 
+// Feed the actual Launcher envelope into fresh Builder tasks, not canned specialist prose.
+{
+  const foundationDir = path.join(process.cwd(), "agents/foundation-setup");
+  const foundationBuild = spawnSync("npm", ["run", "build"], { cwd: foundationDir, encoding: "utf8" });
+  assert.equal(foundationBuild.status, 0, foundationBuild.stdout + foundationBuild.stderr);
+  const { default: builder } = await import(path.join(foundationDir, "dist/agent.js"));
+  const builderStates = [];
+  const chat = createChat({
+    sessionId: "real-builder-channel-resume",
+    specialist: async (input, call) => {
+      let saved;
+      let llmCalls = 0;
+      const result = await builder.start(input, {
+        sessionId: `fresh-builder-${call}`,
+        async restore() { return undefined; },
+        async save(state) { saved = structuredClone(state); },
+        tools: {
+          async guild_get_session() { throw new Error("No workspace lookup expected"); },
+          async guild_get_workspace() { throw new Error("No workspace lookup expected"); },
+        },
+        llm: { async generateText({ prompt }) {
+          llmCalls++;
+          if (prompt.startsWith("Resolve planning channel scope")) {
+            assert.equal(call, 2);
+            assert.match(prompt, /source_2/);
+            return { text: JSON.stringify({ intent: "channel_update", updates: [{
+              source_ref: "source_2", operation: "append", commitment: "confirmed", replaces: [],
+              values: ["website", "email"].map(value => ({ value, supporting_span: value })),
+            }] }) };
+          }
+          return { text: "not json" }; // Exercise deterministic fallback and guards.
+        } },
+      });
+      assert.equal(llmCalls, call === 1 ? 1 : 2);
+      builderStates.push(saved);
+      return result.output;
+    },
+    llmResponses: [JSON.stringify({ intent: "answer_pending_workflow", candidate_refs: ["workflow_1"], approval_commitment: "none" })],
+  });
+  const source = [
+    "Help me set up company context.",
+    "Company name: Acme",
+    "Approved description: Acme organizes draft content and reviewer notes.",
+    "Primary audiences: marketing leaders.",
+    "Current marketing goal: improve message consistency.",
+    "Channels in scope: TBD",
+    "Important constraints: Draft planning only.",
+  ].join("\n");
+  await launcher.run({ type: "text", text: source }, chat.task);
+  const before = chat.readState();
+  assert.equal(before.runs[0].status, "needs_input");
+  await launcher.run({ type: "text", text: "Approved channels are website and email" }, chat.task);
+  const after = chat.readState();
+  assert.match(chat.specialistInputs[1].text, /## Focused resume input\nApproved channels are website and email/);
+  assert.equal(after.runs.length, 1);
+  assert.equal(after.runs[0].run_id, before.runs[0].run_id);
+  assert.equal(after.runs[0].artifact_id, before.runs[0].artifact_id);
+  assert.equal(after.runs[0].artifact_revision, 2);
+  assert.equal(after.runs[0].status, "ready_for_review");
+  assert.equal(chat.specialistCallCount(), 2);
+  assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.primaryAudiences, builderStates[0].lastOutput.contextArtifacts.companyContext.primaryAudiences);
+  assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.goals, builderStates[0].lastOutput.contextArtifacts.companyContext.goals);
+}
+
 console.log(
   "Launcher Guild-native canonical cockpit, approval, Context UI handoff, export, deletion, resume, repair, and fail-closed tests OK.",
 );
