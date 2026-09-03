@@ -475,6 +475,7 @@ const sourcePacketFieldLabels = [
   "Approved facts",
   "Claims approved for reuse",
   "Channels in scope",
+  "Approved draft channels",
   "Approved channels",
   "Channel scope",
   "Channels",
@@ -977,18 +978,7 @@ function isAttachmentUnreadableTurn(rawContext: string): boolean {
 
 function hasUsableSourceContent(rawContext: string): boolean {
   const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
-  const fieldCount = [
-    "Approved company description",
-    "Approved description",
-    "Company description",
-    "Primary audiences",
-    "Current goals",
-    "Proof-backed claims",
-    "Proof points",
-    "Evidence",
-    "Channels in scope",
-    "Anything not approved",
-  ].filter((label) => new RegExp(`^\\s*(?:[-*]\\s*)?${escapeRegExp(label)}\\s*:`, "im").test(rawContext)).length;
+  const fieldCount = countFieldedSourceLabels(rawContext);
 
   if (fieldCount >= 2) return true;
   if (sourceDocumentHeadingPattern(rawContext) && wordCount >= 30) return true;
@@ -1002,19 +992,30 @@ function isSparseSetupRequest(rawContext: string): boolean {
 }
 
 function hasFieldedSourcePacket(rawContext: string): boolean {
-  const fieldCount = [
+  return countFieldedSourceLabels(rawContext) >= 2;
+}
+
+function countFieldedSourceLabels(rawContext: string): number {
+  return [
     "Approved company description",
     "Approved description",
     "Company description",
     "Primary audiences",
+    "Current marketing goal",
     "Current goals",
     "Proof-backed claims",
     "Proof points",
     "Evidence",
     "Channels in scope",
+    "Approved draft channels",
+    "Approved channels",
     "Anything not approved",
-  ].filter((label) => new RegExp(`^\\s*(?:[-*]\\s*)?${escapeRegExp(label)}\\s*:`, "im").test(rawContext)).length;
-  return fieldCount >= 2;
+  ].filter((label) =>
+    new RegExp(
+      `(?:^|[.;。]\\s*)${escapeRegExp(label)}\\s*:`,
+      "im",
+    ).test(rawContext),
+  ).length;
 }
 
 function sourceDocumentHeadingPattern(rawContext: string): boolean {
@@ -1775,7 +1776,7 @@ function finalizeCompleteMarketerContextPacket(
 function extractMarketerContextPacket(
   rawContext: string,
 ): MarketerContextPacket | undefined {
-  const companyName = extractCompanyName(rawContext);
+  const initialCompanyName = extractCompanyName(rawContext);
   const description =
     extractLineAfterLabels(rawContext, [
       "Approved company description",
@@ -1783,20 +1784,25 @@ function extractMarketerContextPacket(
       "Company description",
       "Product description",
       "Description",
-    ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
+    ]) ?? extractCompanyDescriptionFromProse(rawContext, initialCompanyName);
+  const companyName =
+    initialCompanyName ?? extractCompanyNameFromDescription(description);
   const audiences = extractListAfterLabels(rawContext, [
     "Primary audiences",
     "Primary audience",
     "Audiences",
     "Audience",
   ]);
-  const goals = extractBlockAfterLabels(rawContext, [
+  const goalLabels = [
     "Current marketing goal",
     "Marketing goal",
     "Current goals",
     "Goals",
-  ]);
-  const approvedClaims = extractBlockAfterLabels(rawContext, [
+  ] as const;
+  const goals = extractBlockAfterLabels(rawContext, goalLabels);
+  const inlineGoal = extractLineAfterLabels(rawContext, goalLabels);
+  if (goals.length === 0 && inlineGoal) goals.push(inlineGoal);
+  const approvedClaimLabels = [
     "Approved claims",
     "Approved facts",
     "Claims approved for reuse",
@@ -1804,18 +1810,29 @@ function extractMarketerContextPacket(
     "Proof-backed claims",
     "Approved proof",
     "Proof points",
-  ]);
+  ] as const;
+  const approvedClaims = extractBlockAfterLabels(rawContext, approvedClaimLabels);
+  const inlineApprovedClaims = extractLineAfterLabels(rawContext, approvedClaimLabels);
+  if (approvedClaims.length === 0 && inlineApprovedClaims) {
+    approvedClaims.push(inlineApprovedClaims);
+  }
   const channels = extractListAfterLabels(rawContext, [
     "Channels in scope",
+    "Approved draft channels",
     "Approved channels",
     "Channel scope",
     "Channels",
   ]);
-  const constraints = extractBlockAfterLabels(rawContext, [
+  const constraintLabels = [
     "Important constraints",
     "Constraints",
     "Anything not approved for reuse",
-  ]);
+  ] as const;
+  const constraints = extractBlockAfterLabels(rawContext, constraintLabels);
+  const inlineConstraints = extractLineAfterLabels(rawContext, constraintLabels);
+  if (constraints.length === 0 && inlineConstraints) {
+    constraints.push(inlineConstraints);
+  }
 
   if (
     !companyName ||
@@ -4374,6 +4391,15 @@ function extractCompanyDescriptionFromProse(
     return line.replace(/[.。]+$/, "").trim() || undefined;
   }
   return undefined;
+}
+
+function extractCompanyNameFromDescription(
+  description: string | undefined,
+): string | undefined {
+  const match = description?.match(
+    /^([A-Z][A-Za-z0-9 .&'’.-]{1,80}?)\s+(?:is|provides|offers|helps|builds|creates|develops)\b/,
+  );
+  return match?.[1] ? cleanExtractedName(match[1]) : undefined;
 }
 
 function cleanExtractedName(value: string): string | undefined {

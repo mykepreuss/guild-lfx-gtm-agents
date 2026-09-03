@@ -210,6 +210,31 @@ function guildChatEnvelope(text) {
 }
 
 {
+  const harness = createTask({
+    sessionId: "foundation-single-paragraph-cmo-baseline",
+    workspaceReadMode: "missing",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: "Approved company description: Guild provides a platform for creating and discovering AI agents. Primary audiences: AI leaders, AI platform leaders, developer relations teams, and governance/security stakeholders; treat these as hypotheses for review. Current marketing goal: improve agent discovery and grow agent-driven traffic while keeping AI-spend governance clear. Approved draft channels: website, LinkedIn, and sales enablement.",
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "ready_for_review");
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.some(
+      (claim) => claim.source === "sensitive_claim_guardrail",
+    ),
+    false,
+    "a natural one-paragraph baseline must not route audience and goal text through the sensitive-claim fallback",
+  );
+  assert.match(result.output.text, /Company: Guild/);
+  assert.match(result.output.text, /website/);
+}
+
+{
   const harness = createTask({ sessionId: "foundation-managed-refresh" });
   const result = await foundationAgent.start(
     {
