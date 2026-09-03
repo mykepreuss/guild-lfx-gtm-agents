@@ -81,12 +81,18 @@ Company Context Builder will show:
 - What remains unapproved or needs evidence.
 - What it needs from you next.
 
+You can answer those questions one at a time in ordinary language. You do not
+need to repeat the template or say “resume.” You can also say things like
+“Remove developers from the audience” or “Tell me whether that got saved.”
+
 When the essentials are present—company description, audiences, marketing
 goal, channel scope, and constraints—the baseline is ready to approve. Missing
 case studies, proof points, brand guidance, or other useful detail appears as
 an optional improvement, not homework that prevents you from starting.
 
-Review the summary and use the exact approval command shown by Launcher. Then
+Review the summary and either use the exact approval command shown by Launcher
+or give an explicit natural approval such as “Approve this.” Positive sentiment
+such as “Looks good” does not approve an artifact. Then
 send the separate context-publication phrase. Launcher returns one compact,
 copyable approved block and these final Guild steps:
 
@@ -99,6 +105,10 @@ Guild currently requires that last publish action in the Context screen; the
 agent does not ask for a token or publish with a maintainer credential. You can
 add or revise company context later as the work evolves. Marketing OS keeps
 artifact approval separate from publishing that brief to the workspace.
+
+You can retrieve any stored draft naturally—for example, “Can I see the latest
+messaging draft?” or “What did we settle on for ICP?” Read-only retrieval does
+not rerun a specialist or change state.
 
 ## Request Marketing Work
 

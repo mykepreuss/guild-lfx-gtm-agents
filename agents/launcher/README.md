@@ -6,11 +6,13 @@ Routes draft-only marketing work to a focused public Guild agent suite, returns 
 
 - Routes company-context, market-signal, ICP, segmentation, messaging, brand and pitch, social-content, and campaign requests to eight explicit suite agents.
 - Uses an LLM classifier plus workspace readiness to understand natural first messages such as `Let's get started` and `I'm ready`; explicit safety and workflow commands remain deterministic.
+- Uses closed-schema semantic interpretation to connect short follow-up answers to the correct waiting workstream without requiring `resume` or `continue`.
 - Reads published Workspace Context before deciding whether company context is missing.
 - Keeps runs, artifact revisions, approvals, workstreams, handoffs, and an audit trail in this Chat's Guild task state.
 - Returns a concise Company Context follow-up when core input is missing; the full validated artifact remains available through an explicit read-only retrieval command.
 - Returns a summary, the complete validated specialist draft, its evidence mode, and the next review action for review-ready and non-context specialist work.
 - Supports cockpit status, export, focused resume, artifact approval, and confirmed deletion of structured cockpit state.
+- Retrieves stored artifacts for every workstream from natural requests and resolves explicit natural approvals to one deterministic artifact revision.
 - Does **not** publish content, schedule work, spend budget, change CRM data, configure credentials, or make legal decisions.
 - Never treats artifact approval as permission to execute an external action.
 
@@ -42,7 +44,10 @@ Use a dedicated Marketing OS workspace so its context and cockpit are not mixed 
 - `Show Marketing OS cockpit status` — lists workstreams, artifact revisions, blockers, and next actions retained in this Chat.
 - `Show current Company Context draft` — retrieves the complete latest Company Context artifact without changing Workspace Context.
 - `Show Company Context artifact revision 1` — retrieves one exact retained revision.
+- `Can I see the latest messaging draft?` — retrieves the latest stored Messaging artifact without running the specialist again.
+- `What did we settle on for ICP?` — retrieves the matching stored ICP artifact when the target is unambiguous.
 - `Approve Messaging artifact revision 1` — approves only the exact stored draft revision named in the request.
+- `Approve this` — approves the uniquely resolved review-ready artifact; positive sentiment such as `Looks good` asks for explicit approval and does not change state.
 - `Export the Marketing OS cockpit` — returns the structured cockpit as JSON in Chat.
 
 Outside Chat, send a text payload such as:

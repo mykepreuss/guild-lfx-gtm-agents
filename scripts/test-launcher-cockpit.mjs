@@ -134,6 +134,7 @@ function createChat({
   initialContexts,
   failSave = false,
   failInstallAtCall,
+  llmResponses = [],
 }) {
   let state = initialState;
   let specialistCalls = 0;
@@ -141,6 +142,8 @@ function createChat({
   const installationAgentIds = [];
   const notifications = [];
   const specialistInputs = [];
+  const llmPrompts = [];
+  let llmCall = 0;
   const contexts = initialContexts ?? [
     {
       id: "context-original",
@@ -194,8 +197,16 @@ function createChat({
       marketing_os_campaigns_paid_media: specialistTool,
     },
     llm: {
-      async generateText() {
-        return { text: "guide" };
+      async generateText({ prompt }) {
+        llmPrompts.push(prompt);
+        const response = llmResponses[llmCall];
+        llmCall += 1;
+        return {
+          text:
+            typeof response === "function"
+              ? await response(prompt)
+              : response ?? "guide",
+        };
       },
     },
     async restore() {
@@ -225,6 +236,9 @@ function createChat({
     },
     notifications() {
       return [...notifications];
+    },
+    llmPrompts() {
+      return [...llmPrompts];
     },
   };
 }
@@ -759,6 +773,200 @@ function launcherInput(request, context = managedContext) {
   );
   assert.match(result.text, /durable retention could not be confirmed/);
   assert.equal(specialistCalls, 1);
+}
+
+for (const [createRequest, readRequest, expectedWorkstream] of [
+  ["Create messaging.", "Can I see the latest messaging draft?", "Messaging"],
+  ["Create an ICP.", "What did we settle on for ICP?", "ICP"],
+  ["Create a campaign.", "Open the latest campaign plan.", "Campaigns And Paid Media"],
+]) {
+  const chat = createChat({
+    sessionId: `semantic-read-${expectedWorkstream}`,
+    specialist: async () => ({ type: "text", text: validArtifact }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "read_artifact",
+        candidate_refs: ["artifact_1"],
+        approval_commitment: "none",
+      }),
+    ],
+  });
+  await launcher.run(launcherInput(createRequest), chat.task);
+  const read = await launcher.run(launcherInput(readRequest), chat.task);
+  assert.match(read.text, /# Marketing OS Artifact/);
+  assert.match(read.text, new RegExp(`Workstream: ${expectedWorkstream}`));
+  assert.match(read.text, /Revision: 1/);
+  assert.match(read.text, /Read-only retrieval/);
+  assert.equal(chat.specialistCallCount(), 1);
+}
+
+{
+  const approvalText = "Approve this.";
+  const chat = createChat({
+    sessionId: "semantic-explicit-approval",
+    specialist: async () => ({ type: "text", text: validArtifact }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "approve_artifact",
+        candidate_refs: ["artifact_1"],
+        approval_commitment: "explicit",
+      }),
+    ],
+  });
+  await launcher.run(launcherInput("Create messaging."), chat.task);
+  const approved = await launcher.run(
+    launcherInput(approvalText),
+    chat.task,
+  );
+  assert.match(approved.text, /# Marketing OS Approval/);
+  assert.equal(chat.readState().artifacts[0].status, "approved");
+  assert.equal(
+    chat.readState().artifacts[0].approvals[0].exact_approval_text,
+    approvalText,
+  );
+}
+
+{
+  const chat = createChat({
+    sessionId: "semantic-implicit-approval",
+    specialist: async () => ({ type: "text", text: validArtifact }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "approve_artifact",
+        candidate_refs: ["artifact_1"],
+        approval_commitment: "implicit",
+      }),
+    ],
+  });
+  await launcher.run(launcherInput("Create messaging."), chat.task);
+  const reviewed = await launcher.run(
+    launcherInput("Looks good."),
+    chat.task,
+  );
+  assert.match(reviewed.text, /# Marketing OS Approval Check/);
+  assert.match(reviewed.text, /Approve it/);
+  assert.equal(chat.readState().artifacts[0].status, "ready_for_review");
+  assert.equal(chat.readState().artifacts[0].approvals.length, 0);
+}
+
+{
+  const chat = createChat({
+    sessionId: "semantic-negated-approval",
+    specialist: async () => ({ type: "text", text: validArtifact }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "approve_artifact",
+        candidate_refs: ["artifact_1"],
+        approval_commitment: "explicit",
+      }),
+    ],
+  });
+  await launcher.run(launcherInput("Create messaging."), chat.task);
+  const reviewed = await launcher.run(
+    launcherInput("Do not approve Messaging artifact revision 1."),
+    chat.task,
+  );
+  assert.match(reviewed.text, /# Marketing OS Approval Check/);
+  assert.equal(chat.readState().artifacts[0].status, "ready_for_review");
+}
+
+{
+  const chat = createChat({
+    sessionId: "semantic-natural-resume",
+    specialist: async (_input, call) => ({
+      type: "text",
+      text: call === 1 ? needsInputArtifact : validArtifact,
+    }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "answer_pending_workflow",
+        candidate_refs: ["workflow_1"],
+        approval_commitment: "none",
+      }),
+    ],
+  });
+  await launcher.run(
+    launcherInput("Create messaging for the approved audience."),
+    chat.task,
+  );
+  const resumed = await launcher.run(
+    launcherInput("Customer interviews are the proof source."),
+    chat.task,
+  );
+  assert.match(resumed.text, /Handled by: Messaging/);
+  assert.equal(chat.readState().runs.length, 1);
+  assert.equal(chat.specialistCallCount(), 2);
+  assert.match(chat.specialistInputs[1].text, /Focused resume input/);
+  assert.equal(chat.readState().artifacts.at(-1).revision, 2);
+}
+
+{
+  const chat = createChat({
+    sessionId: "semantic-multiple-pending-workflows",
+    specialist: async (_input, call) => ({
+      type: "text",
+      text: call < 3 ? needsInputArtifact : validArtifact,
+    }),
+    llmResponses: [
+      JSON.stringify({
+        intent: "new_workflow_request",
+        candidate_refs: [],
+        approval_commitment: "none",
+      }),
+      JSON.stringify({
+        intent: "unclear",
+        candidate_refs: [],
+        approval_commitment: "none",
+      }),
+      JSON.stringify({
+        intent: "answer_pending_workflow",
+        candidate_refs: ["workflow_2"],
+        approval_commitment: "none",
+      }),
+    ],
+  });
+  await launcher.run(launcherInput("Create messaging."), chat.task);
+  await launcher.run(launcherInput("Create an ICP instead."), chat.task);
+  assert.equal(chat.readState().runs.length, 2);
+  assert.equal(chat.specialistCallCount(), 2);
+  const before = chat.readState();
+  const ambiguous = await launcher.run(
+    launcherInput("Here is some more detail."),
+    chat.task,
+  );
+  assert.match(ambiguous.text, /clarification required; no state changed/);
+  assert.deepEqual(chat.readState(), before);
+  const resumed = await launcher.run(
+    launcherInput("Customer interviews are the proof source for messaging."),
+    chat.task,
+  );
+  assert.match(resumed.text, /Handled by: Messaging/);
+  assert.equal(chat.specialistCallCount(), 3);
+  assert.equal(
+    chat.readState().runs.find((run) => run.route === "messaging").status,
+    "ready_for_review",
+  );
+  assert.equal(
+    chat.readState().runs.find((run) => run.route === "icp").status,
+    "needs_input",
+  );
+}
+
+{
+  const chat = createChat({
+    sessionId: "semantic-malformed-clarification",
+    specialist: async () => ({ type: "text", text: validArtifact }),
+    llmResponses: ["not json"],
+  });
+  await launcher.run(launcherInput("Create messaging."), chat.task);
+  const before = chat.readState();
+  const clarified = await launcher.run(
+    launcherInput("Can I see what we just made?"),
+    chat.task,
+  );
+  assert.match(clarified.text, /clarification required; no state changed/);
+  assert.deepEqual(chat.readState(), before);
+  assert.equal(chat.specialistCallCount(), 1);
 }
 
 console.log(

@@ -58,8 +58,13 @@ import {
   type SerializableSessionCockpit,
   type WorkflowRun,
   type WorkstreamRecord,
+  type ArtifactRecord,
 } from "./launcher-state.js";
 import { suitePackageBindings } from "./suite-binding.js";
+import {
+  resolveLauncherSemanticAction,
+  type LauncherSemanticCandidate,
+} from "./semantic-intent.js";
 
 export {
   classifyRoute,
@@ -148,18 +153,6 @@ async function run(
     await task.save(cockpit.state);
     return output;
   }
-  if (isCompanyContextArtifactReadRequest(userText)) {
-    return {
-      type: "text",
-      text: renderCompanyContextArtifactRead(userText, cockpit),
-    };
-  }
-  if (isCockpitExportRequest(userText)) {
-    return {
-      type: "text",
-      text: renderCockpitExport(cockpit),
-    };
-  }
   if (isExactCockpitDeleteConfirmation(userText)) {
     const deletedSessionId =
       cockpit.state.canonical_session_id ?? task.sessionId;
@@ -189,12 +182,145 @@ async function run(
     };
   }
 
+  const deterministicPreflight = deterministicRoute(userText);
+  if (deterministicPreflight === "blocked") {
+    return {
+      type: "text",
+      text: renderBlocked(
+        "V1 is draft-only. Publishing, scheduling, spend, CRM mutation, credential setup, legal approval, recursive delegation, and arbitrary-agent invocation are not supported. The only supported Guild product mutation is approved Workspace Context publication after the exact confirmation phrase.",
+      ),
+    };
+  }
+
+  if (isCompanyContextArtifactReadRequest(userText)) {
+    return {
+      type: "text",
+      text: renderCompanyContextArtifactRead(userText, cockpit),
+    };
+  }
+  if (isCockpitExportRequest(userText)) {
+    return {
+      type: "text",
+      text: renderCockpitExport(cockpit),
+    };
+  }
+
+  const exactApproval = parseArtifactApprovalRequest(userText);
+  if (
+    exactApproval.requested &&
+    exactApproval.revision &&
+    (exactApproval.route || exactApproval["artifactId"]) &&
+    !hasUnsafeNaturalApprovalLanguage(userText)
+  ) {
+    const output = approveCockpitArtifact(
+      extractArtifactApprovalText(userText),
+      exactApproval,
+      cockpit,
+    );
+    await task.save(cockpit.state);
+    return output;
+  }
+
+  let semanticResumeRunId: string | undefined;
+  let semanticResumeRoute: DelegatedRoute | undefined;
+  const semanticCandidates = buildLauncherSemanticCandidates(cockpit);
+  if (shouldResolveLauncherSemantically(userText, semanticCandidates)) {
+    const semanticAction = await resolveLauncherSemanticAction(
+      userText,
+      semanticCandidates,
+      task,
+    );
+    if (!semanticAction || semanticAction.intent === "unclear") {
+      return {
+        type: "text",
+        text: renderSemanticClarification(semanticCandidates),
+      };
+    }
+
+    if (
+      semanticAction.intent === "read_artifact" ||
+      semanticAction.intent === "approve_artifact"
+    ) {
+      const selected = resolveOneSemanticArtifact(
+        semanticAction.candidate_refs,
+        semanticCandidates,
+        cockpit,
+      );
+      if (!selected) {
+        return {
+          type: "text",
+          text: renderArtifactChoices(cockpit, semanticAction.intent),
+        };
+      }
+      if (semanticAction.intent === "read_artifact") {
+        return {
+          type: "text",
+          text: renderArtifactRead(selected.artifact, selected.specialist),
+        };
+      }
+      if (
+        !["ready_for_review", "approved"].includes(selected.artifact.status)
+      ) {
+        return {
+          type: "text",
+          text: renderArtifactChoices(cockpit, "approve_artifact"),
+        };
+      }
+      if (
+        semanticAction.approval_commitment !== "explicit" ||
+        hasUnsafeNaturalApprovalLanguage(userText)
+      ) {
+        return {
+          type: "text",
+          text: renderNaturalApprovalConfirmation(
+            selected.artifact,
+            selected.specialist,
+          ),
+        };
+      }
+      const output = approveCockpitArtifact(
+        userText.trim(),
+        {
+          requested: true,
+          route: selected.route,
+          revision: selected.artifact.revision,
+          artifactId: selected.artifact.artifact_id,
+        },
+        cockpit,
+      );
+      await task.save(cockpit.state);
+      return output;
+    }
+
+    if (semanticAction.intent === "answer_pending_workflow") {
+      const selected = resolveOneSemanticWorkflow(
+        semanticAction.candidate_refs,
+        semanticCandidates,
+        cockpit.state.runs,
+      );
+      if (!selected || !(selected.route in routeConfig)) {
+        return {
+          type: "text",
+          text: renderSemanticClarification(semanticCandidates),
+        };
+      }
+      semanticResumeRunId = selected.run_id;
+      semanticResumeRoute = selected.route as DelegatedRoute;
+    }
+  }
+
   const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
   const installed = installedSuiteAgents(workspaceAgents);
-  const classification = await classifyRoute(userText, task, {
-    suiteReady: installed.length === suiteInstallOrder.length,
-    contextReady: context.ready,
-  });
+  const classification = semanticResumeRoute
+    ? {
+        route: semanticResumeRoute,
+        classifierAttempts: [],
+        routingReason: "semantic_pending_workflow_resume",
+      }
+    : await classifyRoute(userText, task, {
+        suiteReady: installed.length === suiteInstallOrder.length,
+        contextReady: context.ready,
+      });
 
   if (classification["route"] === "blocked") {
     return {
@@ -333,8 +459,12 @@ async function run(
   let requestText = userText;
   let resumingNeedsInput = false;
 
-  if (resumeRequested(userText)) {
-    currentRun = findResumableRun(cockpit.state.runs, route);
+  if (semanticResumeRunId || resumeRequested(userText)) {
+    currentRun = semanticResumeRunId
+      ? cockpit.state.runs.find(
+          (candidate) => candidate.run_id === semanticResumeRunId,
+        )
+      : findResumableRun(cockpit.state.runs, route);
     if (currentRun) {
       resumingNeedsInput =
         currentRun.status === "needs_input" ||
@@ -1366,6 +1496,241 @@ function renderCockpitExport(cockpit: SerializableSessionCockpit): string {
     "```",
     "",
     "No external action was performed.",
+  ].join("\n");
+}
+
+function buildLauncherSemanticCandidates(
+  cockpit: SerializableSessionCockpit,
+): LauncherSemanticCandidate[] {
+  const artifacts = semanticArtifacts(cockpit);
+  const workflows = semanticWorkflows(cockpit.state.runs);
+  return [
+    ...artifacts.map(({ artifact, specialist }, index) => ({
+      ref: `artifact_${index + 1}`,
+      kind: "artifact" as const,
+      workstream: specialist,
+      revision: artifact.revision,
+      status: artifact.status,
+      is_last_run: cockpit.state.runs.some(
+        (run) =>
+          run.run_id === cockpit.state.last_run_id &&
+          run.artifact_id === artifact.artifact_id &&
+          run.artifact_revision === artifact.revision,
+      ),
+    })),
+    ...workflows.map((run, index) => ({
+      ref: `workflow_${index + 1}`,
+      kind: "workflow" as const,
+      workstream: run.specialist,
+      revision: run.artifact_revision ?? undefined,
+      status: run.status,
+      is_last_run: run.run_id === cockpit.state.last_run_id,
+      blockers: run.blockers,
+      next_action: run.next_action,
+      outstanding_questions: extractOutstandingQuestions(
+        run.attempts.at(-1)?.output_body,
+      ),
+    })),
+  ];
+}
+
+function semanticArtifacts(
+  cockpit: SerializableSessionCockpit,
+): Array<{
+  artifact: ArtifactRecord;
+  specialist: string;
+  route: DelegatedRoute;
+}> {
+  return [...cockpit.state.artifacts]
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+    .flatMap((artifact) => {
+      const run = cockpit.state.runs.find(
+        (candidate) => candidate.artifact_id === artifact.artifact_id,
+      );
+      const metadataRoute = artifact.metadata["route"];
+      const route =
+        typeof metadataRoute === "string" && metadataRoute in routeConfig
+          ? (metadataRoute as DelegatedRoute)
+          : run && run.route in routeConfig
+            ? (run.route as DelegatedRoute)
+            : undefined;
+      if (!route) return [];
+      const metadataSpecialist = artifact.metadata["specialist"];
+      return [
+        {
+          artifact,
+          specialist:
+            typeof metadataSpecialist === "string"
+              ? metadataSpecialist
+              : run?.specialist ?? routeConfig[route].displayName,
+          route,
+        },
+      ];
+    });
+}
+
+function semanticWorkflows(runs: WorkflowRun[]): WorkflowRun[] {
+  return [...runs]
+    .filter(
+      (run) =>
+        run.status === "needs_input" ||
+        (["blocked", "failed"].includes(run.status) &&
+          hasSuccessfulArtifactCheckpoint(run)),
+    )
+    .sort((left, right) =>
+      (right.updated_at ?? "").localeCompare(left.updated_at ?? ""),
+    );
+}
+
+function shouldResolveLauncherSemantically(
+  text: string,
+  candidates: LauncherSemanticCandidate[],
+): boolean {
+  if (resumeRequested(text)) return false;
+  const hasOperationCue =
+    /\b(?:show|see|open|retrieve|view|recap|what did we settle on|approve|accept|accepted|looks good|happy with|ship it)\b/i.test(
+      text,
+    ) ||
+    /\bmark\b[\s\S]{0,40}\bapproved\b/i.test(text) ||
+    /\b(?:this|it|version|draft|artifact)\b[\s\S]{0,40}\bis approved\b/i.test(
+      text,
+    );
+  if (hasOperationCue) return true;
+  if (!candidates.some((candidate) => candidate.kind === "workflow")) {
+    return false;
+  }
+  return deterministicRoute(text) !== "cockpit";
+}
+
+function resolveOneSemanticArtifact(
+  refs: string[],
+  candidates: LauncherSemanticCandidate[],
+  cockpit: SerializableSessionCockpit,
+):
+  | { artifact: ArtifactRecord; specialist: string; route: DelegatedRoute }
+  | undefined {
+  if (refs.length !== 1) return undefined;
+  const candidate = candidates.find(
+    (value) => value.ref === refs[0] && value.kind === "artifact",
+  );
+  if (!candidate) return undefined;
+  const index = Number.parseInt(candidate.ref.replace("artifact_", ""), 10) - 1;
+  const selected = semanticArtifacts(cockpit)[index];
+  if (!selected) return undefined;
+  return selected;
+}
+
+function resolveOneSemanticWorkflow(
+  refs: string[],
+  candidates: LauncherSemanticCandidate[],
+  runs: WorkflowRun[],
+): WorkflowRun | undefined {
+  if (refs.length !== 1) return undefined;
+  const candidate = candidates.find(
+    (value) => value.ref === refs[0] && value.kind === "workflow",
+  );
+  if (!candidate) return undefined;
+  const index = Number.parseInt(candidate.ref.replace("workflow_", ""), 10) - 1;
+  return semanticWorkflows(runs)[index];
+}
+
+function extractOutstandingQuestions(text?: string | null): string[] {
+  if (!text) return [];
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .filter((line) => line.endsWith("?"))
+    .slice(0, 5);
+}
+
+function hasUnsafeNaturalApprovalLanguage(text: string): boolean {
+  return (
+    /\?/m.test(text) ||
+    /\b(?:do not|don't|not approved|isn't approved|is not approved|if|unless|after|before|except|but|change|edit|revise|remove|delete)\b/i.test(
+      text,
+    )
+  );
+}
+
+function renderSemanticClarification(
+  candidates: LauncherSemanticCandidate[],
+): string {
+  const pending = candidates.filter(
+    (candidate) => candidate.kind === "workflow",
+  );
+  return renderGuide(
+    pending.length
+      ? `I could not safely determine whether this message answers a waiting workflow or starts new work. Name one workstream: ${pending
+          .map((candidate) => candidate.workstream)
+          .join(", ")}.`
+      : "I could not safely determine which stored artifact or workflow you meant. Name the workstream and, if relevant, the revision.",
+    "clarification required; no state changed",
+  );
+}
+
+function renderArtifactChoices(
+  cockpit: SerializableSessionCockpit,
+  intent: "read_artifact" | "approve_artifact",
+): string {
+  const artifacts = semanticArtifacts(cockpit).filter(({ artifact }) =>
+    intent === "approve_artifact"
+      ? ["ready_for_review", "approved"].includes(artifact.status)
+      : true,
+  );
+  const choices = artifacts.length
+    ? artifacts
+        .map(
+          ({ artifact, specialist }) =>
+            `- ${specialist}: artifact ${artifact.artifact_id}, revision ${artifact.revision} (${artifact.status})`,
+        )
+        .join("\n")
+    : "- No matching stored artifacts are available.";
+  return [
+    "# Marketing OS Artifact Selection",
+    "",
+    intent === "approve_artifact"
+      ? "I could not resolve one reviewable artifact to approve. Name a workstream or revision."
+      : "I could not resolve one artifact to show. Name a workstream or revision.",
+    "",
+    choices,
+    "",
+    "No state changed and no external action occurred.",
+  ].join("\n");
+}
+
+function renderNaturalApprovalConfirmation(
+  artifact: ArtifactRecord,
+  specialist: string,
+): string {
+  return [
+    "# Marketing OS Approval Check",
+    "",
+    `Your message refers to ${specialist} artifact ${artifact.artifact_id} revision ${artifact.revision}, but it does not contain an unconditional explicit approval.`,
+    "",
+    "To approve that exact stored revision, reply naturally with `Approve it.`",
+    "",
+    "Status: approval not recorded",
+    "No state changed, and no publishing or other external action occurred.",
+  ].join("\n");
+}
+
+function renderArtifactRead(
+  artifact: ArtifactRecord,
+  specialist: string,
+): string {
+  const isCompanyContext = artifact.artifact_type === "company_context";
+  return [
+    isCompanyContext ? "# Company Context Artifact" : "# Marketing OS Artifact",
+    "",
+    `Workstream: ${specialist}`,
+    `Artifact: ${artifact.artifact_id}`,
+    `Revision: ${artifact.revision}`,
+    `Status: ${artifact.status}`,
+    "",
+    artifact.markdown_body,
+    "",
+    "---",
+    "Read-only retrieval: Workspace Context and external systems were unchanged.",
   ].join("\n");
 }
 

@@ -32,6 +32,9 @@ const {
 const { suitePackageBindings } = await import(
   path.join(launcherDir, "dist/suite-binding.js")
 );
+const { resolveLauncherSemanticAction } = await import(
+  path.join(launcherDir, "dist/semantic-intent.js")
+);
 
 assert.equal(
   Object.keys(suitePackageBindings).length,
@@ -246,6 +249,81 @@ assert.equal(
   ),
   "Approve Company Context Builder artifact revision 1.",
   "approval receipts must retain only the user's approval line, not Guild runtime metadata",
+);
+const semanticCandidates = [
+  {
+    ref: "artifact_1",
+    kind: "artifact",
+    workstream: "Messaging",
+    revision: 1,
+    status: "ready_for_review",
+  },
+];
+assert.deepEqual(
+  await resolveLauncherSemanticAction(
+    "Approve this",
+    semanticCandidates,
+    {
+      llm: {
+        async generateText() {
+          return {
+            text: JSON.stringify({
+              intent: "approve_artifact",
+              candidate_refs: ["artifact_1"],
+              approval_commitment: "explicit",
+            }),
+          };
+        },
+      },
+    },
+  ),
+  {
+    intent: "approve_artifact",
+    candidate_refs: ["artifact_1"],
+    approval_commitment: "explicit",
+  },
+);
+assert.equal(
+  await resolveLauncherSemanticAction(
+    "Approve this",
+    semanticCandidates,
+    {
+      llm: {
+        async generateText() {
+          return {
+            text: JSON.stringify({
+              intent: "approve_artifact",
+              candidate_refs: ["artifact_99"],
+              approval_commitment: "explicit",
+            }),
+          };
+        },
+      },
+    },
+  ),
+  undefined,
+  "semantic actions must reject invented candidate references",
+);
+assert.equal(
+  await resolveLauncherSemanticAction(
+    "Approve these",
+    semanticCandidates,
+    {
+      llm: {
+        async generateText() {
+          return {
+            text: JSON.stringify({
+              intent: "approve_artifact",
+              candidate_refs: ["artifact_1", "artifact_1"],
+              approval_commitment: "explicit",
+            }),
+          };
+        },
+      },
+    },
+  ),
+  undefined,
+  "semantic actions must reject multiple selected references",
 );
 const compiledContext =
   "<!-- guild-marketing-os-context:start -->\nBlocked actions: No workspace context publish except through the exact approved Company Context Builder publish confirmation.\n<!-- guild-marketing-os-context:end -->";

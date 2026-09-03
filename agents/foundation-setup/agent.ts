@@ -7,6 +7,10 @@ import {
   type Task,
 } from "@guildai/agents-sdk";
 import { z } from "zod";
+import {
+  resolveBuilderSemanticAction,
+  type BuilderSemanticAction,
+} from "./conversation-intent.js";
 
 const artifactValues = [
   "company-context",
@@ -510,21 +514,96 @@ async function runFoundationTurn(
   task: AgentTask,
   state: AgentState,
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
-  const rawContext = getRawContext(input);
-  const focusedContextResume = isFocusedContextResume(rawContext);
-  const conversationIntent = inputUsesInjectedManagedContext(input) ||
+  let effectiveInput = input;
+  let rawContext = getRawContext(effectiveInput);
+
+  if (isWorkspaceContextPublishConfirmation(rawContext)) {
+    const publishResult = await buildWorkspaceContextPublishOutput(
+      effectiveInput,
+      task,
+      state,
+    );
+    return finalizeTurn(publishResult.output, publishResult.state);
+  }
+
+  let focusedContextResume = isFocusedContextResume(rawContext);
+  let conversationIntent: ConversationIntent = inputUsesInjectedManagedContext(
+    effectiveInput,
+  ) ||
       focusedContextResume
     ? "source_available"
     : classifyConversationIntent(rawContext);
+
+  if (shouldResolveBuilderSemantically(rawContext, conversationIntent, state)) {
+    const semanticAction = await resolveBuilderSemanticAction(
+      rawContext,
+      builderSemanticStateSummary(state),
+      task,
+    );
+    if (!semanticAction || semanticAction.intent === "unclear") {
+      return {
+        output: builderSemanticClarification(state),
+        state,
+      };
+    }
+    if (semanticAction.intent === "persistence_status") {
+      return finalizeTurn(buildSaveStateQuestionOutput(effectiveInput, state), state);
+    }
+    if (semanticAction.intent === "approve_draft") {
+      if (
+        semanticAction.candidate_refs.length !== 1 ||
+        semanticAction.candidate_refs[0] !== "draft_1" ||
+        semanticAction.approval_commitment !== "explicit" ||
+        hasUnsafeBuilderApprovalLanguage(rawContext)
+      ) {
+        return {
+          output: builderApprovalClarification(state),
+          state,
+        };
+      }
+      const approved = buildApprovalOrEditOutput(effectiveInput, state);
+      const persisted = await persistContextApproval(
+        approved.output,
+        approved.state,
+        rawContext,
+        task,
+      );
+      return finalizeTurn(persisted.output, persisted.state);
+    }
+    if (
+      semanticAction.intent === "provide_or_answer_context" ||
+      semanticAction.intent === "edit_context"
+    ) {
+      const reconciled = reconcileBuilderContextSource(
+        state,
+        semanticAction,
+        rawContext,
+      );
+      if (!reconciled) {
+        return {
+          output: builderSemanticClarification(state),
+          state,
+        };
+      }
+      effectiveInput = { type: "text", text: reconciled };
+      rawContext = reconciled;
+      focusedContextResume = true;
+      conversationIntent = "source_available";
+    } else if (semanticAction.intent === "downstream_request") {
+      const requestedAgent = detectRequestedDownstreamAgent(rawContext);
+      if (!requestedAgent) {
+        return {
+          output: builderSemanticClarification(state),
+          state,
+        };
+      }
+    }
+  }
+
   const requestedDownstreamAgent = !focusedContextResume &&
       isExplicitDownstreamRequest(rawContext)
     ? detectRequestedDownstreamAgent(rawContext)
     : undefined;
-
-  if (isWorkspaceContextPublishConfirmation(rawContext)) {
-    const publishResult = await buildWorkspaceContextPublishOutput(input, task, state);
-    return finalizeTurn(publishResult.output, publishResult.state);
-  }
 
   if (requestedDownstreamAgent) {
     const publishedContext = await readPublishedWorkspaceContext(task);
@@ -535,11 +614,11 @@ async function runFoundationTurn(
   }
 
   if (conversationIntent === "save_state_question") {
-    return finalizeTurn(buildSaveStateQuestionOutput(input, state), state);
+    return finalizeTurn(buildSaveStateQuestionOutput(effectiveInput, state), state);
   }
 
   if (conversationIntent === "approval_or_edit") {
-    const approved = buildApprovalOrEditOutput(input, state);
+    const approved = buildApprovalOrEditOutput(effectiveInput, state);
     const persisted = await persistContextApproval(
       approved.output,
       approved.state,
@@ -550,21 +629,28 @@ async function runFoundationTurn(
   }
 
   if (conversationIntent === "attachment_unreadable") {
-    return finalizeTurn(buildReadableSourceNeededOutput(input, conversationIntent), state);
+    return finalizeTurn(
+      buildReadableSourceNeededOutput(effectiveInput, conversationIntent),
+      state,
+    );
   }
 
   if (conversationIntent === "downstream_request_without_context") {
-    return finalizeTurn(buildDownstreamWithoutContextOutput(input), state);
+    return finalizeTurn(buildDownstreamWithoutContextOutput(effectiveInput), state);
   }
 
   if (conversationIntent === "missing_context") {
-    return finalizeTurn(buildMissingContextOutput(input), state);
+    return finalizeTurn(buildMissingContextOutput(effectiveInput), state);
   }
 
-  const fallback = buildFallbackOutput(input, [], conversationIntent);
+  const fallback = buildFallbackOutput(effectiveInput, [], conversationIntent);
 
   const { text } = await task.llm.generateText({
-    prompt: buildExtractionPrompt(input, rawContext, conversationIntent),
+    prompt: buildExtractionPrompt(
+      effectiveInput,
+      rawContext,
+      conversationIntent,
+    ),
   });
 
   const parsed = parseJsonObject(text);
@@ -587,7 +673,12 @@ async function runFoundationTurn(
     }
   }
 
-  const guarded = enforceDeterministicGuards(candidate, input, parseWarnings, conversationIntent);
+  const guarded = enforceDeterministicGuards(
+    candidate,
+    effectiveInput,
+    parseWarnings,
+    conversationIntent,
+  );
   const draftState = {
     ...state,
     lastOutput: guarded,
@@ -600,7 +691,7 @@ async function runFoundationTurn(
   const persisted = await persistContextDraft(
     guarded,
     draftState,
-    getSourceTextForPersistence(input),
+    getSourceTextForPersistence(effectiveInput),
     task,
   );
   return finalizeTurn(persisted.output, persisted.state);
@@ -931,6 +1022,202 @@ function classifyConversationIntent(rawContext: string): ConversationIntent {
   }
   if (!hasUsableSourceContent(rawContext)) return "missing_context";
   return "source_available";
+}
+
+function shouldResolveBuilderSemantically(
+  rawContext: string,
+  conversationIntent: ConversationIntent,
+  state: AgentState,
+): boolean {
+  if (!state.lastOutput || isWorkspaceContextPublishConfirmation(rawContext)) {
+    return false;
+  }
+  if (
+    conversationIntent === "approval_or_edit" &&
+    !/\b(?:looks good|happy with|seems good|works for me)\b/i.test(rawContext) &&
+    !hasUnsafeBuilderApprovalLanguage(rawContext)
+  ) {
+    return false;
+  }
+  return (
+    conversationIntent === "missing_context" ||
+    conversationIntent === "approval_or_edit" ||
+    /\b(?:looks good|happy with|seems good|works for me)\b/i.test(rawContext) ||
+    /\b(?:change|replace|correct|update|remove|delete)\b[\s\S]{0,120}\b(?:company|description|audience|goal|channel|constraint|claim|context)\b/i.test(
+      rawContext,
+    ) ||
+    /\b(?:tell me|show me|report|confirm)\b[\s\S]{0,100}\b(?:saved|persisted|approved|published|workspace context)\b/i.test(
+      rawContext,
+    )
+  );
+}
+
+function builderSemanticStateSummary(state: AgentState): {
+  hasDraft: boolean;
+  draftStatus?: string;
+  missingFields: string[];
+  openQuestions: string[];
+  companyName?: string;
+} {
+  const draft = state.lastOutput;
+  return {
+    hasDraft: Boolean(draft),
+    draftStatus: draft?.status,
+    missingFields: draft?.consumedContext.missing ?? [],
+    openQuestions: draft?.openQuestions ?? [],
+    companyName: draft?.contextArtifacts.companyContext.companyName,
+  };
+}
+
+function hasUnsafeBuilderApprovalLanguage(text: string): boolean {
+  return (
+    /\?/m.test(text) ||
+    /\b(?:do not|don't|not approved|isn't approved|is not approved|if|unless|after|before|except|but|change|edit|revise|remove|delete)\b/i.test(
+      text,
+    )
+  );
+}
+
+function builderSemanticClarification(
+  state: AgentState,
+): z.infer<typeof outputSchema> {
+  const draft = state.lastOutput;
+  const questions = draft?.openQuestions.slice(0, 3) ?? [];
+  return {
+    type: "text",
+    text: [
+      "# Company Context Clarification",
+      "",
+      "I could not safely determine whether that message answers a context question, edits the current draft, checks persistence, or approves the draft.",
+      ...(questions.length
+        ? ["", "Current open questions:", ...questions.map((question) => `- ${question}`)]
+        : []),
+      "",
+      "Please name the field you are answering or the action you want. No state changed and Workspace Context remains unchanged.",
+    ].join("\n"),
+  };
+}
+
+function builderApprovalClarification(
+  state: AgentState,
+): z.infer<typeof outputSchema> {
+  const draft = state.lastOutput;
+  const artifactReference =
+    state.durableContextArtifactId && state.durableContextArtifactRevision
+      ? `${state.durableContextArtifactId} revision ${state.durableContextArtifactRevision}`
+      : "the current Company Context draft";
+  return {
+    type: "text",
+    text: [
+      "# Company Context Approval Check",
+      "",
+      `Your message appears to review ${artifactReference}, but it does not contain an unconditional explicit approval.`,
+      draft ? `Current draft status: ${draft.status}.` : "No current draft is available.",
+      "",
+      "To approve the current review-ready draft, reply naturally with `Approve it.`",
+      "",
+      "Status: approval not recorded",
+      "No state changed and Workspace Context remains unchanged.",
+    ].join("\n"),
+  };
+}
+
+function reconcileBuilderContextSource(
+  state: AgentState,
+  action: BuilderSemanticAction,
+  rawContext: string,
+): string | undefined {
+  const draft = state.lastOutput;
+  if (
+    !draft ||
+    action.candidate_refs.length !== 1 ||
+    action.candidate_refs[0] !== "draft_1" ||
+    action.field_updates.length === 0
+  ) {
+    return undefined;
+  }
+
+  const fields: Record<
+    BuilderSemanticAction["field_updates"][number]["field"],
+    string[]
+  > = {
+    company_name: cleanSemanticValues([
+      draft.contextArtifacts.companyContext.companyName,
+    ]),
+    description: cleanSemanticValues([
+      draft.contextArtifacts.messagingSource.overview,
+    ]),
+    audiences: cleanSemanticValues(
+      draft.contextArtifacts.companyContext.primaryAudiences,
+    ),
+    goals: cleanSemanticValues(draft.contextArtifacts.companyContext.goals),
+    channels: cleanSemanticValues(
+      draft.contextArtifacts.channelRegistry.approvedChannels,
+    ),
+    constraints: cleanSemanticValues(
+      draft.contextArtifacts.proofAndConstraints.constraints,
+    ),
+    approved_claims: cleanSemanticValues(
+      draft.contextArtifacts.proofAndConstraints.approvedClaims.map(
+        (claim) => claim.claim,
+      ),
+    ),
+    do_not_use_claims: cleanSemanticValues(
+      draft.contextArtifacts.proofAndConstraints.blockedClaims.map(
+        (claim) => claim.claim,
+      ),
+    ),
+  };
+
+  for (const update of action.field_updates) {
+    const value = update.supporting_span.trim();
+    if (!value) return undefined;
+    if (update.operation === "replace") {
+      fields[update.field] = [value];
+    } else if (update.operation === "append") {
+      fields[update.field] = [...new Set([...fields[update.field], value])];
+    } else {
+      const normalized = value.toLocaleLowerCase();
+      fields[update.field] = fields[update.field].filter((current) => {
+        const normalizedCurrent = current.toLocaleLowerCase();
+        return !(
+          normalizedCurrent.includes(normalized) ||
+          normalized.includes(normalizedCurrent)
+        );
+      });
+    }
+  }
+
+  return [
+    "Resume Company Context using the reconciled source below.",
+    "The reconciled fields supersede conflicting values in the prior source only where the latest user turn explicitly replaced or removed them.",
+    "",
+    "# Reconciled Company Context",
+    `Company name: ${formatSemanticField(fields.company_name)}`,
+    `Approved company description: ${formatSemanticField(fields.description)}`,
+    `Primary audiences: ${formatSemanticField(fields.audiences)}`,
+    `Current marketing goal: ${formatSemanticField(fields.goals)}`,
+    `Approved channels: ${formatSemanticField(fields.channels)}`,
+    `Important constraints: ${formatSemanticField(fields.constraints)}`,
+    `Approved claims: ${formatSemanticField(fields.approved_claims)}`,
+    `Anything not approved for reuse: ${formatSemanticField(fields.do_not_use_claims)}`,
+    "",
+    "## Latest user follow-up",
+    rawContext,
+    "",
+    "## Prior source retained for audit",
+    state.lastSourceText ?? "No earlier raw source was retained.",
+  ].join("\n");
+}
+
+function cleanSemanticValues(values: string[]): string[] {
+  return values
+    .map((value) => value.trim())
+    .filter((value) => value && !isTbdish(value));
+}
+
+function formatSemanticField(values: string[]): string {
+  return values.length ? values.join(", ") : "TBD";
 }
 
 function isFocusedContextResume(rawContext: string): boolean {

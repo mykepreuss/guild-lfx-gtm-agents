@@ -36,11 +36,15 @@ const {
   replaceManagedWorkspaceContextBlock,
   sourceEvidenceLabelsAllowReuse,
 } = await import(path.join(foundationDir, "dist/agent.js"));
+const { resolveBuilderSemanticAction } = await import(
+  path.join(foundationDir, "dist/conversation-intent.js"),
+);
 
 function createTask({
   sessionId,
   workspaceReadMode = "published",
   llmText = "not json",
+  llmTexts,
 }) {
   let state;
   let llmCalls = 0;
@@ -49,8 +53,9 @@ function createTask({
     console,
     llm: {
       async generateText() {
+        const response = llmTexts?.[llmCalls] ?? llmText;
         llmCalls += 1;
-        return { text: llmText };
+        return { text: response };
       },
     },
     async save(nextState) {
@@ -949,6 +954,260 @@ assert.deepEqual(
     },
   ],
 );
+
+assert.equal(
+  await resolveBuilderSemanticAction(
+    "Operations leaders",
+    {
+      hasDraft: true,
+      draftStatus: "needs_input",
+      missingFields: ["Primary audiences"],
+      openQuestions: ["Who is the primary Marketing OS audience?"],
+      companyName: "Acme",
+    },
+    {
+      llm: {
+        async generateText() {
+          return {
+            text: JSON.stringify({
+              intent: "provide_or_answer_context",
+              candidate_refs: ["draft_1"],
+              approval_commitment: "none",
+              field_updates: [
+                {
+                  field: "audiences",
+                  operation: "append",
+                  supporting_span: "invented audience",
+                },
+              ],
+            }),
+          };
+        },
+      },
+    },
+  ),
+  undefined,
+  "Builder semantic updates must be grounded in an exact user-message span",
+);
+
+{
+  const harness = createTask({
+    sessionId: "foundation-semantic-incremental-answer",
+    workspaceReadMode: "missing",
+    llmTexts: [
+      "not json",
+      JSON.stringify({
+        intent: "provide_or_answer_context",
+        candidate_refs: ["draft_1"],
+        approval_commitment: "none",
+        field_updates: [
+          {
+            field: "audiences",
+            operation: "append",
+            supporting_span: "Marketing leaders at B2B SaaS companies",
+          },
+        ],
+      }),
+      "not json",
+    ],
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software for growing teams.",
+        "Current marketing goal: increase qualified demos.",
+        "Approved channels: website and email.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: "Marketing leaders at B2B SaaS companies",
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences,
+    ["Marketing leaders at B2B SaaS companies"],
+  );
+  assert.match(harness.readState().lastSourceText, /Prior source retained for audit/);
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-semantic-status-and-implicit-approval",
+    workspaceReadMode: "missing",
+    llmTexts: [
+      "not json",
+      JSON.stringify({
+        intent: "persistence_status",
+        candidate_refs: ["draft_1"],
+        approval_commitment: "none",
+        field_updates: [],
+      }),
+      JSON.stringify({
+        intent: "approve_draft",
+        candidate_refs: ["draft_1"],
+        approval_commitment: "implicit",
+        field_updates: [],
+      }),
+    ],
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software.",
+        "Primary audiences: operations leaders.",
+        "Current marketing goal: increase qualified demos.",
+        "Approved channels: website.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  const before = harness.readState();
+  const status = await foundationAgent.start(
+    { type: "text", text: "Tell me whether that got saved" },
+    harness.task,
+  );
+  assert.match(status.output.text, /retained in this Guild Chat|durably stored/i);
+  assert.equal(harness.readState().approvedOutput, undefined);
+  const reviewed = await foundationAgent.start(
+    { type: "text", text: "Looks good" },
+    harness.task,
+  );
+  assert.match(reviewed.output.text, /# Company Context Approval Check/);
+  assert.equal(harness.readState().approvedOutput, undefined);
+  assert.equal(harness.readState().lastOutput.status, before.lastOutput.status);
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-semantic-edit-remove",
+    workspaceReadMode: "missing",
+    llmTexts: [
+      "not json",
+      JSON.stringify({
+        intent: "edit_context",
+        candidate_refs: ["draft_1"],
+        approval_commitment: "none",
+        field_updates: [
+          {
+            field: "audiences",
+            operation: "remove",
+            supporting_span: "developers",
+          },
+        ],
+      }),
+      "not json",
+    ],
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software.",
+        "Primary audiences: marketing teams, developers.",
+        "Current marketing goal: increase qualified demos.",
+        "Approved channels: website.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  await foundationAgent.start(
+    { type: "text", text: "Remove developers from the audience." },
+    harness.task,
+  );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences,
+    ["marketing teams"],
+  );
+  assert.match(
+    harness.readState().lastOutput.contextArtifacts.messagingSource.overview,
+    /Acme provides workflow software/i,
+  );
+}
+
+for (const [approvalText, shouldApprove] of [
+  ["This version is approved.", true],
+  ["Do not approve this draft.", false],
+  ["Approve this draft if Legal agrees.", false],
+]) {
+  const harness = createTask({
+    sessionId: `foundation-semantic-approval-${shouldApprove}-${approvalText.length}`,
+    workspaceReadMode: "missing",
+    llmTexts: [
+      "not json",
+      JSON.stringify({
+        intent: "approve_draft",
+        candidate_refs: ["draft_1"],
+        approval_commitment: "explicit",
+        field_updates: [],
+      }),
+    ],
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software.",
+        "Primary audiences: operations leaders.",
+        "Current marketing goal: increase qualified demos.",
+        "Approved channels: website.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  const result = await foundationAgent.start(
+    { type: "text", text: approvalText },
+    harness.task,
+  );
+  if (shouldApprove) {
+    assert.equal(harness.readState().durableContextArtifactStatus, "approved");
+    assert.match(result.output.text, /approved_in_session: true/);
+  } else {
+    assert.equal(
+      harness.readState().durableContextArtifactStatus,
+      "ready_for_review",
+    );
+    assert.match(result.output.text, /# Company Context Approval Check/);
+  }
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-semantic-malformed",
+    workspaceReadMode: "missing",
+    llmTexts: ["not json", "not json"],
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software.",
+        "Current marketing goal: increase qualified demos.",
+        "Approved channels: website.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  const before = harness.readState();
+  const result = await foundationAgent.start(
+    { type: "text", text: "Operations leaders" },
+    harness.task,
+  );
+  assert.match(result.output.text, /# Company Context Clarification/);
+  assert.deepEqual(harness.readState(), before);
+}
 
 console.log(
   "Foundation Guild Chat state, approval, Launcher publication handoff, context readiness, and routing tests OK.",

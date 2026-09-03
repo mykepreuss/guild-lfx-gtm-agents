@@ -8,6 +8,8 @@ Turns supplied company information into a reviewable Marketing OS context founda
 - Treats a supplied URL as an unread reference. The built-in Guild LLM does not fetch web pages, so URL-only setup asks for a short approved description or pasted source excerpt instead of implying that the site was inspected.
 - Separates approved facts, user-supplied claims, assumptions, missing evidence, blocked claims, and do-not-use claims.
 - Retains source text, artifact revision, and approval state in the direct Builder Chat.
+- Accepts short, conversational answers to outstanding questions and reconciles them with the retained draft instead of requiring a complete packet on every turn.
+- Understands natural edit and persistence-status requests while keeping approval, evidence, and publication transitions explicit.
 - Produces a compact Workspace Context candidate for review and a handoff to downstream Marketing OS agents.
 - Does **not** publish Workspace Context from a direct Builder Chat, install agents, schedule work, spend budget, or mutate external systems.
 - Never turns artifact approval into execution approval or fills missing company facts from model background knowledge.
@@ -37,7 +39,11 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 - Pasted source text or excerpts the running agent can read.
 - A URL may be included for reference, but its page contents are not opened or treated as evidence.
 - `What company-context information is still missing?` — returns focused gaps without inventing answers.
+- `Marketing leaders at B2B SaaS companies` — can answer a pending audience question without repeating the other company fields.
+- `Remove developers from the audience` — revises only the named field and preserves the rest of the retained source.
+- `Tell me whether that got saved` — reports persistence state without creating a new draft.
 - `Approve Company Context Builder artifact revision 1` — when sent through Launcher, approves only the named artifact revision.
+- `Approve it` — explicitly approves the current uniquely resolved review-ready draft; `Looks good` alone does not approve it.
 
 Outside Chat, send a text payload such as:
 
