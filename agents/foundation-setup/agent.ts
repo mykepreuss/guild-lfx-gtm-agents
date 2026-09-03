@@ -13,6 +13,7 @@ import {
 } from "./conversation-intent.js";
 import { isPersistenceStatusQuestion, renderPersistenceStatus } from "./persistence-status.js";
 import { channelSources, exactChannelDeclarations, needsChannelInterpretation, normalizeChannels, resolveChannelScope } from "./channel-resolution.js";
+import { labeledContextTurn } from "./labeled-followup.js";
 
 const artifactValues = [
   "company-context",
@@ -546,8 +547,13 @@ async function runFoundationTurn(
 
   const segments = channelSources(rawContext);
   const latestChannelTurn = segments.sources.at(-1)!.text;
+  const labeledTurn = labeledContextTurn(rawContext);
+  const partialFollowup = Boolean(state.lastOutput && !focusedContextResume &&
+    !inputUsesInjectedManagedContext(effectiveInput) && !labeledTurn.standalone &&
+    (labeledTurn.fields.length >= 2 ||
+      (labeledTurn.fields.some(field => field !== "channels") && needsChannelInterpretation(latestChannelTurn, false))));
   let channelTurnHandled = false;
-  if (focusedContextResume || conversationIntent === "source_available" ||
+  if (partialFollowup || focusedContextResume || conversationIntent === "source_available" ||
       (state.lastOutput && needsChannelInterpretation(latestChannelTurn, false) && !isExplicitDownstreamRequest(rawContext)) ||
       (state.lastOutput && !["approval_or_edit", "save_state_question", "downstream_request_without_context"].includes(conversationIntent))) {
     const scope = await resolveChannelScope(
@@ -565,7 +571,7 @@ async function runFoundationTurn(
     };
     resolvedChannels = scope.channels;
     channelTurnHandled = scope.handledLatest;
-    if (channelTurnHandled && state.lastOutput && !segments.focused &&
+    if (!partialFollowup && channelTurnHandled && state.lastOutput && !segments.focused &&
         !/\b(?:company name|description|audiences?|goals?|constraints?|claims)\s*:/i.test(latestChannelTurn)) {
       const reconciled = reconcileBuilderContextSource(state, undefined, rawContext, resolvedChannels)!;
       semanticContextFields = reconciled.fields;
@@ -576,8 +582,8 @@ async function runFoundationTurn(
     }
   }
 
-  if (!channelTurnHandled && shouldResolveBuilderSemantically(rawContext, conversationIntent, state)) {
-    const semanticAction = await resolveBuilderSemanticAction(
+  if (partialFollowup || (!channelTurnHandled && shouldResolveBuilderSemantically(rawContext, conversationIntent, state))) {
+    const semanticAction = (partialFollowup ? labeledTurn.action : undefined) ?? await resolveBuilderSemanticAction(
       rawContext,
       builderSemanticStateSummary(state),
       task,
@@ -588,6 +594,9 @@ async function runFoundationTurn(
         state,
         persistState: false,
       };
+    }
+    if (partialFollowup && !["provide_or_answer_context", "edit_context"].includes(semanticAction.intent)) {
+      return { output: builderSemanticClarification(state), state, persistState: false };
     }
     if (semanticAction.intent === "persistence_status") {
       return { output: { type: "text", text: renderPersistenceStatus(state) }, state, persistState: false };
@@ -619,18 +628,31 @@ async function runFoundationTurn(
     ) {
       // Channel edits require the channel-specific commitment and operation checks.
       // Do not accept a less constrained interpretation through the generic resolver.
-      if (semanticAction.field_updates.some(update => update.field === "channels")) return {
+      if (semanticAction.field_updates.some(update => update.field === "channels") &&
+          !(partialFollowup && channelTurnHandled && resolvedChannels !== undefined)) return {
         output: builderSemanticClarification(state), state, persistState: false,
       };
+      // Channel values and operations come exclusively from the channel resolver.
+      // Generic interpretation must cover every other supplied labeled field.
+      if (partialFollowup && labeledTurn.fields.some(field => field !== "channels" &&
+          !semanticAction.field_updates.some(update => update.field === field))) return {
+        output: builderSemanticClarification(state), state, persistState: false,
+      };
+      const fieldAction = partialFollowup ? {
+        ...semanticAction,
+        field_updates: semanticAction.field_updates.filter(update => update.field !== "channels"),
+      } : semanticAction;
       const reconciled = reconcileBuilderContextSource(
         state,
-        semanticAction,
+        fieldAction,
         rawContext,
+        partialFollowup ? resolvedChannels : undefined,
       );
       if (!reconciled) {
         return {
           output: builderSemanticClarification(state),
           state,
+          persistState: false,
         };
       }
       semanticContextFields = reconciled.fields;
