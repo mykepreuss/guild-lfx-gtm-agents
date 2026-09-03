@@ -473,22 +473,18 @@ async function run(
       idempotencyPrefix = `launcher-${currentRun.run_id}`;
       const originalRequest = currentRun.input_envelope.user_request;
       if (typeof originalRequest === "string" && originalRequest.trim()) {
-        const retainedArtifact = currentRun.artifact_id
-          ? [...cockpit.state.artifacts]
-              .reverse()
-              .find(
-                (artifact) =>
-                  artifact.artifact_id === currentRun?.artifact_id &&
-                  artifact.revision === currentRun?.artifact_revision,
-              )
-          : undefined;
+        const retainedFollowups = retainedFocusedResumeInputs(currentRun);
         requestText = [
           originalRequest.trim(),
-          ...(retainedArtifact
+          ...(retainedFollowups.length
             ? [
                 "",
-                "## Retained prior artifact",
-                retainedArtifact.markdown_body,
+                "## Retained prior follow-up inputs",
+                "Apply these user inputs in order. A later explicit edit or removal supersedes only the value it names; otherwise preserve and append to earlier input.",
+                ...retainedFollowups.map(
+                  (followup, index) =>
+                    `### Follow-up ${index + 1}\n${followup}`,
+                ),
               ]
             : []),
           "",
@@ -1092,6 +1088,18 @@ async function run(
       ),
     };
   }
+}
+
+function retainedFocusedResumeInputs(run: WorkflowRun): string[] {
+  return run.attempts.flatMap((attempt) => {
+    const prompt = attempt.input_envelope.prompt;
+    if (typeof prompt !== "string") return [];
+    const match = prompt.match(
+      /(?:^|\n)## Focused resume input\s*\n([\s\S]*?)(?=\n\s*Launcher contract:\s*(?:\n|$)|$)/i,
+    );
+    const followup = match?.[1]?.trim();
+    return followup ? [followup] : [];
+  });
 }
 
 async function notifyProgress(task: LauncherTask, message: string): Promise<void> {
