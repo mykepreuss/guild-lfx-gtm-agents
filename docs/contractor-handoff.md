@@ -51,12 +51,12 @@ publishing account, or advertising credential is part of the marketer journey.
 | --- | --- |
 | Marketing OS Launcher | `0.4.1` |
 | Company Context Builder | `1.3.3` |
-| Market Signal | `1.2.8` |
+| Market Signal | `1.2.9` |
 | ICP | `1.2.8` |
 | Audience Segmentation | `1.2.8` |
 | Messaging | `1.2.8` |
 | Branding And Pitch Deck | `1.2.9` |
-| Social Monitoring And Content | `1.2.10` |
+| Social Monitoring And Content | `1.2.11` |
 | Campaigns And Paid Media | `1.2.12` |
 
 The clean rehearsal workspace is

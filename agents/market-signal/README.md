@@ -14,7 +14,7 @@ Turns approved source material into an evidence-labeled Market Signal Brief in G
 ## Suite position
 
 - Front door: use Marketing OS Launcher for normal suite routing; use this agent directly only for a focused Market Signal Brief.
-- Required before this agent: approved company context plus the source excerpts, URLs, notes, or connected-source access that define the evidence scope.
+- Required before this agent: approved company context plus pasted source excerpts, research notes, or exported connected-source results that define the evidence scope.
 - Next agent after a successful run: ICP, Messaging, Answer Engine/Web work, or Campaigns through Launcher.
 
 Use a dedicated Marketing OS workspace with approved Workspace Context when the brief should be company-specific.
@@ -27,12 +27,13 @@ Use a dedicated Marketing OS workspace with approved Workspace Context when the 
 
 ## Plain-text workflow request
 
-> Review the supplied competitor pages and community excerpts, rank the strongest market signals, separate evidence from inference, and show what the findings imply for ICP and messaging.
+> Review the pasted competitor-page and community excerpts, rank the strongest market signals, separate evidence from inference, and show what the findings imply for ICP and messaging.
 
 ## What to send
 
 - The intended market, audience, timeframe, peer or competitor set, and decision the brief should support.
-- Source excerpts, URLs, research notes, or explicitly approved connected-source access.
+- Pasted source excerpts, research notes, monitoring exports, or results copied from an approved connected source.
+- URLs may be included as unread references, but this agent has no web or connector tools and does not open them.
 - Known source bias, freshness limits, missing channels, and claims that require extra scrutiny.
 - `Identify the highest-value evidence gaps before we update positioning` — returns a focused research-gap brief.
 
@@ -54,7 +55,7 @@ Every substantial response uses these sections in order:
 6. `Status Payload`
 7. `Downstream Handoff`
 
-The Status Payload reports `source_supplied`, `connected_read_only`, or `live_monitoring` evidence mode and a status of `needs_input`, `ready_for_review`, or `blocked`. `action_mode` remains `draft_only`.
+Direct runs report `source_supplied` evidence mode because this agent does not query connectors or live monitors. Results copied from another approved source remain supplied evidence. Status is `needs_input`, `ready_for_review`, or `blocked`, and `action_mode` remains `draft_only`.
 
 ## Development
 

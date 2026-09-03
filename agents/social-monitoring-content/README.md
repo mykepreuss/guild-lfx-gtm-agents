@@ -25,7 +25,7 @@ Use a dedicated Marketing OS workspace with approved Workspace Context when draf
 
 1. Create or select a dedicated Guild workspace and add **Social Monitoring And Content** from Agent Hub.
 2. Add approved Workspace Context or include the relevant messaging, audience, brand, proof, and channel constraints in the request.
-3. Paste or provide the social and community signals to analyze.
+3. Paste social or community excerpts, monitoring exports, or results copied from an approved connected source. URLs alone are retained as unread references.
 4. Open a new Chat with this agent and send the request below. For the coordinated suite workflow, send it to Marketing OS Launcher instead.
 
 ## Plain-text workflow request
@@ -34,7 +34,8 @@ Use a dedicated Marketing OS workspace with approved Workspace Context when draf
 
 ## What to send
 
-- Supplied social posts, community excerpts, monitoring exports, research notes, or approved connected-source results.
+- Supplied social posts, community excerpts, monitoring exports, research notes, or results copied from an approved connected source.
+- This agent has no web, connector, or monitoring tools and does not open links or collect live signals.
 - Approved messaging, audience, brand voice, content goals, channel constraints, and review owners.
 - Observation dates and known coverage gaps when the source set is time-sensitive.
 - `Draft response options for these supplied posts without publishing them` — returns review-only reply options.
@@ -57,7 +58,7 @@ Every substantial response uses these sections in order:
 6. `Status Payload`
 7. `Downstream Handoff`
 
-The Status Payload reports `source_supplied`, `connected_read_only`, or `live_monitoring` evidence mode and a status of `needs_input`, `ready_for_review`, or `blocked`. `action_mode` remains `draft_only`.
+Direct runs report `source_supplied` evidence mode because this agent does not query connectors or live monitors. Results copied from another approved source remain supplied evidence. Status is `needs_input`, `ready_for_review`, or `blocked`, and `action_mode` remains `draft_only`.
 
 ## Development
 
