@@ -5,6 +5,7 @@ Turns supplied company information into a reviewable Marketing OS context founda
 ## Behavior
 
 - Converts readable source text into company facts, audiences, messaging sources, brand guidance, channel scope, proof constraints, dashboard signals, and AEO-readiness notes.
+- Treats a supplied URL as an unread reference. The built-in Guild LLM does not fetch web pages, so URL-only setup asks for a short approved description or pasted source excerpt instead of implying that the site was inspected.
 - Separates approved facts, user-supplied claims, assumptions, missing evidence, blocked claims, and do-not-use claims.
 - Retains source text, artifact revision, and approval state in the direct Builder Chat.
 - Produces a compact Workspace Context candidate for review and a handoff to downstream Marketing OS agents.
@@ -14,7 +15,7 @@ Turns supplied company information into a reviewable Marketing OS context founda
 ## Suite position
 
 - Front door: use Marketing OS Launcher for the normal suite workflow; Launcher routes first-run context setup here.
-- Required before this agent: readable company or project source text and an owner who can review the resulting facts and claims.
+- Required before a review-ready artifact: a company name, approved description, primary audience, current marketing goal, approved channel scope, and an owner who can review them. Proof and brand guidance can be added later.
 - Next agent after approval: return to Launcher, publish the compact context through its separate confirmation gate, then request the relevant specialist.
 
 Use a dedicated Marketing OS workspace so approved company context does not mix with unrelated product context.
@@ -34,6 +35,7 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 
 - Company or project name, approved description, primary audiences, current marketing goal, approved claims, claim restrictions, and intended channels.
 - Pasted source text or excerpts the running agent can read.
+- A URL may be included for reference, but its page contents are not opened or treated as evidence.
 - `What company-context information is still missing?` — returns focused gaps without inventing answers.
 - `Approve Company Context Builder artifact revision 1` — when sent through Launcher, approves only the named artifact revision.
 

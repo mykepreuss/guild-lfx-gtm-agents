@@ -5,7 +5,9 @@ import {
   guildAgentTool,
   guildTools,
   pick,
+  progressLogNotifyEvent,
   type Task,
+  userInterfaceTools,
 } from "@guildai/agents-sdk";
 import { z } from "zod";
 import {
@@ -60,6 +62,7 @@ import {
 import { suitePackageBindings } from "./suite-binding.js";
 
 export {
+  classifyRoute,
   deterministicRoute,
   extractApprovedHipaaConstraint,
   extractArtifactApprovalText,
@@ -73,6 +76,7 @@ export {
 } from "./launcher-core.js";
 
 const tools = {
+  ...userInterfaceTools,
   ...pick(guildTools, [
     "guild_agent_install_request",
     "guild_get_task_workspace_agents",
@@ -144,6 +148,12 @@ async function run(
     await task.save(cockpit.state);
     return output;
   }
+  if (isCompanyContextArtifactReadRequest(userText)) {
+    return {
+      type: "text",
+      text: renderCompanyContextArtifactRead(userText, cockpit),
+    };
+  }
   if (isCockpitExportRequest(userText)) {
     return {
       type: "text",
@@ -179,7 +189,12 @@ async function run(
     };
   }
 
-  const classification = await classifyRoute(userText, task);
+  const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
+  const installed = installedSuiteAgents(workspaceAgents);
+  const classification = await classifyRoute(userText, task, {
+    suiteReady: installed.length === suiteInstallOrder.length,
+    contextReady: context.ready,
+  });
 
   if (classification["route"] === "blocked") {
     return {
@@ -193,14 +208,14 @@ async function run(
   if (classification["route"] === "guide") {
     return {
       type: "text",
-      text: renderGuide(
-        "I could not determine one safe specialist workflow. Name the desired outcome: company context, market signal, ICP, audience segmentation, messaging, brand/deck, social/content, or campaigns/paid media.",
-      ),
+      text:
+        classification.routingReason === "state_aware_start_fallback"
+          ? renderReadyForOutcome()
+          : renderGuide(
+              "I could not determine one safe specialist workflow. Name the desired outcome: company context, market signal, ICP, audience segmentation, messaging, brand/deck, social/content, or campaigns/paid media.",
+            ),
     };
   }
-
-  const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
-  const installed = installedSuiteAgents(workspaceAgents);
 
   if (classification["route"] === "onboarding") {
     const installedDuringOnboarding = [...installed];
@@ -211,6 +226,13 @@ async function run(
         !installed.some((record) => record.packageName === entry.packageName),
     )) {
       try {
+        const position = suiteInstallOrder.findIndex(
+          (entry) => entry.packageName === missing.packageName,
+        ) + 1;
+        await notifyProgress(
+          task,
+          `Installing specialist ${position} of ${suiteInstallOrder.length}: ${missing.displayName}…`,
+        );
         const installation = await task.tools.guild_agent_install_request({
           agent_id: missing.agentId,
         });
@@ -238,14 +260,19 @@ async function run(
       }
     }
 
+    await notifyProgress(
+      task,
+      "Marketing OS setup verified: all eight specialists are available.",
+    );
+
     return {
       type: "text",
       text: [
         renderOnboardingStatus(installedDuringOnboarding),
         "",
         approvedInstallations.length > 0
-          ? `${approvedInstallations.length} missing capability package${approvedInstallations.length === 1 ? " was" : "s were"} installed through separate Guild approval requests.`
-          : "No capability package installation was needed.",
+          ? `${approvedInstallations.length} Marketing OS specialist${approvedInstallations.length === 1 ? " was" : "s were"} installed through separate Guild approval requests.`
+          : "No specialist installation was needed.",
         "Each installation required its own explicit approval.",
         "",
         "Keep using this Chat so Marketing OS can remember your drafts, approvals, progress, and next steps.",
@@ -921,6 +948,33 @@ async function run(
   }
 }
 
+async function notifyProgress(task: LauncherTask, message: string): Promise<void> {
+  try {
+    await task.tools.ui_notify(progressLogNotifyEvent(message));
+  } catch {
+    // Progress feedback must never block or change the onboarding result.
+  }
+}
+
+function renderReadyForOutcome(): string {
+  return [
+    "# Marketing OS is ready",
+    "",
+    "The specialist suite and Company Context are available. What marketing outcome should we work on next?",
+    "",
+    "- Assess market or competitor signals.",
+    "- Define an ICP or audience segments.",
+    "- Develop positioning and messaging.",
+    "- Create a presentation or pitch deck.",
+    "- Draft a content plan or integrated campaign.",
+    "",
+    "Write naturally; you do not need to name an agent.",
+    "",
+    "Status: ready for a marketing outcome",
+    "No specialist work or external action was started.",
+  ].join("\n");
+}
+
 function approveCockpitArtifact(
   exactApprovalText: string,
   approval: ReturnType<typeof parseArtifactApprovalRequest>,
@@ -1312,6 +1366,60 @@ function renderCockpitExport(cockpit: SerializableSessionCockpit): string {
     "```",
     "",
     "No external action was performed.",
+  ].join("\n");
+}
+
+function isCompanyContextArtifactReadRequest(text: string): boolean {
+  const normalized = text.trim();
+  return (
+    /^show\s+(?:the\s+)?current\s+company context\s+(?:draft|artifact)\s*[.!]?$/i.test(
+      normalized,
+    ) ||
+    /^show\s+company context\s+artifact\s+revision\s+\d+\s*[.!]?$/i.test(
+      normalized,
+    )
+  );
+}
+
+function renderCompanyContextArtifactRead(
+  requestText: string,
+  cockpit: SerializableSessionCockpit,
+): string {
+  const requestedRevision = requestText.match(/\brevision\s+(\d+)\b/i)?.[1];
+  const workstream = cockpit.state.workstreams.find(
+    (candidate) => candidate.specialist === "Company Context Builder",
+  );
+  const preferredArtifactId = workstream?.latest_artifact_id ?? undefined;
+  const candidates = cockpit.state.artifacts
+    .filter(
+      (artifact) =>
+        artifact.artifact_type === "company_context" &&
+        (!preferredArtifactId || artifact.artifact_id === preferredArtifactId) &&
+        (!requestedRevision || artifact.revision === Number(requestedRevision)),
+    )
+    .sort((left, right) => right.updated_at.localeCompare(left.updated_at));
+  const artifact = candidates[0];
+
+  if (!artifact) {
+    return renderGuide(
+      requestedRevision
+        ? `Company Context artifact revision ${requestedRevision} was not found in this Chat.`
+        : "No Company Context artifact is retained in this Chat yet.",
+      "artifact not found",
+    );
+  }
+
+  return [
+    "# Company Context Artifact",
+    "",
+    `Artifact: ${artifact.artifact_id}`,
+    `Revision: ${artifact.revision}`,
+    `Status: ${artifact.status}`,
+    "",
+    artifact.markdown_body,
+    "",
+    "---",
+    "Read-only retrieval: Workspace Context and external systems were unchanged.",
   ].join("\n");
 }
 

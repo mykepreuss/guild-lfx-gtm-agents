@@ -141,6 +141,75 @@ function guildChatEnvelope(text) {
 }
 
 {
+  const harness = createTask({
+    sessionId: "foundation-url-reference-with-launcher-contract",
+    workspaceReadMode: "missing",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Set up Marketing OS for Guild. Our website is https://guild.ai/",
+        "",
+        "Launcher contract:",
+        "- Consume published workspace context revision unavailable as the first source of truth.",
+        "- Return the complete standard Guild Marketing OS output frame.",
+        "- Keep action_mode draft_only and external_mutation_requested false.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.equal(harness.llmCallCount(), 0);
+  assert.match(result.output.text, /Conversation intent: missing_context/);
+  assert.match(result.output.text, /"status": "needs_input"/);
+  assert.match(result.output.text, /Company: Guild/);
+  assert.match(result.output.text, /supplied URL was recorded as a reference/i);
+  assert.match(result.output.text, /built-in LLM has no web access/i);
+  assert.match(result.output.text, /I cannot open that URL in this version/i);
+  assert.doesNotMatch(result.output.text, /publish approved context to workspace context/i);
+  assert.doesNotMatch(result.output.text, /Channels TBD: Website/i);
+  assert.doesNotMatch(result.output.text, /Requires approved company description and proof-backed claims/i);
+  const openQuestions = result.output.text
+    .split("### Open Questions")[1]
+    .split("## Approval Gate")[0]
+    .split("\n")
+    .filter((line) => /^- .*\?$/.test(line.trim()));
+  assert.equal(openQuestions.length, 3);
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-governance-audience-baseline",
+    workspaceReadMode: "missing",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Guild",
+        "Approved description: Guild provides a platform for creating and discovering AI agents.",
+        "Primary audiences: AI leaders, AI platform leaders, developer relations teams, and governance/security stakeholders.",
+        "Current marketing goal: improve agent discovery and keep AI-spend governance clear.",
+        "Channels in scope: website, email, organic social, and presentations.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.equal(harness.readState().lastOutput.status, "ready_for_review");
+  assert.equal(
+    harness.readState().lastOutput.claimsNeedingApproval.some(
+      (claim) => claim.source === "sensitive_claim_guardrail",
+    ),
+    false,
+    "audience roles and marketing goals must not be mistaken for factual security or spend claims",
+  );
+  assert.match(result.output.text, /Company: Guild/);
+  assert.doesNotMatch(result.output.text, /Evidence-led, precise, and review-oriented/);
+}
+
+{
   const harness = createTask({ sessionId: "foundation-managed-refresh" });
   const result = await foundationAgent.start(
     {
@@ -229,13 +298,13 @@ function guildChatEnvelope(text) {
   assert.match(draft.output.text, /retained in this Guild Chat/);
   assert.match(
     draft.output.text,
-    /Review required — Legal Reviewer:/,
-    "approval-gate lines should be explicitly qualified for the shared safety validator",
+    /Review required — Company Context Owner:/,
+    "a complete baseline should require company-context owner review",
   );
   assert.match(
     draft.output.text,
-    /Entity clarity: Draft entity clarity pending approved evidence\./,
-    "unapproved Builder drafts should not promote model-generated entity-clarity claims",
+    /Entity clarity: The approved company description can serve as the baseline entity summary\./,
+    "a user-supplied approved description should provide draft entity clarity",
   );
   assert.match(
     draft.output.text,
@@ -270,9 +339,9 @@ function guildChatEnvelope(text) {
   assert.equal(harness.readState().lastSourceText, approvalFixture);
   assert.equal(
     harness.readState().durableContextArtifactStatus,
-    "draft",
+    "ready_for_review",
   );
-  assert.match(draft.output.text, /plus a draft Company Context artifact/);
+  assert.match(draft.output.text, /plus review-ready Company Context artifact/);
 
   const readyState = harness.readState();
   readyState.lastOutput.status = "ready_for_review";

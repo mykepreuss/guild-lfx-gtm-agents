@@ -49,8 +49,8 @@ publishing account, or advertising credential is part of the marketer journey.
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.30` |
-| Company Context Builder | `1.2.16` |
+| Marketing OS Launcher | `0.4.0` |
+| Company Context Builder | `1.3.0` |
 | Market Signal | `1.2.8` |
 | ICP | `1.2.8` |
 | Audience Segmentation | `1.2.8` |

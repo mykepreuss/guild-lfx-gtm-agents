@@ -34,12 +34,16 @@ decisions.
 
 4. Approve the installation requests for Company Context Builder and the seven
    marketing specialists.
-5. In the workspace settings, make **Marketing OS Launcher** the default agent.
+5. Keep **Marketing OS Launcher** selected or @mention it for a new Chat; no default-agent setting is required.
 6. Continue in the same Launcher Chat so your drafts and progress stay
    together.
 
 No CLI, cloud account, database, CRM connection, advertising account, or
 publishing credential is required.
+
+If you provide only a website URL, Marketing OS records it as a reference and
+asks for a short approved description or pasted excerpt. The built-in LLM does
+not open the page, and this release adds no external web-retrieval dependency.
 
 ## Add Your Company Context
 

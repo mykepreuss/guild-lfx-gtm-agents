@@ -64,20 +64,23 @@ Public onboarding is designed to work entirely in Guild:
 
 1. Create or select a dedicated Marketing OS workspace.
 2. Install Marketing OS Launcher from Agent Hub.
-3. Start Launcher onboarding.
+3. Select or @mention Launcher in a new Chat and send `Let's get started` (or another natural request to begin).
 4. Approve installation of Company Context Builder, followed by the seven
    specialists, one request at a time.
-5. Use the Guild workspace settings to make Launcher the default agent.
-6. Continue in the original Launcher Chat so it remains the canonical cockpit.
-7. Paste readable company context and review the Company Context Approval
+5. Continue in the original Launcher Chat so it remains the canonical cockpit.
+6. Paste readable company context and review the Company Context Approval
    Packet.
-8. Approve the exact artifact revision.
-9. Send exactly `publish approved context to workspace context` to pass the
+7. Approve the exact artifact revision.
+8. Send exactly `publish approved context to workspace context` to pass the
    separate Workspace Context preparation gate.
-10. Open **Context** from the workspace sidebar, keep existing notes, append
+9. Open **Context** from the workspace sidebar, keep existing notes, append
     the approved compact block returned by Launcher, and click **Publish**.
-11. Ask Launcher for specialist work, resume workstreams, approve revisions,
+10. Ask Launcher for specialist work, resume workstreams, approve revisions,
     inspect status, or export the cockpit without repasting earlier results.
+
+A URL can be retained as a reference, but the built-in LLM does not open it. A
+URL-only setup request therefore asks for an approved company description or a
+pasted source excerpt; no external search or retrieval service is required.
 
 Denied or unavailable package installations stay visibly blocked and
 resumable. No maintainer intervention or infrastructure credential is part of

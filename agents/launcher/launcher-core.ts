@@ -135,6 +135,7 @@ const specialistStatusPayloadSchema = z.object({
 export async function classifyRoute(
   text: string,
   task: Pick<Task, "llm">,
+  state: { suiteReady?: boolean; contextReady?: boolean } = {},
 ): Promise<{ route: Route; classifierAttempts: string[]; routingReason: string }> {
   const deterministic = deterministicRouteDecision(text);
   if (deterministic) {
@@ -145,9 +146,11 @@ export async function classifyRoute(
     };
   }
 
-  const first = await task.llm.generateText({ prompt: classifierPrompt(text, false) });
+  const first = await task.llm.generateText({
+    prompt: classifierPrompt(text, false, state),
+  });
   const firstRoute = parseRoute(first.text);
-  if (firstRoute) {
+  if (firstRoute && firstRoute !== "guide") {
     return {
       route: firstRoute,
       classifierAttempts: [first.text],
@@ -155,7 +158,26 @@ export async function classifyRoute(
     };
   }
 
-  const repair = await task.llm.generateText({ prompt: classifierPrompt(text, true) });
+  const stateAwareStartRoute = generalStartRoute(text, state);
+  if (stateAwareStartRoute) {
+    return {
+      route: stateAwareStartRoute,
+      classifierAttempts: [first.text],
+      routingReason: "state_aware_start_fallback",
+    };
+  }
+
+  if (firstRoute === "guide") {
+    return {
+      route: "guide",
+      classifierAttempts: [first.text],
+      routingReason: "strict_classifier",
+    };
+  }
+
+  const repair = await task.llm.generateText({
+    prompt: classifierPrompt(text, true, state),
+  });
   const repairedRoute = parseRoute(repair.text);
   return {
     route: repairedRoute || "guide",
@@ -364,7 +386,11 @@ function routingMatchIsNegated(
   return !/\b(?:but|however|instead|except|then)\b/i.test(negatedScope);
 }
 
-function classifierPrompt(text: string, repair: boolean): string {
+function classifierPrompt(
+  text: string,
+  repair: boolean,
+  state: { suiteReady?: boolean; contextReady?: boolean },
+): string {
   return [
     repair
       ? "Your prior response was malformed. Return exactly one enum value and nothing else."
@@ -372,8 +398,29 @@ function classifierPrompt(text: string, repair: boolean): string {
     routes.join(" | "),
     "Use blocked for external action, unsafe routing, self-delegation, or unrelated agents.",
     "Use guide when the requested outcome is unclear or spans several peer workflows.",
+    "Treat natural statements of readiness or a desire to begin as onboarding when the suite is incomplete, company_context when the suite is ready but company context is not, and guide when both are ready.",
+    `Suite ready: ${state.suiteReady === true ? "yes" : state.suiteReady === false ? "no" : "unknown"}`,
+    `Company context ready: ${state.contextReady === true ? "yes" : state.contextReady === false ? "no" : "unknown"}`,
     `Request: ${text}`,
   ].join("\n");
+}
+
+function generalStartRoute(
+  text: string,
+  state: { suiteReady?: boolean; contextReady?: boolean },
+): Route | undefined {
+  const normalized = text.trim().toLowerCase().replace(/[.!?]+$/, "");
+  const looksLikeStartIntent =
+    /^(?:let(?:'|’)s\s+)?(?:get\s+)?started$/.test(normalized) ||
+    /^(?:i(?:'|’)m|i am)\s+ready(?:\s+to\s+(?:start|begin|get started))?$/.test(normalized) ||
+    /^(?:help|walk|guide)\s+me\s+(?:get\s+started|begin|start|set(?:\s+)?up)$/.test(normalized) ||
+    /^(?:start|begin|continue|proceed)(?:\s+(?:the\s+)?setup)?$/.test(normalized);
+  if (!looksLikeStartIntent) return undefined;
+  if (state.suiteReady === false) return "onboarding";
+  if (state.suiteReady === true && state.contextReady === false) {
+    return "company_context";
+  }
+  return "guide";
 }
 
 function parseRoute(value: string): Route | undefined {
@@ -882,7 +929,7 @@ export function renderOnboardingStatus(
     "",
     "Launcher is active in this Chat.",
     "",
-    "Admin check: in the Guild workspace UI, confirm Marketing OS Launcher is the default agent.",
+    "For the first message in a new workspace Chat, select or @mention Marketing OS Launcher. Continue in the same Chat so it can retain your work.",
     "",
     "## Next step",
     "",
@@ -937,6 +984,39 @@ export function renderDelegatedResult(
         ]
       : [];
 
+  if (displayName === "Company Context Builder" && status === "needs_input") {
+    const questions = companyContextQuestions(specialistText);
+    const company =
+      specialistText.match(/^- Company:\s*(.+?)\s*$/m)?.[1]?.trim() ??
+      "Not established";
+    const revision = options.artifactRevision ?? 1;
+    return [
+      "# Marketing OS",
+      "",
+      "Handled by: Company Context Builder",
+      "Status: needs input",
+      "",
+      "## At a glance",
+      "",
+      "| | |",
+      "| --- | --- |",
+      `| Company | ${escapeTableCell(company)} |`,
+      `| Evidence | ${escapeTableCell(presentation.evidenceMode)} |`,
+      `| Draft artifact | Revision ${revision} |`,
+      "| Workspace Context | Unchanged |",
+      "",
+      "## What I need from you",
+      "",
+      ...(questions.length
+        ? questions.map((question, index) => `${index + 1}. ${question}`)
+        : ["1. Provide the missing core company context requested by the Builder."]),
+      "",
+      `The complete validated artifact and audit detail remain saved in this Chat. To view them, send: \`Show Company Context artifact revision ${revision}\`.`,
+      "",
+      `**Next action:** ${nextAction}`,
+    ].join("\n");
+  }
+
   return [
     "# Marketing OS",
     "",
@@ -964,6 +1044,19 @@ export function renderDelegatedResult(
     "",
     specialistText,
   ].join("\n");
+}
+
+function companyContextQuestions(specialistText: string): string[] {
+  const questionSection = specialistSection(
+    specialistText,
+    "### Open Questions",
+    "## Approval Gate",
+  );
+  return questionSection
+    .split("\n")
+    .map((line) => line.trim().replace(/^[-*]\s+/, ""))
+    .filter((line) => line.endsWith("?"))
+    .slice(0, 3);
 }
 
 function specialistPresentationMetadata(

@@ -42,8 +42,8 @@ runtime dependency.
 2. Install Marketing OS Launcher from Agent Hub.
 3. Approve Launcher’s installation request for Context Builder.
 4. Approve each specialist request, one at a time.
-5. Make Launcher the default agent in the Guild UI and let Launcher verify it.
-6. Supply source through Context Builder, approve the artifact, and use the
+5. Continue in the same Chat with Launcher selected or @mentioned; no default-agent setting is required.
+6. Supply readable source through Context Builder, approve the artifact, and use the
    exact publication phrase.
 7. Ask Launcher for specialist work and resume workstreams without repasting
    prior artifacts.

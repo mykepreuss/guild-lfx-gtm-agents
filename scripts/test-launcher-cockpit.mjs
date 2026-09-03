@@ -139,6 +139,7 @@ function createChat({
   let specialistCalls = 0;
   let installationCalls = 0;
   const installationAgentIds = [];
+  const notifications = [];
   const specialistInputs = [];
   const contexts = initialContexts ?? [
     {
@@ -158,6 +159,9 @@ function createChat({
   const task = {
     sessionId,
     tools: {
+      async ui_notify(event) {
+        notifications.push(event);
+      },
       async guild_get_task_workspace_agents() {
         return installed;
       },
@@ -218,6 +222,9 @@ function createChat({
     },
     installationAgentIds() {
       return [...installationAgentIds];
+    },
+    notifications() {
+      return [...notifications];
     },
   };
 }
@@ -291,12 +298,15 @@ function launcherInput(request, context = managedContext) {
     launcherCore.suiteInstallOrder.map((entry) => entry.agentId),
   );
   assert.match(result.text, /All eight marketing specialists are installed/);
-  assert.match(result.text, /8 missing capability packages were installed/);
+  assert.match(result.text, /8 Marketing OS specialists were installed/);
   assert.match(
     result.text,
     /Each installation required its own explicit approval/,
   );
   assert.doesNotMatch(result.text, /Continue onboarding to verify/);
+  assert.equal(chat.notifications().length, 9);
+  assert.match(JSON.stringify(chat.notifications()), /Installing specialist 1 of 8/);
+  assert.match(JSON.stringify(chat.notifications()), /setup verified/);
 }
 
 {
@@ -325,7 +335,54 @@ function launcherInput(request, context = managedContext) {
   );
   assert.equal(chat.installationCallCount(), 9);
   assert.match(resumed.text, /All eight marketing specialists are installed/);
-  assert.match(resumed.text, /6 missing capability packages were installed/);
+  assert.match(resumed.text, /6 Marketing OS specialists were installed/);
+}
+
+{
+  const chat = createChat({
+    sessionId: "natural-first-message",
+    specialist: async () => {
+      throw new Error("first-run onboarding must not call a specialist");
+    },
+    installed: [],
+  });
+  const result = await launcher.run(
+    launcherInput("Let’s get started", ""),
+    chat.task,
+  );
+  assert.match(result.text, /# Marketing OS is ready/);
+  assert.equal(chat.installationCallCount(), 8);
+}
+
+{
+  const chat = createChat({
+    sessionId: "natural-context-start",
+    specialist: async () => ({ type: "text", text: companyContextArtifact }),
+  });
+  const result = await launcher.run(
+    launcherInput("I’m ready", ""),
+    chat.task,
+  );
+  assert.match(result.text, /Handled by: Company Context Builder/);
+  assert.equal(chat.specialistCallCount(), 1);
+}
+
+{
+  const chat = createChat({
+    sessionId: "natural-start-ready-workspace",
+    specialist: async () => {
+      throw new Error("an outcome menu must not call a specialist");
+    },
+  });
+  const result = await launcher.run(
+    launcherInput("Let’s get started"),
+    chat.task,
+  );
+  assert.match(result.text, /# Marketing OS is ready/);
+  assert.match(result.text, /What marketing outcome should we work on next\?/);
+  assert.match(result.text, /Write naturally; you do not need to name an agent/);
+  assert.doesNotMatch(result.text, /could not determine/i);
+  assert.equal(chat.specialistCallCount(), 0);
 }
 
 {
@@ -607,6 +664,15 @@ function launcherInput(request, context = managedContext) {
     chat.specialistInputs[0].text,
     /This session was started/,
   );
+  const retrieved = await launcher.run(
+    launcherInput("Show current Company Context draft", runtimeEnvelope),
+    chat.task,
+  );
+  assert.match(retrieved.text, /# Company Context Artifact/);
+  assert.match(retrieved.text, /Revision: 1/);
+  assert.match(retrieved.text, /Company: Example Co\./);
+  assert.match(retrieved.text, /Workspace Context and external systems were unchanged/);
+  assert.equal(chat.specialistCallCount(), 1);
   const approved = await launcher.run(
     launcherInput(
       "Approve Company Context Builder artifact revision 1.",

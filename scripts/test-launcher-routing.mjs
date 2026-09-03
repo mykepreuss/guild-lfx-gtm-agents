@@ -17,6 +17,7 @@ if (build.status !== 0) {
 }
 
 const {
+  classifyRoute,
   deterministicRoute,
   extractApprovedHipaaConstraint,
   extractArtifactApprovalText,
@@ -167,6 +168,43 @@ assert.match(
 for (const [input, expected] of routingCases) {
   assert.equal(deterministicRoute(input), expected, input);
 }
+
+const semanticPrompts = [];
+const semanticTask = {
+  llm: {
+    async generateText({ prompt }) {
+      semanticPrompts.push(prompt);
+      return { text: "onboarding" };
+    },
+  },
+};
+assert.equal(
+  (await classifyRoute("Could we begin now?", semanticTask, {
+    suiteReady: false,
+    contextReady: false,
+  })).route,
+  "onboarding",
+  "the LLM classifier should recognize natural start intent without a fixed phrase",
+);
+assert.match(semanticPrompts[0], /Suite ready: no/);
+assert.equal(
+  (await classifyRoute(
+    "I’m ready",
+    { llm: { async generateText() { return { text: "guide" }; } } },
+    { suiteReady: true, contextReady: false },
+  )).route,
+  "company_context",
+  "state-aware fallback should advance a ready user to company context",
+);
+assert.equal(
+  (await classifyRoute(
+    "Let’s get started",
+    { llm: { async generateText() { return { text: "guide" }; } } },
+    { suiteReady: false, contextReady: false },
+  )).route,
+  "onboarding",
+  "the most common start phrase should remain reliable if the classifier is conservative",
+);
 assert.equal(deterministicRoute("Help with marketing"), undefined, "ambiguous requests should use the strict classifier");
 assert.equal(
   deterministicRoute("Create messaging and a paid media campaign"),
@@ -367,7 +405,11 @@ const summarizedBuilderResult = renderDelegatedResult(
     )
     .replace(
       "Draft artifact.",
-      "### Save And Approval State\nDraft retained.\n\n### Company Context Draft (company-context)\nDraft artifact.",
+      "### Save And Approval State\nDraft retained.\n\n### Company Context Draft (company-context)\n- Company: Example Co.\n\nDraft artifact.",
+    )
+    .replace(
+      "## Approval Gate",
+      "### Open Questions\n- Can you paste an approved one-paragraph company description?\n- Who is the primary audience?\n- What is the current marketing goal?\n- Which channels are approved?\n\n## Approval Gate",
     ),
   {
     artifactRevision: 1,
@@ -376,16 +418,17 @@ const summarizedBuilderResult = renderDelegatedResult(
 );
 assert.match(
   summarizedBuilderResult,
-  /\| Draft \| Company Context Approval Packet \|/,
+  /\| Company \| Example Co\. \|/,
 );
 assert.match(
   summarizedBuilderResult,
-  /\| Includes \| Company description · Audiences · Marketing goal · Approved claims · Channels · Constraints \|/,
+  /\| Draft artifact \| Revision 1 \|/,
 );
-assert.doesNotMatch(
-  summarizedBuilderResult.split("## Complete validated draft")[0],
-  /Save And Approval State/,
-);
+assert.match(summarizedBuilderResult, /\| Workspace Context \| Unchanged \|/);
+assert.match(summarizedBuilderResult, /Show Company Context artifact revision 1/);
+assert.doesNotMatch(summarizedBuilderResult, /## Complete validated draft/);
+assert.doesNotMatch(summarizedBuilderResult, /Which channels are approved\?/);
+assert.doesNotMatch(summarizedBuilderResult, /publish approved context to workspace context/i);
 const summarizedReadyBuilderResult = renderDelegatedResult(
   "Company Context Builder",
   validArtifact,
