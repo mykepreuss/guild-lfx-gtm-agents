@@ -11,6 +11,8 @@ import {
   resolveBuilderSemanticAction,
   type BuilderSemanticAction,
 } from "./conversation-intent.js";
+import { isPersistenceStatusQuestion, renderPersistenceStatus } from "./persistence-status.js";
+import { channelSources, exactChannelDeclarations, needsChannelInterpretation, normalizeChannels, resolveChannelScope } from "./channel-resolution.js";
 
 const artifactValues = [
   "company-context",
@@ -506,7 +508,7 @@ export default agent({
   async start(input: Input, task: AgentTask) {
     const state = await restoreState(task);
     const result = await runFoundationTurn(input, task, state);
-    await task.save(result.state);
+    if (result.persistState !== false) await task.save(result.state);
     return agentOutput(result.output);
   },
 });
@@ -515,10 +517,15 @@ async function runFoundationTurn(
   input: Input,
   task: AgentTask,
   state: AgentState,
-): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
+): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState; persistState?: boolean }> {
   let effectiveInput = input;
   let rawContext = getRawContext(effectiveInput);
   let semanticContextFields: SemanticContextFields | undefined;
+  let resolvedChannels: string[] | undefined;
+
+  if (isPersistenceStatusQuestion(rawContext)) {
+    return { output: { type: "text", text: renderPersistenceStatus(state) }, state, persistState: false };
+  }
 
   if (isWorkspaceContextPublishConfirmation(rawContext)) {
     const publishResult = await buildWorkspaceContextPublishOutput(
@@ -537,7 +544,39 @@ async function runFoundationTurn(
     ? "source_available"
     : classifyConversationIntent(rawContext);
 
-  if (shouldResolveBuilderSemantically(rawContext, conversationIntent, state)) {
+  const segments = channelSources(rawContext);
+  const latestChannelTurn = segments.sources.at(-1)!.text;
+  let channelTurnHandled = false;
+  if (focusedContextResume || conversationIntent === "source_available" ||
+      (state.lastOutput && needsChannelInterpretation(latestChannelTurn, false) && !isExplicitDownstreamRequest(rawContext)) ||
+      (state.lastOutput && !["approval_or_edit", "save_state_question", "downstream_request_without_context"].includes(conversationIntent))) {
+    const scope = await resolveChannelScope(
+      segments.sources,
+      segments.focused ? [] : state.lastOutput?.contextArtifacts.channelRegistry.approvedChannels ?? [],
+      segments.focused ? Object.fromEntries(segments.sources.map((source, index) => [
+        source.ref,
+        channelAnswerIsUnambiguous({}, segments.sources.slice(0, index).map(prior => prior.text).join("\n")),
+      ])) : channelAnswerIsUnambiguous(state, ""),
+      task,
+    );
+    if (scope.kind === "clarify") return {
+      output: { type: "text", text: "# Company Context Clarification\n\nWhich channels are confirmed for draft planning, and are you adding to or replacing the current scope? No draft or approval changed; Workspace Context remains unchanged." },
+      state, persistState: false,
+    };
+    resolvedChannels = scope.channels;
+    channelTurnHandled = scope.handledLatest;
+    if (channelTurnHandled && state.lastOutput && !segments.focused &&
+        !/\b(?:company name|description|audiences?|goals?|constraints?|claims)\s*:/i.test(latestChannelTurn)) {
+      const reconciled = reconcileBuilderContextSource(state, undefined, rawContext, resolvedChannels)!;
+      semanticContextFields = reconciled.fields;
+      effectiveInput = { type: "text", text: reconciled.source };
+      rawContext = reconciled.source;
+      focusedContextResume = true;
+      conversationIntent = "source_available";
+    }
+  }
+
+  if (!channelTurnHandled && shouldResolveBuilderSemantically(rawContext, conversationIntent, state)) {
     const semanticAction = await resolveBuilderSemanticAction(
       rawContext,
       builderSemanticStateSummary(state),
@@ -547,10 +586,11 @@ async function runFoundationTurn(
       return {
         output: builderSemanticClarification(state),
         state,
+        persistState: false,
       };
     }
     if (semanticAction.intent === "persistence_status") {
-      return finalizeTurn(buildSaveStateQuestionOutput(effectiveInput, state), state);
+      return { output: { type: "text", text: renderPersistenceStatus(state) }, state, persistState: false };
     }
     if (semanticAction.intent === "approve_draft") {
       if (
@@ -577,6 +617,11 @@ async function runFoundationTurn(
       semanticAction.intent === "provide_or_answer_context" ||
       semanticAction.intent === "edit_context"
     ) {
+      // Channel edits require the channel-specific commitment and operation checks.
+      // Do not accept a less constrained interpretation through the generic resolver.
+      if (semanticAction.field_updates.some(update => update.field === "channels")) return {
+        output: builderSemanticClarification(state), state, persistState: false,
+      };
       const reconciled = reconcileBuilderContextSource(
         state,
         semanticAction,
@@ -589,6 +634,8 @@ async function runFoundationTurn(
         };
       }
       semanticContextFields = reconciled.fields;
+      resolvedChannels = normalizeChannels(reconciled.fields.channels);
+      semanticContextFields.channels = resolvedChannels;
       effectiveInput = { type: "text", text: reconciled.source };
       rawContext = reconciled.source;
       focusedContextResume = true;
@@ -618,7 +665,7 @@ async function runFoundationTurn(
   }
 
   if (conversationIntent === "save_state_question") {
-    return finalizeTurn(buildSaveStateQuestionOutput(effectiveInput, state), state);
+    return { output: { type: "text", text: renderPersistenceStatus(state) }, state, persistState: false };
   }
 
   if (conversationIntent === "approval_or_edit") {
@@ -647,14 +694,14 @@ async function runFoundationTurn(
     return finalizeTurn(buildMissingContextOutput(effectiveInput), state);
   }
 
-  const fallback = buildFallbackOutput(effectiveInput, [], conversationIntent);
+  const fallback = buildFallbackOutput(effectiveInput, [], conversationIntent, resolvedChannels);
 
   const { text } = await task.llm.generateText({
     prompt: buildExtractionPrompt(
       effectiveInput,
       rawContext,
       conversationIntent,
-    ),
+    ) + (resolvedChannels === undefined ? "" : `\nValidated planning channel scope: ${JSON.stringify(resolvedChannels)}. Use exactly these channels; historical channel declarations do not override this resolved scope.`),
   });
 
   const parsed = parseJsonObject(text);
@@ -686,6 +733,7 @@ async function runFoundationTurn(
     effectiveInput,
     parseWarnings,
     conversationIntent,
+    resolvedChannels,
   );
   if (semanticContextFields) {
     guarded = applySemanticContextFields(
@@ -1074,6 +1122,23 @@ function shouldResolveBuilderSemantically(
   );
 }
 
+function channelAnswerIsUnambiguous(state: AgentState, priorSource: string): boolean {
+  const draft = priorSource ? undefined : state.lastOutput;
+  const questions = draft?.openQuestions ?? [];
+  if (questions.length === 1 && /\bchannels?\b/i.test(questions[0])) return true;
+  const sourceName = extractCompanyName(priorSource);
+  const name = draft?.contextArtifacts.companyContext.companyName ?? sourceName;
+  const description = draft?.contextArtifacts.messagingSource.overview ?? extractLineAfterLabels(priorSource, ["Approved company description", "Approved description", "Company description", "Description"]);
+  const audiences = draft?.contextArtifacts.companyContext.primaryAudiences ?? extractListAfterLabels(priorSource, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
+  const goals = draft?.contextArtifacts.companyContext.goals ?? extractListAfterLabels(priorSource, ["Current marketing goal", "Marketing goal", "Current goals", "Goals"]);
+  const channels = draft?.contextArtifacts.channelRegistry.approvedChannels ?? exactChannelDeclarations(priorSource) ?? [];
+  // A previous natural declaration also closes the missing-channel slot. Its values
+  // are validated by the channel resolver, not inferred here from a later bare reply.
+  if (!draft && /\bchannels?\s+(?:are|include)\b/i.test(priorSource)) return false;
+  return Boolean(name && !isTbdish(name) && description && !isTbdish(description) &&
+    cleanSemanticValues(audiences).length && cleanSemanticValues(goals).length && !cleanSemanticValues(channels).length);
+}
+
 function builderSemanticStateSummary(state: AgentState): {
   hasDraft: boolean;
   draftStatus?: string;
@@ -1146,15 +1211,16 @@ function builderApprovalClarification(
 
 function reconcileBuilderContextSource(
   state: AgentState,
-  action: BuilderSemanticAction,
+  action: BuilderSemanticAction | undefined,
   rawContext: string,
+  resolvedChannels?: string[],
 ): { source: string; fields: SemanticContextFields } | undefined {
   const draft = state.lastOutput;
   if (
     !draft ||
-    action.candidate_refs.length !== 1 ||
+    (action && (action.candidate_refs.length !== 1 ||
     action.candidate_refs[0] !== "draft_1" ||
-    action.field_updates.length === 0
+    action.field_updates.length === 0))
   ) {
     return undefined;
   }
@@ -1188,7 +1254,7 @@ function reconcileBuilderContextSource(
     ),
   };
 
-  for (const update of action.field_updates) {
+  for (const update of action?.field_updates ?? []) {
     const value = update.supporting_span.trim();
     if (!value) return undefined;
     if (update.operation === "replace") {
@@ -1207,6 +1273,7 @@ function reconcileBuilderContextSource(
     }
   }
 
+  if (resolvedChannels !== undefined) fields.channels = resolvedChannels;
   const source = [
     "Resume Company Context using the reconciled source below.",
     "The reconciled fields supersede conflicting values in the prior source only where the latest user turn explicitly replaced or removed them.",
@@ -1656,7 +1723,7 @@ function firstJsonObject(text: string): string | undefined {
   return text.slice(start, end + 1);
 }
 
-function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[], conversationIntent: ConversationIntent): Output {
+function enforceDeterministicGuards(output: Output, input: Input, parseWarnings: string[], conversationIntent: ConversationIntent, resolvedChannels?: string[]): Output {
   const rawContext = getRawContext(input);
   const sourceTextNeeded = shouldRequestReadableSourceText(rawContext);
   const explicitCompanyName = extractCompanyName(rawContext);
@@ -1684,7 +1751,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     "Constraints",
     "Anything not approved for reuse",
   ]);
-  const explicitChannels = extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
+  const explicitChannels = resolvedChannels ?? extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"]);
   const blockers = new Set(output.statusPayload.blockers);
   let missing = new Set(output.consumedContext.missing);
   let blockedClaims = [...output.contextArtifacts.proofAndConstraints.blockedClaims];
@@ -1751,7 +1818,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     missing.delete("Current goals");
   }
 
-  if (explicitChannels.length > 0 && hasExplicitApprovedChannelScope(rawContext)) {
+  if (explicitChannels.length > 0 && (resolvedChannels !== undefined || hasExplicitApprovedChannelScope(rawContext))) {
     output.contextArtifacts.channelRegistry.approvedChannels = explicitChannels;
     output.contextArtifacts.channelRegistry.channelsTbd = output.contextArtifacts.channelRegistry.channelsTbd.filter(
       (channel) => !explicitChannels.some((explicitChannel) => explicitChannel.toLowerCase() === channel.toLowerCase()),
@@ -1838,7 +1905,7 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
   claimsNeedingApproval.push(...factNormalization.sensitive, ...proofNormalization.sensitive, ...proofBackedNormalization.sensitive);
   blockedClaims.push(...factNormalization.sensitive, ...proofNormalization.sensitive, ...proofBackedNormalization.sensitive);
 
-  if (!hasExplicitApprovedChannelScope(rawContext)) {
+  if (resolvedChannels !== undefined ? resolvedChannels.length === 0 : !hasExplicitApprovedChannelScope(rawContext)) {
     output.contextArtifacts.channelRegistry.approvedChannels = [];
     output.contextArtifacts.channelRegistry.channelsTbd = ["TBD"];
     missing.add("Approved channel scope");
@@ -1979,14 +2046,15 @@ function enforceDeterministicGuards(output: Output, input: Input, parseWarnings:
     ].join("\n");
   }
 
-  return finalizeCompleteMarketerContextPacket(output, rawContext);
+  return finalizeCompleteMarketerContextPacket(output, rawContext, resolvedChannels);
 }
 
 function finalizeCompleteMarketerContextPacket(
   output: Output,
   rawContext: string,
+  resolvedChannels?: string[],
 ): Output {
-  const packet = extractMarketerContextPacket(rawContext);
+  const packet = extractMarketerContextPacket(rawContext, resolvedChannels);
   if (!packet) return output;
 
   const sensitiveReusableFacts = [
@@ -2157,6 +2225,7 @@ function finalizeCompleteMarketerContextPacket(
 
 function extractMarketerContextPacket(
   rawContext: string,
+  resolvedChannels?: string[],
 ): MarketerContextPacket | undefined {
   const initialCompanyName = extractCompanyName(rawContext);
   const description =
@@ -2198,7 +2267,7 @@ function extractMarketerContextPacket(
   if (approvedClaims.length === 0 && inlineApprovedClaims) {
     approvedClaims.push(inlineApprovedClaims);
   }
-  const channels = extractListAfterLabels(rawContext, [
+  const channels = resolvedChannels ?? extractListAfterLabels(rawContext, [
     "Channels in scope",
     "Approved draft channels",
     "Approved channels",
@@ -2689,95 +2758,6 @@ function applyReadableSourceNeededState(output: Output): Output {
   return output;
 }
 
-function buildSaveStateQuestionOutput(input: Input, state: AgentState = {}): Output {
-  const output = buildFallbackOutput(input, ["No persistence operation has been run in this agent."], "save_state_question");
-  const savedToWorkspace = state.workspaceContextStatus === "published" && Boolean(state.workspaceContextId);
-  const savedArtifacts = Boolean(
-    state.durableContextArtifactId &&
-      state.durableContextArtifactRevision,
-  );
-  const approvedOnly = !savedToWorkspace && Boolean(state.approvedOutput);
-  const draftedOnly = !savedToWorkspace && !approvedOnly && Boolean(state.lastOutput);
-  output.status = "needs_input";
-  output.persistenceState = {
-    drafted_in_session: Boolean(state.lastOutput ?? state.approvedOutput) || true,
-    approved_in_session: Boolean(state.approvedOutput),
-    saved_to_workspace_context: savedToWorkspace,
-    saved_to_context_artifacts: savedArtifacts,
-    workspace_context_id: state.workspaceContextId,
-    workspace_context_draft_id: state.workspaceContextDraftId,
-    workspace_context_previous_id: state.workspaceContextPreviousId,
-    workspace_context_status: state.workspaceContextStatus ?? "not_requested",
-    workspace_context_summary: state.workspaceContextSummary,
-    workspace_context_publish_path: state.workspaceContextPublishPath,
-    source_references:
-      state.durableSourceId && state.durableSourceRevision
-        ? [`${state.durableSourceId}:${state.durableSourceRevision}`]
-        : [],
-    context_artifact_references:
-      state.durableContextArtifactId &&
-      state.durableContextArtifactRevision
-        ? [
-            `${state.durableContextArtifactId}:${state.durableContextArtifactRevision}`,
-          ]
-        : [],
-    workspace_context_rollback_note: state.workspaceContextPreviousId
-      ? `Re-publish previous workspace context ${state.workspaceContextPreviousId} to roll back.`
-      : undefined,
-    persistence_note: savedToWorkspace
-      ? `Yes. The approved Company Context artifact is retained in Guild Chat state, and its compact brief has been published to Guild Workspace Context${state.workspaceContextId ? ` as ${state.workspaceContextId}` : ""}${state.workspaceContextPublishPath ? ` through ${state.workspaceContextPublishPath}` : ""}.`
-      : approvedOnly
-        ? "The latest Company Context artifact is durably approved and waiting for the exact workspace-context publish confirmation. Guild workspace context has not changed."
-        : draftedOnly
-          ? savedArtifacts
-            ? "The encrypted source and review-ready Company Context artifact are durably stored, but the artifact is not approved and Guild workspace context has not changed."
-            : "The latest company context is a session draft and durable persistence did not complete."
-          : "No durable Company Context draft is available.",
-  };
-  output.consumedContext.used = ["User asked whether company context is saved or approved."];
-  output.consumedContext.missing = savedToWorkspace
-    ? []
-    : approvedOnly
-      ? ["Exact publish confirmation: publish approved context to workspace context"]
-      : ["Explicit approval", "Exact publish confirmation: publish approved context to workspace context"];
-  output.contextArtifacts.companyContext.status = "needs_input";
-  output.contextArtifacts.companyContext.missingContext = output.consumedContext.missing;
-  output.contextArtifacts.dashboardSignals.status = "needs_input";
-  output.contextArtifacts.dashboardSignals.readiness = "draft";
-  output.contextArtifacts.dashboardSignals.blockers = savedArtifacts
-    ? approvedOnly
-      ? ["Awaiting exact workspace context publish confirmation."]
-      : ["Durable Company Context artifact is awaiting approval."]
-    : ["Durable Company Context persistence is unavailable."];
-  output.workspaceContextDraft = savedToWorkspace
-    ? `Guild workspace context published. Context id: ${state.workspaceContextId ?? "TBD"}.`
-    : approvedOnly
-      ? "Approved Company Context artifact is staged durably. Reply exactly `publish approved context to workspace context` to publish its compact brief."
-      : savedArtifacts
-        ? "Review-ready Company Context artifact is stored durably. Guild workspace context has not changed."
-        : "No Guild workspace context update has been saved, and no durable Company Context artifact is available.";
-  output.openQuestions = [
-    savedToWorkspace ? "Should a new Company Context revision be drafted?" : "Should the current durable artifact revision be approved?",
-    "Do any claims need to be removed before a future persistence step?",
-    approvedOnly ? "Should I publish the approved company context after the exact confirmation phrase?" : "Which approved source should be used if a separate save/publish workflow is later authorized?",
-  ];
-  output.statusPayload.readiness = "draft";
-  output.statusPayload.blockers = savedToWorkspace
-    ? []
-    : approvedOnly
-      ? ["Awaiting exact workspace context publish confirmation."]
-      : savedArtifacts
-        ? ["Durable Company Context artifact is awaiting approval."]
-        : ["Durable Company Context persistence did not complete."];
-  output.downstreamHandoff = [
-    {
-      agent: "Company Context Builder",
-      receives: ["company-context"],
-      reason: "Answer save-state questions directly before drafting or routing additional work.",
-    },
-  ];
-  return output;
-}
 
 function buildApprovalOrEditOutput(input: Input, state: AgentState = {}): { output: Output; state: AgentState } {
   const rawContext = getRawContext(input);
@@ -4483,7 +4463,7 @@ function mergeHandoffs(primary: Output["downstreamHandoff"], secondary: Output["
   return [...byAgent.values()];
 }
 
-function buildFallbackOutput(input: Input, blockers: string[], conversationIntent: ConversationIntent = "source_available"): Output {
+function buildFallbackOutput(input: Input, blockers: string[], conversationIntent: ConversationIntent = "source_available", resolvedChannels?: string[]): Output {
   const rawContext = getRawContext(input);
   const companyName = extractCompanyName(rawContext) ?? "TBD";
   const approvedDescription = extractLineAfterLabels(rawContext, [
@@ -4495,9 +4475,9 @@ function buildFallbackOutput(input: Input, blockers: string[], conversationInten
   ]) ?? extractCompanyDescriptionFromProse(rawContext, companyName);
   const primaryAudiences = extractListAfterLabels(rawContext, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
   const goals = extractListAfterLabels(rawContext, ["Current goals", "Goals"]);
-  const approvedChannels = hasExplicitApprovedChannelScope(rawContext)
+  const approvedChannels = resolvedChannels ?? (hasExplicitApprovedChannelScope(rawContext)
     ? extractListAfterLabels(rawContext, ["Channels in scope", "Approved channels", "Channel scope", "Channels"])
-    : [];
+    : []);
   const proofFacts = extractProofFacts(rawContext);
   const reusableProofFacts = proofFacts.filter((fact) => !isSensitiveClaim(fact));
   const sensitiveProofFacts = proofFacts.filter(isSensitiveClaim);
