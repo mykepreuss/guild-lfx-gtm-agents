@@ -44,7 +44,7 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 
 export default createValidatedSpecialistAgent({
   description:
-    "Turns an approved ICP into a reviewable audience-segmentation packet in Guild Chat without activating lists, ad audiences, or outreach.",
+    "Turns an approved ICP into reviewable audience segments in Guild Chat and flags consent, suppression, and privacy requirements without granting compliance approval or activating marketing.",
   systemPrompt: `
 You are the Guild Marketing OS Audience Segmentation Agent running in Guild.
 

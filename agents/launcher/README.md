@@ -103,3 +103,83 @@ guild agent test
 ```
 
 `guild agent test` creates an ephemeral version from the local agent repository. Guild authentication is required; no private author workspace is required.
+
+## Independent suite forks
+
+Installing Launcher, or forking only Launcher, continues to use the canonical
+public capabilities. It does not discover sibling forks. An independent suite
+requires all nine packages and an explicit binding change by its maintainer.
+The procedure below works from standalone Guild clones; no monorepo script or
+private workspace is required.
+
+1. Choose a Guild owner the maintainer can edit. Obtain the source owner's
+   qualified package names from the Hub and this package's `suite-binding.ts`.
+   Fork each of the eight capabilities below, then Launcher. Keep each package
+   name unchanged under the new owner. For each package, replace the angle-bracket
+   values and use a distinct, empty destination directory:
+
+   ```sh
+   guild agent fork "<source-owner>~<package-name>" --owner "<new-owner>" --name "<package-name>" --directory "<fork-directory>"
+   guild agent get "<new-owner>~<package-name>"
+   ```
+
+   Forking creates remote packages. Verify each returned `full_name`, `id`,
+   edit permission, and published version before proceeding. A fork does not
+   copy the original owner's Chat state or approved company context.
+
+   | Launcher binding key | Capability package name |
+   | --- | --- |
+   | `company_context` | `guild-marketing-os-company-context-builder` |
+   | `market_signal` | `guild-marketing-os-market-signal` |
+   | `icp` | `guild-marketing-os-icp` |
+   | `audience_segmentation` | `guild-marketing-os-audience-segmentation` |
+   | `messaging` | `guild-marketing-os-messaging` |
+   | `branding_pitch_deck` | `guild-marketing-os-branding-pitch-deck` |
+   | `social_monitoring_content` | `guild-marketing-os-social-monitoring-content` |
+   | `campaigns_paid_media` | `guild-marketing-os-campaigns-paid-media` |
+
+   The ninth package is `guild-marketing-os-launcher`.
+
+2. In the Launcher fork, update **every** `suite-binding.ts` entry: keep its
+   binding key and `packageName`; set `qualifiedName` to the new owner's exact
+   `full_name` and `agentId` to that same capability's returned `id`. Never use
+   a version ID, guess an ID, or mix canonical and forked siblings. Check that
+   each fork's `package.json` name is `@guildai/<new-owner>~<package-name>`;
+   correct source package names when needed. Do not hand-edit `guild.json`,
+   which Guild manages. Launcher still may call only these eight capabilities,
+   never itself or arbitrary workspace agents.
+
+3. From each changed `<agent-directory>`, run the Development build and test
+   commands above. A maintainer who chooses to release these forks should
+   publish the eight capabilities before Launcher. From each authorized fork
+   directory, stage the intended source files and run:
+
+   ```sh
+   guild agent save -A --message "Prepare independent suite fork" --publish --wait
+   ```
+
+   `-A` includes tracked modifications only; explicitly stage any new files
+   first. This command creates and publishes a version. It is a separate
+   maintainer release decision, not part of the default test command. Confirm
+   `latest_published_version.status` is `PUBLISHED` with `guild agent get` for
+   every capability, then for Launcher.
+
+4. Inspect the released Launcher with
+   `guild agent capabilities "<new-owner>~guild-marketing-os-launcher"`.
+   Confirm all eight sub-agent targets belong to the new owner and match the
+   bindings. In a fresh dedicated workspace, install the forked Launcher and
+   check that its installation requests name only the forked capabilities.
+   Stop if any canonical or unrelated package is requested.
+
+5. In a new Chat, provide fictional company context, answer a missing field,
+   retrieve the draft, and request a save-status receipt. Confirm the artifact
+   retains its identity and progresses only after a successful answer. Test
+   a representative forked specialist directly with approved supplied context
+   and confirm its task belongs to the new owner. Launcher requires approved
+   published Workspace Context before downstream delegation; testing that path
+   requires a separate, authorized context-publication step. Artifact approval
+   remains draft-only; do not publish Workspace Context or execute marketing
+   actions as part of this initial fork check.
+
+Changing bindings is an opt-in source change, not an automatic effect of a fork.
+Keep the canonical bindings for ordinary installations and Launcher-only forks.

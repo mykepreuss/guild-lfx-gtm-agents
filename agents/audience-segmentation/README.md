@@ -1,6 +1,6 @@
 # Audience Segmentation
 
-Turns an approved ICP into a reviewable audience-segmentation packet in Guild Chat without activating lists, ad audiences, or outreach.
+Turns an approved ICP into reviewable audience segments in Guild Chat and flags consent, suppression, and privacy requirements without granting compliance approval or activating marketing.
 
 ## Behavior
 
@@ -9,6 +9,7 @@ Turns an approved ICP into a reviewable audience-segmentation packet in Guild Ch
 - Separates planning-ready segment logic from activation prerequisites and data-owner decisions.
 - Returns downstream requirements for messaging, campaigns, channel planning, and measurement.
 - Does **not** activate CRM lists, ad audiences, enrichment jobs, email sends, or platform targeting.
+- Does **not** ensure compliance or grant legal, privacy, or consent approval; it flags requirements and missing evidence for human review.
 - Never treats a planning packet as permission to sync, upload, contact, or spend.
 
 ## Suite position
