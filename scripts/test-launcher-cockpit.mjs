@@ -542,6 +542,11 @@ function launcherInput(request, context = managedContext) {
     chat.specialistInputs[1].text,
     /Focused resume input[\s\S]*approved proof: customer interviews/,
   );
+  assert.match(
+    chat.specialistInputs[1].text,
+    /Retained prior artifact[\s\S]*Draft positioning and message pillars/,
+    "resume input must include the latest stored artifact so intervening answers are not lost",
+  );
   assert.equal(chat.readState().artifacts.length, 2);
   assert.equal(chat.readState().artifacts[0].artifact_id, chat.readState().artifacts[1].artifact_id);
   assert.equal(chat.readState().artifacts[1].revision, 2);
@@ -897,6 +902,10 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
   assert.equal(chat.readState().runs.length, 1);
   assert.equal(chat.specialistCallCount(), 2);
   assert.match(chat.specialistInputs[1].text, /Focused resume input/);
+  assert.match(
+    chat.specialistInputs[1].text,
+    /Retained prior artifact[\s\S]*Draft positioning and message pillars/,
+  );
   assert.equal(chat.readState().artifacts.at(-1).revision, 2);
 }
 

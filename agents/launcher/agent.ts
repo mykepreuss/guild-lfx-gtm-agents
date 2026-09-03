@@ -473,8 +473,24 @@ async function run(
       idempotencyPrefix = `launcher-${currentRun.run_id}`;
       const originalRequest = currentRun.input_envelope.user_request;
       if (typeof originalRequest === "string" && originalRequest.trim()) {
+        const retainedArtifact = currentRun.artifact_id
+          ? [...cockpit.state.artifacts]
+              .reverse()
+              .find(
+                (artifact) =>
+                  artifact.artifact_id === currentRun?.artifact_id &&
+                  artifact.revision === currentRun?.artifact_revision,
+              )
+          : undefined;
         requestText = [
           originalRequest.trim(),
+          ...(retainedArtifact
+            ? [
+                "",
+                "## Retained prior artifact",
+                retainedArtifact.markdown_body,
+              ]
+            : []),
           "",
           "## Focused resume input",
           userText.trim(),
