@@ -4,9 +4,9 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 
 ## Operating Rules
 
-- Use `michaelpreuss/guild-marketing-os` as the active Guild workspace for project tests unless the user specifies another workspace.
+- Use `michaelpreuss~guild-marketing-os` as the active Guild workspace for project tests unless the user specifies another workspace.
 - Re-run `guild agent init` only when intentionally repairing or reinitializing an existing package record.
-- `guild agent test --workspace michaelpreuss/guild-marketing-os --events none --mode json` is allowed for package validation.
+- `guild agent test` from an agent directory is allowed for portable ephemeral package validation. Repository smoke tests may use `michaelpreuss~guild-marketing-os`.
 - Do not run save, publish, unpublish, workspace install, direct CLI workspace-context publish, trigger setup, credential setup, or visibility-changing Agent Hub commands unless the user explicitly asks for that lifecycle step.
 - The Company Context Builder has one approved runtime persistence path: after a draft is approved, the user must send exactly `publish approved context to workspace context`; the agent then publishes only the managed compact workspace-context brief through the host-controlled `michaelpreuss~guild-marketing-os-workspace-context@1.0.1` bridge.
 - Do not add or edit `guild.json` by hand. Guild manages it when an agent directory is initialized through the CLI.
@@ -22,8 +22,8 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 - The seven downstream agents are prompt-only review agents. They must set `useWorkspaceAgents: false` unless explicit orchestration is designed and approved.
 - `context-hub/` holds source-controlled templates for approved context artifacts. These are not the runtime injection layer.
 - `workspace-context/` holds maintainer reference text for Guild workspace context. Managed compact company-context briefs are owned by the Company Context Builder publish flow.
-- `guild-skills/` holds source markdown and catalog records for private Guild Skills. Skills contain reusable methods, not customer-specific facts.
 - `services/workspace-context-publish-bridge/` holds the host-controlled Blaxel bridge used for chat-native workspace-context publishing.
+- The suite has no Guild Skills source package or runtime dependency. Agents remain self-contained; do not recreate the archived private method skills without an approved architecture change.
 
 ## Workspace Context And Artifacts
 
@@ -31,7 +31,7 @@ This repository is the source workspace for the Guild-native Marketing OS agent 
 - The Company Context Builder drafts approved context artifacts and can publish a managed Guild workspace-context block after the exact two-step confirmation.
 - The full approved source corpus remains in Company Context Builder session state for audit. Do not publish the raw corpus into Guild workspace context.
 - The bridge handles workspace resolution, unmanaged-context preservation, managed-block replacement, draft creation, publish, and rollback metadata. The deployed agent should not call raw internal Guild workspace-context endpoints.
-- Downstream agents treat sources in this order: published Guild workspace context, approved context artifacts, current-session user input, activated Skills for methods, and approved connected data.
+- Downstream agents treat sources in this order: published Guild workspace context, approved context artifacts, current-session user input, and approved connected data.
 - Do not embed customer-specific facts into Agent Hub package behavior.
 - Run `npm run check:context` when changing `context-hub/`.
 
@@ -64,7 +64,7 @@ Supported behavior:
 - Mark missing facts as `TBD` and separate evidence from assumptions.
 - Recommend approval gates, downstream handoffs, and AEO/readiness inputs.
 - Persist approved company context to Guild workspace context through the Company Context Builder's exact two-step confirmation flow and host-controlled publish bridge.
-- Block live publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes.
+- Block live marketing publishing, scheduling, paid spend, CRM activation, credentials, workspace install, triggers, and visibility changes. The suite's existing public Agent Hub visibility is intentional and does not authorize further visibility changes.
 
 Not autonomous:
 
@@ -78,6 +78,6 @@ Before broad production use, add explicit orchestration, broader structured cont
 ## Public-Safety Rules
 
 - Keep public docs generic: do not name confidential source artifacts, private people, buyers, or unconfirmed client details.
-- Keep `agents/`, `context-hub/`, `workspace-context/`, `guild-skills/`, and `services/` free of confidential source material.
+- Keep `agents/`, `context-hub/`, `workspace-context/`, and `services/` free of confidential source material.
 - If a detail came from private context, generalize it or keep it out of the repo.
 - Prefer fixture project names and generic platform labels over real client systems unless approved.

@@ -7,7 +7,7 @@ nontechnical marketing teams. A marketer enters through **Marketing OS
 Launcher**, describes the outcome they need in ordinary language, and receives
 the complete result from the appropriate specialist in the same Guild Chat.
 
-The private suite contains:
+The public, draft-only suite contains:
 
 1. Marketing OS Launcher
 2. Company Context Builder
@@ -45,19 +45,19 @@ Start with [Start Here](start-here.md). The intended customer journey is:
 No CLI, maintainer intervention, infrastructure credential, database, CRM,
 publishing account, or advertising credential is part of the marketer journey.
 
-## Current Private Versions
+## Current Public Versions
 
 | Package | Version |
 | --- | --- |
-| Marketing OS Launcher | `0.3.29` |
-| Company Context Builder | `1.2.15` |
-| Market Signal | `1.2.7` |
-| ICP | `1.2.6` |
-| Audience Segmentation | `1.2.6` |
-| Messaging | `1.2.6` |
-| Branding And Pitch Deck | `1.2.8` |
-| Social Monitoring And Content | `1.2.9` |
-| Campaigns And Paid Media | `1.2.11` |
+| Marketing OS Launcher | `0.3.30` |
+| Company Context Builder | `1.2.16` |
+| Market Signal | `1.2.8` |
+| ICP | `1.2.8` |
+| Audience Segmentation | `1.2.8` |
+| Messaging | `1.2.8` |
+| Branding And Pitch Deck | `1.2.9` |
+| Social Monitoring And Content | `1.2.10` |
+| Campaigns And Paid Media | `1.2.12` |
 
 The clean rehearsal workspace is
 `developers-at-guild/marketing-os-clean-rehearsal-20260728`. Launcher is its
@@ -72,7 +72,7 @@ failure are summarized in
 The accepted Guild state is:
 
 - Launcher `0.3.29` is the clean rehearsal workspace default.
-- All nine private packages are installed with automatic updates enabled.
+- All nine public packages are installed with automatic updates enabled.
 - Company Context artifact
   `6309ea75-1fea-4618-8e61-6daa44a127c7` revision 1 is approved.
 - Native Workspace Context v2

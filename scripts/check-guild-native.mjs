@@ -36,7 +36,6 @@ const publicScanRoots = [
   "README.md",
   "agents",
   "context-hub",
-  "guild-skills",
   "scripts",
   "services",
   "workspace-context",
@@ -66,7 +65,7 @@ const expectedSupportPackageIds = ["launcher"];
 
 const requiredAgentPackageFiles = ["README.md", "agent.ts", "package.json", "tsconfig.json", "guild.json"];
 const requiredGuildSdkVersion = "0.4.2";
-const requiredSkillsPackage = "@guildai-services/guildai~skills";
+const forbiddenSkillsPackage = "@guildai-services/guildai~skills";
 const requiredDevDependencies = {
   esbuild: "0.28.0",
   typescript: "5.0.4",
@@ -369,8 +368,8 @@ function validateAgentPackage(agent) {
     if (packageJson?.dependencies?.["@guildai/agents-sdk"] !== requiredGuildSdkVersion) {
       fail(`${packageJsonPath} must pin @guildai/agents-sdk to ${requiredGuildSdkVersion}.`);
     }
-    if (packageJson?.dependencies?.[requiredSkillsPackage]) {
-      fail(`${packageJsonPath} must not depend on ${requiredSkillsPackage}; public V1 agents are self-contained.`);
+    if (packageJson?.dependencies?.[forbiddenSkillsPackage]) {
+      fail(`${packageJsonPath} must not depend on ${forbiddenSkillsPackage}; public V1 agents are self-contained.`);
     }
     if (requiresZod && packageJson?.dependencies?.zod !== "4.4.3") {
       fail(`${packageJsonPath} must pin zod to 4.4.3 for structured schema validation.`);
@@ -508,77 +507,6 @@ function validateWorkspaceContext() {
   }
 }
 
-function validateSkillSource() {
-  const catalogFile = "guild-skills/catalog.json";
-  if (!exists(catalogFile)) {
-    fail(`${catalogFile} is missing.`);
-    return;
-  }
-
-  const catalog = readJson(catalogFile);
-  if (!catalog) return;
-
-  if (catalog.status !== "live_private") {
-    fail(`${catalogFile} status must be live_private.`);
-  }
-  if (catalog.visibility !== "internal_private") {
-    fail(`${catalogFile} visibility must be internal_private.`);
-  }
-  if (catalog.requiredRuntimeIntegration !== "guildai~skills") {
-    fail(`${catalogFile} must record guildai~skills as the required runtime integration.`);
-  }
-  if (!Array.isArray(catalog.skills) || catalog.skills.length === 0) {
-    fail(`${catalogFile} must include skills.`);
-    return;
-  }
-  const names = new Set();
-  const skillNamePattern = /^[a-z][a-z0-9_.-]{0,99}$/;
-  const semverPattern = /^\d+\.\d+\.\d+$/;
-
-  for (const skill of catalog.skills) {
-    const label = skill?.name ?? "unknown skill";
-    if (!skillNamePattern.test(skill?.name ?? "")) {
-      fail(`${catalogFile} skill ${label} must use a Guild-valid skill name.`);
-    }
-    if (names.has(skill.name)) {
-      fail(`${catalogFile} has duplicate skill name ${skill.name}.`);
-    }
-    names.add(skill.name);
-    const expectedQualifiedName = `${catalog.owner}~${skill.name}`;
-    if (skill.qualifiedName !== expectedQualifiedName) {
-      fail(`${catalogFile} skill ${label} qualifiedName must be ${expectedQualifiedName}.`);
-    }
-    if (!skill.bodyFile || path.basename(skill.bodyFile) !== skill.bodyFile || !skill.bodyFile.endsWith(".md")) {
-      fail(`${catalogFile} skill ${label} must include a local markdown bodyFile.`);
-      continue;
-    }
-    if (!semverPattern.test(skill.initialVersion ?? "")) {
-      fail(`${catalogFile} skill ${label} must include a semver initialVersion.`);
-    }
-    if (!semverPattern.test(skill.currentVersion ?? "")) {
-      fail(`${catalogFile} skill ${label} must include a semver currentVersion.`);
-    }
-    if (!skill.overview || skill.overview.length > 160) {
-      fail(`${catalogFile} skill ${label} must include a concise human-facing overview.`);
-    }
-    if (!skill.runtimeDescription || !/^Use when\b/i.test(skill.runtimeDescription)) {
-      fail(`${catalogFile} skill ${label} runtimeDescription must start with Use when.`);
-    }
-    const file = path.join("guild-skills", skill.bodyFile);
-    if (!exists(file)) {
-      fail(`${file} is missing.`);
-      continue;
-    }
-    const content = readText(file);
-    if (!content.startsWith("# ")) {
-      fail(`${file} must start with an H1 heading.`);
-    }
-    if (!/Status:\s*live private/i.test(content)) {
-      fail(`${file} must include a live private Status line.`);
-    }
-  }
-}
-
 function validateRemovedLocalLab() {
   const removedPaths = [
     "work/local-agent-lab",
@@ -676,7 +604,6 @@ scanPublicFiles();
 if (!contextOnly) {
   validateAgentPackages();
   validateWorkspaceContext();
-  validateSkillSource();
   validateRemovedLocalLab();
   validateTestHarness();
 }

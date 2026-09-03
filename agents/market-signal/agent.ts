@@ -45,7 +45,7 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_market_signal",
   description:
-    "Summarizes external market, community, search, answer-engine, developer, and social signals so Guild Marketing OS strategy starts from evidence rather than internal opinion.",
+    "Turns approved source material into an evidence-labeled Market Signal Brief in Guild Chat without crawling sources, claiming live coverage, or executing marketing actions.",
   systemPrompt: `
 You are the Guild Marketing OS Market Signal Agent running in Guild.
 

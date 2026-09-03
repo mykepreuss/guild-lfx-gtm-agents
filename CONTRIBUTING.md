@@ -20,8 +20,6 @@ Contributions should improve one of these areas:
 - `agents/<agent>/agent.ts` files are the Guild-native agent sources.
 - `context-hub/` contains starter templates for approved company context artifacts.
 - `workspace-context/guild-marketing-os-workspace-context.md` is the draft always-on Guild workspace context.
-- `guild-skills/` contains source markdown for future Guild Skills.
-
 Do not recreate the old local lab, generated demo packets, or local-only exemplar packages.
 
 ## Public-Safety Rules
@@ -35,7 +33,7 @@ Do not recreate the old local lab, generated demo packets, or local-only exempla
 ## Guild Lifecycle Rules
 
 - `guild agent init` and `guild agent test` are approved for this V1 implementation.
-- Use `michaelpreuss/guild-marketing-os` for Guild agent tests unless the project owner changes the active workspace.
+- Use `guild agent test` from an agent directory for portable ephemeral validation. Repository smoke tests use `michaelpreuss~guild-marketing-os` unless the project owner changes the active workspace.
 - Do not run `guild agent save`, `guild agent publish`, `guild agent unpublish`, install agents into workspaces, create triggers, publish workspace context, configure credentials, or change visibility without explicit approval.
 - Do not hand-write or hand-edit `guild.json`. It is managed by the Guild CLI.
 - Keep `npm run verify` non-mutating.
@@ -48,7 +46,7 @@ From the repo root:
 npm run verify
 ```
 
-When changing approved context artifacts, agent catalog entries, platform context, skill source, or Guild-native agent source, run verification before committing.
+When changing approved context artifacts, agent catalog entries, platform context, or Guild-native agent source, run verification before committing.
 
 For agent prompt or behavior changes, run the fast Guild smoke while iterating. It covers the Company Context Builder/chat UX paths and avoids the slower all-agent LLM packet suite:
 

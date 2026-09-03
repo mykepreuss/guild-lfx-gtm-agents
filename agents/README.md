@@ -33,8 +33,8 @@ The seven specialists are self-contained coded draft/review agents. They use
 copied from `_shared/specialist-runtime.ts`. The runtime enforces the Marketing
 OS headings, evidence mode, typed safety envelope, approval gate, status
 payload, and handoff; it permits one format-only repair and never silently
-retries evidence or safety failures. Private Guild Skills are optional
-maintainer assets, not runtime dependencies.
+retries evidence or safety failures. The specialists have no Guild Skills
+runtime dependency.
 
 ## Intended Guild user flow
 
@@ -48,8 +48,22 @@ maintainer assets, not runtime dependencies.
 7. Ask Launcher for specialist work and resume workstreams without repasting
    prior artifacts.
 
-This remains a private-alpha flow. Packages must not become public until the
-clean-organization and unaffiliated design-partner gates pass.
+The nine packages are intentionally public in Agent Hub so other Guild users
+can install and fork them. Remaining acceptance gates govern broader promotion,
+production-readiness claims, and future execution capabilities; they do not
+block the current public, draft-only suite.
+
+## Fork model
+
+- Installation is the default: users install Launcher and approve its requests
+  for the canonical public capability packages.
+- A Launcher-only fork intentionally keeps calling the canonical public
+  capability packages recorded in `suite-binding.ts`.
+- A fully independent suite is an advanced maintainer workflow: fork all nine
+  packages, then use the guarded publisher with the new owner so Launcher
+  bindings are regenerated against that owner's eight capability agent IDs.
+- Do not imply that a Launcher-only fork automatically discovers or calls
+  sibling forks.
 
 ## Rules
 

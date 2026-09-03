@@ -12,6 +12,6 @@ published Guild Workspace Context revision while preserving unmanaged manual
 context before and after the managed block.
 
 Use `guild-marketing-os-workspace-context.md` as a maintainer reference for the
-active `michaelpreuss/guild-marketing-os` workspace. Do not publish Workspace
+active `michaelpreuss~guild-marketing-os` workspace. Do not publish Workspace
 Context directly from this repo. Users should draft through Company Context
 Builder and complete approval and publication in their canonical Launcher Chat.

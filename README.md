@@ -177,8 +177,8 @@ Blocked in V1:
 - Legal approval.
 - Treating artifact approval as execution approval.
 
-All public agents are self-contained. `guild-skills/` can remain useful to
-maintainers but is never an installation or runtime dependency.
+All public agents are self-contained and have no private Guild Skills runtime
+dependency.
 
 ## Repository Map
 
@@ -188,7 +188,6 @@ maintainers but is never an installation or runtime dependency.
 - `agents/<specialist>/` — the seven structured specialist packages.
 - `context-hub/` — approved context artifact templates.
 - `workspace-context/` — compact managed Workspace Context reference.
-- `guild-skills/` — optional maintainer references.
 - `scripts/` — local verification, evidence, benchmark, and guarded publishing.
 - `services/guild-marketing-os-state/` — contingency external adapter.
 - `services/workspace-context-publish-bridge/` — legacy private compatibility
@@ -239,17 +238,18 @@ npm run publish:guild-agent -- \
   --message "<private release message>"
 ```
 
-Do not unpublish agents, change public visibility, create triggers, add
-credentials, or make packages public without the corresponding release
-authorization and evidence. `guild.json` is Guild-managed and must not be
-hand-edited in this repository.
+The nine Marketing OS packages are intentionally public in Agent Hub. Do not
+change visibility, create triggers, add credentials, or unpublish versions
+without the corresponding release authorization and evidence. `guild.json` is
+Guild-managed and must not be hand-edited in this repository.
 
 ## Release Gates
 
-Private source readiness is not public readiness. Public release remains
-blocked until all of these pass:
+Public Agent Hub availability is intentional for this draft-only suite.
+Broader promotion, production-readiness claims, and any execution capability
+remain blocked until all of these pass:
 
-- private Launcher and Builder versions prove the Guild-only lifecycle;
+- Launcher and Builder versions prove the Guild-only lifecycle;
 - every specialist completes through ordinary Launcher Chat;
 - same-Chat resume, handoff, approval, export, and confirmed deletion pass;
 - malformed output, timeout, missing agent, denial, stale context, and safety

@@ -45,7 +45,7 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 export default createValidatedSpecialistAgent({
   identifier: "guild_marketing_os_messaging",
   description:
-    "Produces Guild Marketing OS positioning, narrative, message pillars, proof-backed claims, answer-ready blocks, boilerplate, tone guidance, claim constraints, and objection handling.",
+    "Turns approved context, audience evidence, and proof constraints into a reviewable messaging system in Guild Chat without publishing copy or approving claims.",
   systemPrompt: `
 You are the Guild Marketing OS Messaging Agent running in Guild.
 

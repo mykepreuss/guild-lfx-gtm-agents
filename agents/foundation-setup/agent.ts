@@ -491,7 +491,7 @@ const sourcePacketFieldLabels = [
 export default agent({
   identifier: "guild_marketing_os_company_context_builder",
   description:
-    "Builds a structured Guild Marketing OS context foundation by converting raw company context into typed context artifacts, approval gates, AEO readiness notes, status payloads, and downstream handoffs.",
+    "Turns supplied company information into a reviewable Marketing OS context foundation in Guild Chat without publishing Workspace Context or executing marketing actions.",
   inputSchema,
   outputSchema,
   tools,
@@ -837,7 +837,7 @@ function extractInjectedManagedWorkspaceContext(value: string): string | undefin
 }
 
 function shouldUseInjectedManagedContext(userSource: string): boolean {
-  return /\b(?:refresh|review|check|assess|summarize|read)\b[\s\S]{0,120}\b(?:company|workspace|marketing os)\s+context\b/i.test(
+  return /\b(?:refresh|review|check|assess|summarize|read)\b[^\n.!?]{0,80}\b(?:company|workspace|marketing os)\s+context\b/i.test(
     userSource,
   ) ||
     /\b(?:approved|published|current)\s+workspace\s+context\b/i.test(userSource) ||
@@ -3486,10 +3486,7 @@ function buildDownstreamWithoutContextOutput(
     detectRequestedDownstreamAgent(getRawContext(input)) ?? "Campaigns And Paid Media",
 ): Output {
   const rawContext = getRawContext(input);
-  const companyName =
-    cleanExtractedName(
-      extractLineAfterLabels(rawContext, ["Company name", "Brand name", "Organization name", "Product name"]) ?? "",
-    ) ?? "TBD";
+  const companyName = extractCompanyName(rawContext) ?? "TBD";
   const output = buildFallbackOutput(input, ["Approved company context is required before downstream specialist work."], "downstream_request_without_context");
   output.status = "blocked";
   output.contextArtifacts.companyContext.companyName = companyName;
@@ -4258,6 +4255,7 @@ function extractCompanyName(rawContext: string): string | undefined {
     /\b(?:company|brand|organization|org|product)\s+(?:called|named)\s+([A-Z][A-Za-z0-9 .&'-]{1,80})/i,
     /\b(?:company|brand|organization|org|product)\s+is\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
     /\b(?:context|setup|profile|brief)\s+for\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[,.]|$)/i,
+    /\bfor\s+([A-Z][A-Za-z0-9 .&'-]{1,80})(?:[.!?]|$)/,
     /,\s*([A-Z][A-Za-z0-9 .&'-]{1,80})\.?\s*$/,
   ];
   const value = patterns

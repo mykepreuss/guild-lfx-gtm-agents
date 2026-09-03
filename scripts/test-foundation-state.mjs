@@ -176,6 +176,38 @@ function guildChatEnvelope(text) {
 }
 
 {
+  const harness = createTask({ sessionId: "foundation-explicit-source-overrides-managed-context" });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "<!-- guild-marketing-os-context:start -->",
+        "# Guild Marketing OS Managed Company Context",
+        "Status: published",
+        "Company: Webflow",
+        "Approved description: Webflow is a website experience platform.",
+        "<!-- guild-marketing-os-context:end -->",
+        "",
+        "Company name: Acme Cloud",
+        "Approved description: Acme Cloud helps platform teams review operational readiness.",
+        "Primary audiences: platform leaders and developer relations leads.",
+        "Current goals: create company context and prepare messaging.",
+        "Proof-backed claims: Acme Cloud is SOC 2 compliant; Acme Cloud improves performance by 300%; Acme Cloud has public pricing approval.",
+        "Channels in scope: website and email.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /Company: Acme Cloud/);
+  assert.doesNotMatch(result.output.text, /Company: Webflow/);
+  assert.match(result.output.text, /SOC 2 compliant/);
+  assert.match(result.output.text, /performance by 300%/);
+  assert.match(result.output.text, /public pricing approval/);
+  assert.match(result.output.text, /sensitive_claim_guardrail/);
+}
+
+{
   const harness = createTask({ sessionId: "foundation-draft-approval" });
   const approvalFixture = [
     "Company name: Webflow.",
@@ -683,6 +715,24 @@ function guildChatEnvelope(text) {
     result.output.text,
     /Company: Create a messaging framework/,
   );
+}
+
+{
+  const harness = createTask({
+    sessionId: "foundation-downstream-named-company",
+    workspaceReadMode: "missing",
+  });
+  const result = await foundationAgent.start(
+    {
+      type: "text",
+      text: "Create a campaign for Webflow.",
+    },
+    harness.task,
+  );
+  assert.equal(result.type, "output");
+  assert.match(result.output.text, /downstream_request_without_context/);
+  assert.match(result.output.text, /Company: Webflow/);
+  assert.match(result.output.text, /Campaigns And Paid Media/);
 }
 
 {

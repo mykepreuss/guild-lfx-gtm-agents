@@ -39,8 +39,7 @@ The hand-authored workspace context should summarize only the parts every agent 
 1. Published Guild workspace context.
 2. Approved context artifacts.
 3. User-provided context in the current Guild session.
-4. Activated Guild Skills for reusable methods.
-5. Connected system data only when the agent has an approved integration and the user has granted access.
+4. Connected system data only when the agent has an approved integration and the user has granted access.
 
 If sources conflict, ask the project leader which source should win.
 

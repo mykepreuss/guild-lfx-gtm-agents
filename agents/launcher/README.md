@@ -1,61 +1,84 @@
 # Marketing OS Launcher
 
-Guild package: `guild-marketing-os-launcher`
+Routes draft-only marketing work to a focused public Guild agent suite, returns complete review artifacts, and keeps a canonical cockpit in one continuing Chat without executing marketing actions.
 
-Status: Guild-only canonical cockpit source ready for private-alpha proof.
+## Behavior
 
-Launcher is the default front door for a dedicated Marketing OS workspace. One
-continuing Launcher Chat is the canonical cockpit.
+- Routes company-context, market-signal, ICP, segmentation, messaging, brand and pitch, social-content, and campaign requests to eight explicit suite agents.
+- Reads published Workspace Context before deciding whether company context is missing.
+- Keeps runs, artifact revisions, approvals, workstreams, handoffs, and an audit trail in this Chat's Guild task state.
+- Returns a summary, the complete validated specialist draft, its evidence mode, and the next review action.
+- Supports cockpit status, export, focused resume, artifact approval, and confirmed deletion of structured cockpit state.
+- Does **not** publish content, schedule work, spend budget, change CRM data, configure credentials, or make legal decisions.
+- Never treats artifact approval as permission to execute an external action.
 
-## What It Does
+## Suite position
 
-- Routes clear requests deterministically across Company Context Builder and
-  the seven specialists.
-- Uses a strict enum-only LLM classification only when intent is ambiguous.
-- Exposes exactly the eight suite packages as callable tools.
-- Cannot call itself or an unrelated workspace agent.
-- Reads the current Guild Workspace Context before deciding that context is
-  missing.
-- Uses one onboarding request to present the remaining native Guild installation
-  approvals sequentially, stopping immediately on denial or failure.
-- Creates a run in Guild task state before specialist delegation.
-- Records every attempt, artifact revision, approval, workstream, handoff,
-  error, and audit event.
-- Allows one formatting repair and no silent substantive or safety retry.
-- Returns the complete specialist artifact in the originating Chat.
-- Prepares approved compact company context through the separate exact-phrase
-  gate, then guides the marketer through Guild's native Context screen without
-  requesting a token or maintainer credential.
-- Exports the structured cockpit and supports confirmed deletion of its
-  structured task state.
+- Front door: use Launcher for normal Marketing OS work.
+- Required before specialist work: approved Workspace Context, or enough source material for Company Context Builder to draft it.
+- Next step after a successful run: review the returned artifact, approve an exact revision when appropriate, or continue the named workstream in this Chat.
+- Launcher calls the canonical public Marketing OS capability agents published with this suite. A fork of Launcher keeps those canonical bindings unless its maintainer deliberately forks every capability and regenerates `suite-binding.ts`.
 
-## Memory Boundary
+Use a dedicated Marketing OS workspace so its context and cockpit are not mixed with unrelated product context.
 
-Guild task state is scoped to this Chat. Resume this Chat to restore the
-cockpit. A new Chat intentionally starts a new cockpit, although it still sees
-published Workspace Context.
+## Quickstart
 
-The implementation stays below a conservative 6 MiB limit. It does not use the
-contingency external state service.
+1. Create or select a dedicated Guild workspace for the company or project.
+2. From the workspace, open **Agents**, choose **Add agent**, find **Marketing OS Launcher**, and install it.
+3. Open a new Chat with Launcher. Approve its one-at-a-time requests to install Company Context Builder and the seven specialists.
+4. In workspace settings, make Launcher the default agent if this workspace is dedicated to Marketing OS.
+5. Send the request below.
 
-Confirmed cockpit deletion does not claim to erase Guild Chat history or a
-published Workspace Context revision.
+## Plain-text workflow request
 
-## Safety
+> Help me set up Marketing OS for my project. Start by asking for the minimum company context and evidence needed to create a reviewable foundation.
 
-V1 is draft-only. Launcher blocks publishing, scheduling, paid spend, CRM
-mutation, credential setup, legal approval, recursive delegation, and other
-external execution. Artifact approval is never execution approval.
+## What to send
 
-## Verification
+- `Help me set up company context for my project` — routes the first context draft to Company Context Builder.
+- `Create an ICP from the approved company context` — routes a review-only ICP workstream.
+- `Show Marketing OS cockpit status` — lists workstreams, artifact revisions, blockers, and next actions retained in this Chat.
+- `Approve Messaging artifact revision 1` — approves only the exact stored draft revision named in the request.
+- `Export the Marketing OS cockpit` — returns the structured cockpit as JSON in Chat.
 
-From the repository root:
+Outside Chat, send a text payload such as:
 
-```sh
-npm run test:launcher-routing
-npm run test:launcher-cockpit
-npm run verify
+```json
+{ "type": "text", "text": "Create an ICP from the approved company context" }
 ```
 
-Private live Guild and clean-organization evidence are still required before
-public release.
+Workspace Context publication requires an approved Company Context artifact and this exact second confirmation in the canonical Launcher Chat:
+
+`publish approved context to workspace context`
+
+Deleting structured cockpit state also requires a separate exact confirmation:
+
+`delete marketing os cockpit state from this chat`
+
+That deletion does not erase Guild Chat history or published Workspace Context.
+
+## Output
+
+Launcher can return:
+
+- `Marketing OS is ready` — installation status and the next setup action.
+- `Marketing OS Guide` — a clarification when no specialist should run.
+- `Marketing OS` — an at-a-glance receipt followed by the complete validated specialist draft.
+- `Marketing OS Cockpit` — workstream, artifact, approval, blocker, and next-action state.
+- `Marketing OS Approval` — the exact artifact revision and approval text retained in the cockpit.
+- `Marketing OS Cockpit Export` — the complete structured state retained by this Chat.
+- `Request not supported` — a fail-closed response with no external action.
+
+Delegated specialist drafts use these shared sections: `Consumed Context`, `Produced Artifact`, `Assumptions And Missing Evidence`, `Approval Gate`, `AEO / AI-Readiness Contribution`, `Status Payload`, and `Downstream Handoff`.
+
+## Development
+
+From `<agent-directory>`:
+
+```sh
+npm install
+npm run build
+guild agent test
+```
+
+`guild agent test` creates an ephemeral version from the local agent repository. Guild authentication is required; no private author workspace is required.

@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const rootDir = process.cwd();
 const args = parseArgs(process.argv.slice(2));
-const workspace = args.workspace ?? process.env.GUILD_WORKSPACE ?? "michaelpreuss/guild-marketing-os";
+const workspace = args.workspace ?? process.env.GUILD_WORKSPACE ?? "michaelpreuss~guild-marketing-os";
 const owner = args.owner ?? "michaelpreuss";
 const keepTemp = args.keepTemp === true;
 const dryRun = args.dryRun === true;
