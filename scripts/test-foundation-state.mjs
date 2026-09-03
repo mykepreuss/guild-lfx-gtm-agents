@@ -1281,6 +1281,109 @@ const channelUpdate = (values, { ref = "source_1", operation = "append", commitm
 });
 const channelJson = (...updates) => JSON.stringify({ intent: "channel_update", updates });
 
+// Live regression: two supplemental labels must not replace the retained source.
+for (const separator of ["\n", ". "]) {
+  const answers = ["not json"];
+  const h = createTask({ sessionId: `partial-labeled-${separator.length}`, workspaceReadMode: "missing", llmTexts: answers });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const before = h.readState();
+  const drift = structuredClone(before.lastOutput);
+  drift.contextArtifacts.companyContext.companyName = "Wrong company";
+  drift.contextArtifacts.companyContext.goals = ["invented goal"];
+  answers.push(JSON.stringify(drift));
+  const result = await foundationAgent.start({ type: "text", text: `Primary audiences: marketing leaders at B2B SaaS companies${separator}Approved channels: website and email.` }, h.task);
+  const after = h.readState();
+  assert.equal(after.lastOutput.contextArtifacts.companyContext.companyName, before.lastOutput.contextArtifacts.companyContext.companyName);
+  assert.equal(after.lastOutput.contextArtifacts.messagingSource.overview, before.lastOutput.contextArtifacts.messagingSource.overview);
+  assert.deepEqual(after.lastOutput.contextArtifacts.companyContext.goals, before.lastOutput.contextArtifacts.companyContext.goals);
+  assert.deepEqual(after.lastOutput.contextArtifacts.companyContext.primaryAudiences, ["marketing leaders at B2B SaaS companies"]);
+  assert.deepEqual(after.lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.equal(after.lastOutput.status, "ready_for_review");
+  assert.match(after.lastSourceText, /Prior source retained for audit/);
+  assert.equal(h.llmCallCount(), 2, "exact labels need extraction only, not semantic interpretation");
+  assert.match(result.output.text, /Acme/);
+}
+
+{
+  const h = createTask({ sessionId: "partial-fields-append", workspaceReadMode: "missing" });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels: website.` }, h.task);
+  const before = h.readState();
+  await foundationAgent.start({ type: "text", text: "Primary audiences: product leaders.\nCurrent marketing goal: improve draft reviews." }, h.task);
+  const after = h.readState();
+  assert.deepEqual(after.lastOutput.contextArtifacts.companyContext.primaryAudiences, [...before.lastOutput.contextArtifacts.companyContext.primaryAudiences, "product leaders"]);
+  assert.deepEqual(after.lastOutput.contextArtifacts.companyContext.goals, [...before.lastOutput.contextArtifacts.companyContext.goals, "improve draft reviews"]);
+  assert.deepEqual(after.lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website"]);
+  assert.equal(after.lastOutput.status, "ready_for_review");
+}
+
+{
+  // A complete identified company source keeps the established ingestion path.
+  const h = createTask({ sessionId: "standalone-company-source", workspaceReadMode: "missing" });
+  await foundationAgent.start({ type: "text", text: `${channelBase}\nApproved channels: website.` }, h.task);
+  const replacement = "Company name: Other Co\nApproved description: Other Co organizes notes.\nPrimary audiences: operators.\nCurrent marketing goal: organize drafts.\nApproved channels: website.";
+  await foundationAgent.start({ type: "text", text: replacement }, h.task);
+  assert.equal(h.readState().lastOutput.contextArtifacts.companyContext.companyName, "Other Co");
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.goals, ["organize drafts"]);
+  assert.equal(h.readState().lastSourceText, replacement);
+}
+
+const multiFieldEdit = "Primary audiences: replace marketing leaders with product leaders.\nApproved channels: website and email.";
+{
+  const h = createTask({ sessionId: "partial-natural-channels", workspaceReadMode: "missing", llmTexts: ["not json",
+    channelJson(channelUpdate(["website", "email"])), JSON.stringify({
+      intent: "provide_or_answer_context", candidate_refs: ["draft_1"], approval_commitment: "none",
+      field_updates: [{ field: "audiences", operation: "append", supporting_span: "marketing leaders" }],
+    }), "not json"] });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const before = h.readState();
+  await foundationAgent.start({ type: "text", text: "Primary audiences: marketing leaders.\nApproved channels are website and email." }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.goals, before.lastOutput.contextArtifacts.companyContext.goals);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences, ["marketing leaders"]);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.equal(h.readState().lastOutput.status, "ready_for_review");
+  assert.equal(h.llmCallCount(), 4, "one channel interpretation, one context interpretation, one extraction");
+}
+for (const response of ["not json", new Error("LLM unavailable"), JSON.stringify({
+  intent: "provide_or_answer_context", candidate_refs: ["unknown"], approval_commitment: "none",
+  field_updates: [{ field: "audiences", operation: "replace", supporting_span: "product leaders" }],
+}), JSON.stringify({
+  intent: "provide_or_answer_context", candidate_refs: ["draft_1"], approval_commitment: "none",
+  field_updates: [{ field: "audiences", operation: "replace", supporting_span: "invented buyers" }],
+}), JSON.stringify({
+  intent: "approve_draft", candidate_refs: ["draft_1"], approval_commitment: "explicit", field_updates: [],
+})]) {
+  const h = createTask({ sessionId: "partial-semantic-failure", workspaceReadMode: "missing", llmTexts: ["not json", response] });
+  await foundationAgent.start({ type: "text", text: channelBase }, h.task);
+  const before = h.readState(), saves = h.saveCallCount();
+  const result = await foundationAgent.start({ type: "text", text: multiFieldEdit }, h.task);
+  assert.match(result.output.text, /# Company Context Clarification/);
+  assert.deepEqual(h.readState(), before);
+  assert.equal(h.saveCallCount(), saves);
+  assert.equal(h.llmCallCount(), 2, "no extraction or repair after failed interpretation");
+}
+
+{
+  const h = createTask({ sessionId: "partial-semantic-edit", workspaceReadMode: "missing", llmTexts: ["not json", JSON.stringify({
+    intent: "edit_context", candidate_refs: ["draft_1"], approval_commitment: "none",
+    field_updates: [{ field: "audiences", operation: "replace", supporting_span: "product leaders" }],
+  }), "not json"] });
+  await foundationAgent.start({ type: "text", text: channelBase }, h.task);
+  const before = h.readState();
+  await foundationAgent.start({ type: "text", text: multiFieldEdit }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences, ["product leaders"]);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.goals, before.lastOutput.contextArtifacts.companyContext.goals);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+}
+
+{
+  const h = createTask({ sessionId: "partial-sensitive-claim", workspaceReadMode: "missing" });
+  await foundationAgent.start({ type: "text", text: channelBase }, h.task);
+  const result = await foundationAgent.start({ type: "text", text: "Approved claims: Acme guarantees 100% uptime.\nApproved channels: website and email." }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"], result.output.text.slice(0, 500));
+  assert.ok(h.readState().lastOutput.contextArtifacts.proofAndConstraints.blockedClaims.some(claim => /100% uptime/.test(claim.claim)));
+  assert.ok(!h.readState().lastOutput.proofBackedClaims.some(claim => /100% uptime/.test(claim.claim)));
+}
+
 {
   let calls = 0;
   const task = { llm: { async generateText() { calls++; throw new Error("Exact labels must not call the LLM"); } } };

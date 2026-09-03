@@ -44,6 +44,7 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 - `Marketing leaders at B2B SaaS companies` — can answer a pending audience question without repeating the other company fields.
 - `Remove developers from the audience` — revises only the named field and preserves the rest of the retained source.
 - `Approved channels are website and email` — records two planning channels while preserving the other company fields.
+- `Primary audiences: marketing leaders at B2B SaaS companies` followed by `Approved channels: website and email` in the same message — adds both fields to the retained draft without losing the earlier company description or goal.
 - `website and email` — answers a channel question only when it is the sole outstanding question or channel scope is the sole unresolved core field; otherwise Builder clarifies.
 - `Add customer stories` — adds a planning channel. `Use website instead of email` replaces only email; `Use only website` replaces the entire channel scope.
 - `Tell me whether that got saved` — returns a short `Company Context Status` receipt with the stored artifact reference, approval state, and any recorded publication receipt. It does not create or change a draft. Historical publication receipts do not prove that the latest draft is published.
@@ -51,6 +52,8 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 - `Approve it` — explicitly approves the current uniquely resolved review-ready draft; `Looks good` alone does not approve it.
 
 Core-field completeness is checked against retained user source, not model-generated audience guesses or other draft suggestions. Follow-up reconciliation does not promote those suggestions to user-supplied facts. In Launcher, a Builder clarification leaves the pending cockpit artifact and revision unchanged.
+
+Supplemental labeled fields append to retained context unless an explicit edit replaces or removes a value. Mixed prose or edits require intent interpretation; an unclear interpretation asks for clarification without changing the draft. A source packet that supplies both a company name and description retains the standalone source-ingestion behavior.
 
 Outside Chat, send a text payload such as:
 
