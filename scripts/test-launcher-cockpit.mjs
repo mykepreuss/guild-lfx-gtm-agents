@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import { compiledLauncherRunner } from "./lib/compiled-launcher-harness.mjs";
 
 const launcherDir = path.join(process.cwd(), "agents/launcher");
 const build = spawnSync("npm", ["run", "build"], {
@@ -223,6 +224,7 @@ function createChat({
   };
 
   return {
+    replaceRuntimeCheckpoint(value) { state = structuredClone(value); },
     saveCallCount: () => saves,
     workspaceReadCount: () => workspaceReads,
     task,
@@ -1024,7 +1026,14 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
 }
 
 // Feed the actual Launcher envelope into fresh Builder tasks, not canned specialist prose.
-{
+for (const compiled of [false, true]) {
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const runners = new Map();
+  const execute = (input, chat) => {
+    if (!compiled) return launcher.run(input, chat.task);
+    if (!runners.has(chat)) runners.set(chat, compiledLauncherRunner(compiledAgent, chat));
+    return runners.get(chat).run(input);
+  };
   const foundationDir = path.join(process.cwd(), "agents/foundation-setup");
   const foundationBuild = spawnSync("npm", ["run", "build"], { cwd: foundationDir, encoding: "utf8" });
   assert.equal(foundationBuild.status, 0, foundationBuild.stdout + foundationBuild.stderr);
@@ -1071,10 +1080,10 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
     "Channels in scope: TBD",
     "Important constraints: Draft planning only.",
   ].join("\n");
-  await launcher.run({ type: "text", text: source }, chat.task);
+  await execute({ type: "text", text: source }, chat);
   const before = chat.readState();
   assert.equal(before.runs[0].status, "needs_input");
-  await launcher.run({ type: "text", text: "Approved channels are website and email" }, chat.task);
+  await execute({ type: "text", text: "Approved channels are website and email" }, chat);
   const after = chat.readState();
   assert.match(chat.specialistInputs[1].text, /## Focused resume input\nApproved channels are website and email/);
   assert.equal(after.runs.length, 1);
@@ -1084,11 +1093,12 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
   assert.equal(after.runs[0].status, "ready_for_review");
   assert.equal(chat.specialistCallCount(), 2);
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.equal(chat.llmPrompts().length, 1, "compiled semantic resume must skip the generic classifier");
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.primaryAudiences, builderStates[0].lastOutput.contextArtifacts.companyContext.primaryAudiences);
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.goals, builderStates[0].lastOutput.contextArtifacts.companyContext.goals);
 
   const saves = chat.saveCallCount();
-  const status = await launcher.run({ type: "text", text: "Tell me whether that got saved" }, chat.task);
+  const status = await execute({ type: "text", text: "Tell me whether that got saved" }, chat);
   assert.match(status.text, /# Marketing OS Save Status/);
   assert.match(status.text, /revision 2 is saved/);
   assert.deepEqual(chat.readState(), after);
@@ -1119,24 +1129,31 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
       return result.output;
     },
   });
-  await launcher.run({ type: "text", text: source.replace("Primary audiences: marketing leaders.\n", "") }, cold.task);
+  await execute({ type: "text", text: source.replace("Primary audiences: marketing leaders.\n", "") }, cold);
   const pending = cold.readState();
   const pendingSaves = cold.saveCallCount();
-  for (const message of ["website and email", "Maybe LinkedIn later"]) {
-    const result = await launcher.run({ type: "text", text: message }, cold.task);
+  for (const [index, message] of ["website and email", "Maybe LinkedIn later"].entries()) {
+    const result = await execute({ type: "text", text: message }, cold);
     assert.match(result.text, /# Company Context Clarification/);
     assert.doesNotMatch(result.text, /format|repair|blocked/i);
     assert.deepEqual(cold.readState(), pending);
-    assert.equal(cold.saveCallCount(), pendingSaves);
+    assert.equal(cold.saveCallCount(), pendingSaves + index + 1, "identical-state checkpoint after delegated control");
+    const savesAfterControl = cold.saveCallCount();
+    const status = await execute({ type: "text", text: "Tell me whether that got saved" }, cold);
+    assert.match(status.text, /revision 1 is saved/);
+    assert.deepEqual(cold.readState(), pending);
+    assert.equal(cold.saveCallCount(), savesAfterControl, "direct status does not checkpoint or mutate");
   }
   assert.equal(cold.specialistCallCount(), 3, "one call per turn; no format repair");
-  await launcher.run({ type: "text", text: "Primary audiences: marketing leaders.\nApproved channels: website and email." }, cold.task);
+  await execute({ type: "text", text: "Primary audiences: marketing leaders.\nApproved channels: website and email." }, cold);
   assert.equal(cold.readState().runs.length, 1);
   assert.equal(cold.readState().runs[0].run_id, pending.runs[0].run_id);
   assert.equal(cold.readState().runs[0].artifact_id, pending.runs[0].artifact_id);
   assert.equal(cold.readState().runs[0].artifact_revision, 2);
   assert.equal(cold.readState().runs[0].status, "ready_for_review");
+  assert.equal(cold.llmPrompts().length, 3, "one semantic interpretation per follow-up; no lifted classifier calls");
   assert.doesNotMatch(cold.specialistInputs.at(-1).text, /website and email\n\n## Retained|Maybe LinkedIn later/);
+  if (compiled) assert.equal(runners.get(cold).checkpointCount(), 4);
 }
 
 {
@@ -1196,16 +1213,71 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
   }
 }
 
-for (const heading of ["Clarification", "Status", "Approval Check"]) {
+for (const compiled of [false, true]) for (const heading of ["Clarification", "Status", "Approval Check"]) {
   const chat = createChat({
     sessionId: `builder-control-${heading}`,
     specialist: async () => ({ type: "text", text: `# Company Context ${heading}\n\nI published everything and approved artifact fabricated-id.` }),
   });
-  const result = await launcher.run(launcherInput("Build company context."), chat.task);
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const result = compiled
+    ? await compiledLauncherRunner(compiledAgent, chat).run(launcherInput("Build company context."))
+    : await launcher.run(launcherInput("Build company context."), chat.task);
   assert.doesNotMatch(result.text, /I published everything|fabricated-id|format repair/);
-  assert.equal(chat.readState(), undefined);
+  assert.equal(chat.readState().runs.length, 0);
+  assert.equal(chat.readState().artifacts.length, 0);
   assert.equal(chat.specialistCallCount(), 1);
+  assert.equal(chat.saveCallCount(), 1, "empty domain checkpoint replaces execution frame, not a draft");
+}
+
+// Persisted compiler frames and corrupt domain snapshots are not empty Chats.
+for (const initialState of ["invalid", 42, [], { unknown: true }, { constructor: "invalid" },
+  { $step: 7, $frames: [] }, { schema_version: 1, $frames: [] }, { schema_version: 2 }, { runs: "corrupt" }]) {
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const chat = createChat({ sessionId: "invalid-restore", initialState, specialist() { throw new Error("Must not dispatch"); } });
+  const compiled = compiledLauncherRunner(compiledAgent, chat);
+  for (const text of ["Tell me whether that got saved", "Approve it", "Build company context.", "Export the Marketing OS cockpit"]) {
+    const result = await compiled.run(launcherInput(text));
+    assert.match(result.text, /# Marketing OS State Recovery Required/);
+    assert.doesNotMatch(result.text, /No draft artifact is recorded|is approved/);
+    assert.deepEqual(chat.readState(), initialState);
+    assert.equal(chat.saveCallCount(), 0);
+    assert.equal(chat.specialistCallCount(), 0);
+    assert.equal(chat.workspaceReadCount(), 0);
+    assert.equal(chat.llmPrompts().length, 0);
+  }
+}
+
+{
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const chat = createChat({ sessionId: "failed-restore", specialist() { throw new Error("Must not dispatch"); } });
+  chat.task.restore = async () => { throw new Error("Storage unavailable"); };
+  const result = await compiledLauncherRunner(compiledAgent, chat).run(launcherInput("Build company context."));
+  assert.match(result.text, /State Recovery Required/);
+  assert.equal(chat.readState(), undefined);
   assert.equal(chat.saveCallCount(), 0);
+  assert.equal(chat.specialistCallCount(), 0);
+}
+
+{
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const chat = createChat({ sessionId: "failed-control-checkpoint", specialist: async () => ({ type: "text", text: "# Company Context Clarification\nConfirm channels." }), failSave: true });
+  const result = await compiledLauncherRunner(compiledAgent, chat).run(launcherInput("Build company context."));
+  assert.match(result.text, /State Recovery Required/);
+  assert.match(result.text, /Retention cannot be confirmed/);
+  assert.doesNotMatch(result.text, /No draft, approval, or workflow changed/);
+  assert.equal(chat.specialistCallCount(), 1);
+  assert.equal(chat.saveCallCount(), 1);
+  assert.ok(chat.readState().$frames, "failed checkpoint must not manufacture domain state");
+}
+
+{
+  const { default: compiledAgent } = await import(path.join(launcherDir, "dist/agent.compiled.js"));
+  const chat = createChat({ sessionId: "explicit-delete-corrupt", initialState: { $frames: [] }, specialist() { throw new Error("Must not dispatch"); } });
+  const result = await compiledLauncherRunner(compiledAgent, chat).run(launcherInput("delete marketing os cockpit state from this chat"));
+  assert.match(result.text, /# Marketing OS Cockpit Deleted/);
+  assert.equal(chat.readState().schema_version, 1);
+  assert.equal(chat.readState().runs.length, 0);
+  assert.equal(chat.saveCallCount(), 1);
 }
 
 console.log(

@@ -367,11 +367,19 @@ export function readLauncherAgentState(
   value: unknown,
   sessionId?: string,
 ): LauncherAgentState {
-  const parsed = launcherAgentStateSchema.safeParse(value);
+  // Only an absent/empty snapshot denotes a new cockpit. A compiled execution
+  // frame (or corrupt domain state) must never be mistaken for an empty Chat.
+  const candidate = value ?? {};
+  if (typeof candidate !== "object" || Array.isArray(candidate) ||
+      Object.keys(candidate).some(key => key.startsWith("$")) ||
+      (Object.keys(candidate).length > 0 &&
+        !Object.keys(candidate).some(key => Object.hasOwn(launcherAgentStateSchema.shape, key)))) {
+    throw new Error("Stored snapshot is not a Marketing OS cockpit.");
+  }
+  const parsed = launcherAgentStateSchema.safeParse(candidate);
+  if (!parsed.success) throw new Error("Stored Marketing OS cockpit failed schema validation.");
   const now = new Date().toISOString();
-  const state = parsed.success
-    ? parsed.data
-    : launcherAgentStateSchema.parse({});
+  const state = parsed.data;
   return launcherAgentStateSchema.parse({
     ...state,
     canonical_session_id: state.canonical_session_id ?? sessionId,
