@@ -47,7 +47,6 @@ import {
   handoffRationale,
   handoffResponseSchema,
   launcherAgentStateSchema,
-  readLauncherAgentState,
   reduceSessionCockpitOperation,
   renderArtifactApprovalReceipt,
   renderCockpitReceipt,
@@ -62,6 +61,7 @@ import {
 } from "./launcher-state.js";
 import { suitePackageBindings } from "./suite-binding.js";
 import { builderControlReply, isPersistenceStatusQuestion, renderPersistenceStatus } from "./persistence-status.js";
+import { checkpointPriorCockpit, restoreCockpit } from "./persistence-boundary.js";
 import {
   resolveLauncherSemanticAction,
   type LauncherSemanticCandidate,
@@ -143,7 +143,11 @@ async function run(
 ): Promise<z.infer<typeof outputSchema>> {
   const context = readContextSnapshot(input.text);
   const userText = removeCompiledWorkspaceContext(input.text, context.compiled);
-  const initialState = readLauncherAgentState(await task.restore(), task.sessionId);
+  // Explicit deletion is the only action allowed to discard an unreadable
+  // snapshot. Other turns must not silently create a replacement cockpit.
+  const restored = await restoreCockpit(task, isExactCockpitDeleteConfirmation(userText));
+  if (restored.ok === false) return stateRecoveryRequired("restore");
+  const initialState = restored.state;
   const cockpit = createSerializableSessionCockpit(initialState);
 
   if (isExactContextPublishConfirmation(userText)) {
@@ -315,16 +319,21 @@ async function run(
 
   const workspaceAgents = await task.tools.guild_get_task_workspace_agents({});
   const installed = installedSuiteAgents(workspaceAgents);
-  const classification = semanticResumeRoute
-    ? {
-        route: semanticResumeRoute,
-        classifierAttempts: [],
-        routingReason: "semantic_pending_workflow_resume",
-      }
-    : await classifyRoute(userText, task, {
-        suiteReady: installed.length === suiteInstallOrder.length,
-        contextReady: context.ready,
-      });
+  // Keep the await in an explicit branch: the agent compiler must not lift
+  // ordinary route classification into an already-resolved semantic resume.
+  let classification: Awaited<ReturnType<typeof classifyRoute>>;
+  if (semanticResumeRoute !== undefined) {
+    classification = {
+      route: semanticResumeRoute,
+      classifierAttempts: [],
+      routingReason: "semantic_pending_workflow_resume",
+    };
+  } else {
+    classification = await classifyRoute(userText, task, {
+      suiteReady: installed.length === suiteInstallOrder.length,
+      contextReady: context.ready,
+    });
+  }
 
   if (classification["route"] === "blocked") {
     return {
@@ -469,7 +478,7 @@ async function run(
           (candidate) => candidate.run_id === semanticResumeRunId,
         )
       : findResumableRun(cockpit.state.runs, route);
-    if (currentRun) {
+    if (currentRun !== undefined) {
       resumingNeedsInput =
         currentRun.status === "needs_input" ||
         (["blocked", "failed"].includes(currentRun.status) &&
@@ -851,9 +860,13 @@ async function run(
 
     const attemptText = extractSpecialistText(attemptOutput);
     const control = route === "company_context" ? builderControlReply(attemptText) : undefined;
-    if (control) {
-      // Run/workstream changes above are provisional until task.save. A control
-      // reply is not an artifact or failed attempt: discard those local changes.
+    if (control !== undefined) {
+      // A specialist dispatch checkpoints the compiled execution frame. Restore
+      // the *pre-turn* domain snapshot before returning a control response so the
+      // next Chat turn does not see that frame in place of the cockpit. This is
+      // an identical-state checkpoint, not an artifact/run/approval transition.
+      const checkpointed = await checkpointPriorCockpit(task, initialState);
+      if (checkpointed === false) return stateRecoveryRequired("checkpoint");
       return {
         type: "text",
         text: control === "status"
@@ -1970,6 +1983,21 @@ function findResumableRun(
 
 function isExactContextPublishConfirmation(text: string): boolean {
   return text.trim().toLowerCase() === exactContextPublishPhrase;
+}
+
+function stateRecoveryRequired(operation: "restore" | "checkpoint"): z.infer<typeof outputSchema> {
+  return {
+    type: "text",
+    text: [
+      "# Marketing OS State Recovery Required",
+      "",
+      operation === "restore"
+        ? "The stored cockpit could not be safely restored. No replacement cockpit was created."
+        : "The prior cockpit could not be checkpointed after the specialist reply. Retention cannot be confirmed.",
+      "No new artifact or approval was accepted. Review the existing Chat history and ask a workspace administrator to inspect retention before continuing.",
+      "Workspace Context and external marketing systems were not changed.",
+    ].join("\n"),
+  };
 }
 
 function isCockpitExportRequest(text: string): boolean {

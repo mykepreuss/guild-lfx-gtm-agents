@@ -51,6 +51,12 @@ Use a dedicated Marketing OS workspace so its context and cockpit are not mixed 
 - `Approve this` — approves the uniquely resolved review-ready artifact; positive sentiment such as `Looks good` asks for explicit approval and does not change state.
 - `Export the Marketing OS cockpit` — returns the structured cockpit as JSON in Chat.
 
+If a channel reply such as `Maybe LinkedIn later` needs clarification, the pending
+artifact stays available. Follow with `Approved channels are website and email`
+to resume that workflow. A delegated clarification re-checkpoints the prior
+cockpit without advancing artifact revisions, attempts, or approvals; a direct
+save-status question does not write state.
+
 Outside Chat, send a text payload such as:
 
 ```json
@@ -82,6 +88,7 @@ Launcher can return:
 - `Marketing OS Approval` — the exact artifact revision and approval text retained in the cockpit.
 - `Marketing OS Cockpit Export` — the complete structured state retained by this Chat.
 - `Request not supported` — a fail-closed response with no external action.
+- `Marketing OS State Recovery Required` — stored state could not be safely restored or checkpointed. Launcher does not silently replace it with an empty cockpit or accept a new draft. Review the existing Chat history and ask a workspace administrator to inspect retention before continuing.
 
 Delegated specialist drafts use these shared sections: `Consumed Context`, `Produced Artifact`, `Assumptions And Missing Evidence`, `Approval Gate`, `AEO / AI-Readiness Contribution`, `Status Payload`, and `Downstream Handoff`.
 
