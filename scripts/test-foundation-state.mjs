@@ -1039,6 +1039,67 @@ assert.equal(
 }
 
 {
+  const semanticAction = JSON.stringify({
+    intent: "provide_or_answer_context",
+    candidate_refs: ["draft_1"],
+    approval_commitment: "none",
+    field_updates: [
+      {
+        field: "channels",
+        operation: "append",
+        supporting_span: "website and email",
+      },
+    ],
+  });
+  const llmTexts = ["not json", semanticAction];
+  const harness = createTask({
+    sessionId: "foundation-semantic-preserves-unrelated-fields",
+    workspaceReadMode: "missing",
+    llmTexts,
+  });
+  await foundationAgent.start(
+    {
+      type: "text",
+      text: [
+        "Company name: Acme",
+        "Approved description: Acme provides workflow software.",
+        "Primary audiences: operations leaders.",
+        "Current marketing goal: increase qualified demos.",
+      ].join("\n"),
+    },
+    harness.task,
+  );
+  const driftedExtraction = structuredClone(harness.readState().lastOutput);
+  driftedExtraction.contextArtifacts.companyContext.primaryAudiences = [
+    "platform teams",
+  ];
+  driftedExtraction.contextArtifacts.companyContext.goals = [
+    "replace the prior goal",
+  ];
+  llmTexts.push(JSON.stringify(driftedExtraction));
+
+  await foundationAgent.start(
+    { type: "text", text: "Approved channels are website and email" },
+    harness.task,
+  );
+
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences,
+    ["operations leaders"],
+    "an unrelated semantic update must not let extraction replace prior audiences",
+  );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.companyContext.goals,
+    ["increase qualified demos"],
+    "an unrelated semantic update must not let extraction replace prior goals",
+  );
+  assert.deepEqual(
+    harness.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels,
+    ["website and email"],
+  );
+}
+
+{
   const harness = createTask({
     sessionId: "foundation-semantic-status-and-implicit-approval",
     workspaceReadMode: "missing",

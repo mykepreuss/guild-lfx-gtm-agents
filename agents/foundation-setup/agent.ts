@@ -219,6 +219,9 @@ type Output = z.infer<typeof structuredOutputSchema>;
 type Claim = z.infer<typeof claimSchema>;
 type ConversationIntent = z.infer<typeof conversationIntentSchema>;
 type AudienceSegment = Output["contextArtifacts"]["audienceSegments"][number];
+type SemanticContextField =
+  BuilderSemanticAction["field_updates"][number]["field"];
+type SemanticContextFields = Record<SemanticContextField, string[]>;
 type MarketerContextPacket = {
   companyName: string;
   description: string;
@@ -516,6 +519,7 @@ async function runFoundationTurn(
 ): Promise<{ output: z.infer<typeof outputSchema>; state: AgentState }> {
   let effectiveInput = input;
   let rawContext = getRawContext(effectiveInput);
+  let semanticContextFields: SemanticContextFields | undefined;
 
   if (isWorkspaceContextPublishConfirmation(rawContext)) {
     const publishResult = await buildWorkspaceContextPublishOutput(
@@ -585,8 +589,9 @@ async function runFoundationTurn(
           state,
         };
       }
-      effectiveInput = { type: "text", text: reconciled };
-      rawContext = reconciled;
+      semanticContextFields = reconciled.fields;
+      effectiveInput = { type: "text", text: reconciled.source };
+      rawContext = reconciled.source;
       focusedContextResume = true;
       conversationIntent = "source_available";
     } else if (semanticAction.intent === "downstream_request") {
@@ -673,12 +678,23 @@ async function runFoundationTurn(
     }
   }
 
-  const guarded = enforceDeterministicGuards(
+  if (semanticContextFields) {
+    candidate = applySemanticContextFields(candidate, semanticContextFields);
+  }
+
+  let guarded = enforceDeterministicGuards(
     candidate,
     effectiveInput,
     parseWarnings,
     conversationIntent,
   );
+  if (semanticContextFields) {
+    guarded = applySemanticContextFields(
+      guarded,
+      semanticContextFields,
+      false,
+    );
+  }
   const draftState = {
     ...state,
     lastOutput: guarded,
@@ -1039,7 +1055,14 @@ function shouldResolveBuilderSemantically(
   ) {
     return false;
   }
+  const wordCount = rawContext.split(/\s+/).filter(Boolean).length;
+  const shortStatefulTurn =
+    wordCount < 60 &&
+    !hasFieldedSourcePacket(rawContext) &&
+    !sourceDocumentHeadingPattern(rawContext) &&
+    !isFocusedContextResume(rawContext);
   return (
+    shortStatefulTurn ||
     conversationIntent === "missing_context" ||
     conversationIntent === "approval_or_edit" ||
     /\b(?:looks good|happy with|seems good|works for me)\b/i.test(rawContext) ||
@@ -1126,7 +1149,7 @@ function reconcileBuilderContextSource(
   state: AgentState,
   action: BuilderSemanticAction,
   rawContext: string,
-): string | undefined {
+): { source: string; fields: SemanticContextFields } | undefined {
   const draft = state.lastOutput;
   if (
     !draft ||
@@ -1137,10 +1160,7 @@ function reconcileBuilderContextSource(
     return undefined;
   }
 
-  const fields: Record<
-    BuilderSemanticAction["field_updates"][number]["field"],
-    string[]
-  > = {
+  const fields: SemanticContextFields = {
     company_name: cleanSemanticValues([
       draft.contextArtifacts.companyContext.companyName,
     ]),
@@ -1188,7 +1208,7 @@ function reconcileBuilderContextSource(
     }
   }
 
-  return [
+  const source = [
     "Resume Company Context using the reconciled source below.",
     "The reconciled fields supersede conflicting values in the prior source only where the latest user turn explicitly replaced or removed them.",
     "",
@@ -1208,6 +1228,82 @@ function reconcileBuilderContextSource(
     "## Prior source retained for audit",
     state.lastSourceText ?? "No earlier raw source was retained.",
   ].join("\n");
+
+  return { source, fields };
+}
+
+function applySemanticContextFields(
+  output: Output,
+  fields: SemanticContextFields,
+  includeClaims = true,
+): Output {
+  const companyName = fields.company_name.length
+    ? fields.company_name.join(" ")
+    : "TBD";
+  const description = fields.description.length
+    ? fields.description.join(" ")
+    : "TBD";
+
+  return structuredOutputSchema.parse({
+    ...output,
+    contextArtifacts: {
+      ...output.contextArtifacts,
+      companyContext: {
+        ...output.contextArtifacts.companyContext,
+        companyName,
+        primaryAudiences: fields.audiences,
+        goals: fields.goals,
+      },
+      messagingSource: {
+        ...output.contextArtifacts.messagingSource,
+        overview: description,
+      },
+      channelRegistry: {
+        ...output.contextArtifacts.channelRegistry,
+        approvedChannels: fields.channels,
+      },
+      proofAndConstraints: {
+        ...output.contextArtifacts.proofAndConstraints,
+        ...(includeClaims
+          ? {
+              approvedClaims: reconcileSemanticClaims(
+                output.contextArtifacts.proofAndConstraints.approvedClaims,
+                fields.approved_claims,
+                "user_supplied",
+              ),
+              blockedClaims: reconcileSemanticClaims(
+                output.contextArtifacts.proofAndConstraints.blockedClaims,
+                fields.do_not_use_claims,
+                "do_not_use",
+              ),
+            }
+          : {}),
+        constraints: fields.constraints,
+      },
+    },
+    statusPayload: {
+      ...output.statusPayload,
+      companyName,
+    },
+  });
+}
+
+function reconcileSemanticClaims(
+  existing: Claim[],
+  authoritativeValues: string[],
+  defaultStatus: "user_supplied" | "do_not_use",
+): Claim[] {
+  return authoritativeValues.map((claim) => {
+    const existingClaim = existing.find(
+      (candidate) =>
+        normalizeForGrounding(candidate.claim) === normalizeForGrounding(claim),
+    );
+    return existingClaim ?? {
+      claim,
+      status: defaultStatus,
+      source: "user_input",
+    };
+  });
 }
 
 function cleanSemanticValues(values: string[]): string[] {
