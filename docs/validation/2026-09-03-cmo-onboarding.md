@@ -3,7 +3,7 @@
 ## Outcome
 
 The revised first-time CMO journey passes in a clean Guild workspace with the
-published Marketing OS Launcher `0.4.1` and Company Context Builder `1.3.1`.
+published Marketing OS Launcher `0.4.1` and Company Context Builder `1.3.3`.
 A marketer can select Launcher, send `Let's get started.`, approve eight
 one-at-a-time specialist installations, supply a URL, receive an honest
 three-question recovery prompt, provide a natural one-paragraph baseline, and
@@ -31,10 +31,11 @@ spend, CRM data, credentials, or other external system was changed.
 | Package | Live version | Guild version ID | Published (UTC) |
 | --- | --- | --- | --- |
 | Marketing OS Launcher | `0.4.1` | `01a06847-5b8f-cf83-0000-c55b08020541` | `2026-09-03T17:19:38.826326+00:00` |
-| Company Context Builder | `1.3.1` | `01a06854-f306-cf83-0000-9e126b919433` | `2026-09-03T17:35:03.106174+00:00` |
+| Company Context Builder | `1.3.3` | `01a06865-b9d1-cf83-0000-043f77214122` | `2026-09-03T17:52:52.301878+00:00` |
 
 Both published versions passed Guild validation. The acceptance workspace
-auto-updated to these versions before the successful recovery run.
+auto-updated to Builder `1.3.3`, and a focused live follow-up completed on that
+exact installed version after the original end-to-end recovery run.
 
 Repository commits:
 
@@ -44,8 +45,9 @@ Repository commits:
   validation job.
 - `3f877a9` — natural single-paragraph CMO baseline parsing and live regression
   test, released as Builder `1.3.1`.
-- `8007397` — source-only cleanup that keeps audience qualifiers out of the
-  audience list.
+- `8007397` — cleanup that keeps audience qualifiers out of the audience list.
+- `1d8f05a` — Builder `1.3.3` release retry after an orphaned `1.3.2` publish
+  job.
 
 `npm run verify` passed after every final source change. The suite covers
 contracts, context benchmark scoring, specialist runtime sync and behavior,
@@ -124,6 +126,19 @@ Context and external systems were unchanged.
 The Context screen remained at its default placeholder content with Publish
 disabled, independently confirming that acceptance did not publish the draft.
 
+### Published Builder follow-up
+
+Builder `1.3.3` was published after the original browser acceptance run and the
+acceptance workspace auto-updated to it. A direct live workspace session
+`01a06868-7e84-351a-0000-37506925bdbb` exercised the audience-qualifier case
+against Guild version `01a06865-b9d1-cf83-0000-043f77214122`.
+
+The response reached `review_ready`, retained a draft artifact, left Workspace
+Context unchanged, and returned exactly these audience entries: AI leaders, AI
+platform leaders, developer relations teams, and governance/security
+stakeholders. The instruction `treat these as hypotheses for review` did not
+appear as an audience entry.
+
 ## Platform observations and residuals
 
 - Guild requires the first chat turn to select or `@mention` Launcher. Merely
@@ -134,19 +149,19 @@ disabled, independently confirming that acceptance did not publish the draft.
 - Agent calls can take roughly 15–90 seconds; the UI shows thinking/install
   state while work is in progress.
 - Launcher committed draft `01a06836-1652-cf83-0000-419122419694` (`0.4.0`)
-  remains `RUNNING` with no validation steps. Launcher `0.4.1` was published
-  from a clean candidate and is the verified live version.
-- Builder `1.3.2` candidate `01a06858-540d-cf83-0000-1f9d2dc4ba0f` contains
-  the optional audience-qualifier cleanup from commit `8007397`, but its second
-  Guild publish worker remained `PUBLISHING` with no steps at the end of this
-  run. Builder `1.3.1` remains the verified live version; no duplicate retry
-  was created.
+  is a superseded orphaned validation record with no validation steps.
+  Launcher `0.4.1` is published, validated, installed, and verified live.
+- Builder candidate `01a06858-540d-cf83-0000-1f9d2dc4ba0f` (`1.3.2`) became an
+  orphaned publish record with no validation steps. The same source was
+  released from a clean candidate as Builder `1.3.3`, which passed validation,
+  published successfully, auto-updated into the acceptance workspace, and
+  passed a live focused regression session.
 - No external retrieval cost, quota, or credential applies because web search
   was removed from scope.
 
 ## Acceptance status
 
-Pass for the simplified, no-web first-time CMO journey. The core behavior is
-live and reproducible with Launcher `0.4.1` and Builder `1.3.1`. The remaining
-items are Guild selection/latency behavior and one non-blocking source cleanup
-candidate waiting on a platform publish worker.
+Pass for the simplified, no-web first-time CMO journey. The complete intended
+behavior is live and reproducible with Launcher `0.4.1` and Builder `1.3.3`.
+The remaining observations are Guild selection and latency characteristics,
+not incomplete Marketing OS releases.
