@@ -94,7 +94,6 @@ type SpecialistValidationOptions = {
 };
 
 export type ValidatedSpecialistConfig = {
-  identifier: string;
   description: string;
   systemPrompt: string;
   validateArtifact?: (
@@ -141,7 +140,6 @@ export function createValidatedSpecialistAgent(
   config: ValidatedSpecialistConfig,
 ) {
   return agent({
-    identifier: config.identifier,
     description: config.description,
     inputSchema,
     outputSchema,

@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_audience_segmentation",
   description:
     "Turns an approved ICP into a reviewable audience-segmentation packet in Guild Chat without activating lists, ad audiences, or outreach.",
   systemPrompt: `

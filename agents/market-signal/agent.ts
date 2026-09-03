@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_market_signal",
   description:
     "Turns approved source material into an evidence-labeled Market Signal Brief in Guild Chat without crawling sources, claiming live coverage, or executing marketing actions.",
   systemPrompt: `

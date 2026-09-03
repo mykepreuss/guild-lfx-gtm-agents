@@ -43,7 +43,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_messaging",
   description:
     "Turns approved context, audience evidence, and proof constraints into a reviewable messaging system in Guild Chat without publishing copy or approving claims.",
   systemPrompt: `

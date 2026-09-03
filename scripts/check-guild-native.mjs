@@ -92,7 +92,6 @@ const requiredReviewAgentSourceSnippets = [
 ];
 const requiredLauncherSnippets = [
   "agent({",
-  'identifier: "guild_marketing_os_launcher"',
   '"use agent";',
   "guildAgentTool",
   "routeConfig",
@@ -407,8 +406,8 @@ function validateAgentPackage(agent) {
     if (!contractSource.includes("@guildai/agents-sdk")) {
       fail(`${packageDir}/agent.ts should use the Guild Agent SDK.`);
     }
-    if (!source.includes("identifier:")) {
-      fail(`${packageDir}/agent.ts must declare a Guild SDK identifier.`);
+    if (/\bidentifier\s*:/.test(contractSource)) {
+      fail(`${packageDir} must not declare the deprecated Guild SDK identifier field.`);
     }
 
     const requiredSnippets =

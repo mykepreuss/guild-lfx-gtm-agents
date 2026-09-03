@@ -44,7 +44,6 @@ Never claim publishing, scheduling, spend changes, CRM mutation, credential setu
 `.trim();
 
 export default createValidatedSpecialistAgent({
-  identifier: "guild_marketing_os_branding_pitch_deck",
   description:
     "Turns approved messaging into a reviewable brand, web, and pitch-production brief in Guild Chat without creating final design files or publishing websites.",
   systemPrompt: `
