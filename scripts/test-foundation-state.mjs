@@ -1338,6 +1338,49 @@ for (const [message, update, expected] of [
 }
 
 // Failures and tentative declarations must not reach extraction or task.save.
+{
+  // Live regression: extraction guessed an audience that the user never supplied.
+  const h = createTask({ sessionId: "bare-answer-generated-audience", workspaceReadMode: "missing", llmTexts: ["not json", channelJson(channelUpdate(["website", "email"])), channelJson(channelUpdate(["website", "email"]))] });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const guessed = h.readState();
+  guessed.lastOutput.contextArtifacts.companyContext.primaryAudiences = ["Marketing Teams", "Content Editors", "Reviewers"];
+  guessed.lastOutput.openQuestions = ["Which channels are approved for planning?", "Who are your buyers?"];
+  await h.task.save(guessed);
+  const saves = h.saveCallCount();
+  const result = await foundationAgent.start({ type: "text", text: "website and email" }, h.task);
+  assert.match(result.output.text, /# Company Context Clarification/);
+  assert.deepEqual(h.readState(), guessed);
+  assert.equal(h.saveCallCount(), saves);
+  assert.equal(h.llmCallCount(), 2, "no extraction after ambiguous answer");
+  // Previously persisted generated reconciliation text is not fresh user evidence.
+  guessed.lastSourceText = [
+    "Resume Company Context using the reconciled source below.",
+    "# Reconciled Company Context", "Primary audiences: Marketing Teams, Content Editors, Reviewers",
+    "## Latest user follow-up", "Add a goal later", "## Prior source retained for audit", guessed.lastSourceText,
+  ].join("\n");
+  await h.task.save(guessed);
+  const legacySaves = h.saveCallCount();
+  const legacy = await foundationAgent.start({ type: "text", text: "website and email" }, h.task);
+  assert.match(legacy.output.text, /# Company Context Clarification/);
+  assert.deepEqual(h.readState(), guessed);
+  assert.equal(h.saveCallCount(), legacySaves);
+}
+
+{
+  // Explicit channel scope is valid, but must not promote unrelated guesses to source facts.
+  const h = createTask({ sessionId: "channel-preserves-provenance", workspaceReadMode: "missing", llmTexts: ["not json", channelJson(channelUpdate(["website", "email"])), "not json"] });
+  await foundationAgent.start({ type: "text", text: channelBase.replace("Primary audiences: marketing leaders.\n", "") }, h.task);
+  const guessed = h.readState();
+  guessed.lastOutput.contextArtifacts.companyContext.primaryAudiences = ["Content Editors"];
+  guessed.lastOutput.contextArtifacts.proofAndConstraints.constraints.push("Empty channel scope prevents immediate activation");
+  await h.task.save(guessed);
+  await foundationAgent.start({ type: "text", text: "Approved channels are website and email" }, h.task);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.companyContext.primaryAudiences, []);
+  assert.deepEqual(h.readState().lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
+  assert.equal(h.readState().lastOutput.status, "needs_input");
+  assert.doesNotMatch(h.readState().lastSourceText, /Primary audiences: Content Editors|Empty channel scope prevents/);
+}
+
 for (const [message, response] of [
   ["website and email", channelJson(channelUpdate(["website", "email"]))], // ambiguous: audiences also missing
   ["Maybe LinkedIn later", channelJson(channelUpdate(["LinkedIn"], { commitment: "tentative" }))],

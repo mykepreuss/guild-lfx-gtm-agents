@@ -741,6 +741,22 @@ async function runFoundationTurn(
       semanticContextFields,
       false,
     );
+    const missingCore = ([
+      ["company_name", "Company name"], ["description", "Approved description"],
+      ["audiences", "Primary audience"], ["goals", "Current marketing goal"],
+      ["channels", "Approved channel scope"],
+    ] as const).filter(([field]) => !semanticContextFields![field].length).map(([, label]) => label);
+    if (missingCore.length && guarded.status !== "blocked") {
+      guarded.status = "needs_input";
+      guarded.statusPayload.readiness = "draft";
+      guarded.statusPayload.blockers = [...new Set([...guarded.statusPayload.blockers, ...missingCore])];
+      guarded.consumedContext.missing = [...new Set([...guarded.consumedContext.missing, ...missingCore])];
+      guarded.contextArtifacts.companyContext.missingContext = guarded.consumedContext.missing;
+      guarded.contextArtifacts.dashboardSignals.readiness = "draft";
+      guarded.aeoReadiness.status = "draft";
+      guarded.openQuestions = normalizeOpenQuestions(guarded.openQuestions, guarded.consumedContext.missing, conversationIntent);
+      guarded.workspaceContextDraft = renderWorkspaceContextDraft(guarded.statusPayload.companyName, "draft");
+    }
   }
   const draftState = {
     ...state,
@@ -1126,17 +1142,39 @@ function channelAnswerIsUnambiguous(state: AgentState, priorSource: string): boo
   const draft = priorSource ? undefined : state.lastOutput;
   const questions = draft?.openQuestions ?? [];
   if (questions.length === 1 && /\bchannels?\b/i.test(questions[0])) return true;
-  const sourceName = extractCompanyName(priorSource);
-  const name = draft?.contextArtifacts.companyContext.companyName ?? sourceName;
-  const description = draft?.contextArtifacts.messagingSource.overview ?? extractLineAfterLabels(priorSource, ["Approved company description", "Approved description", "Company description", "Description"]);
-  const audiences = draft?.contextArtifacts.companyContext.primaryAudiences ?? extractListAfterLabels(priorSource, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
-  const goals = draft?.contextArtifacts.companyContext.goals ?? extractListAfterLabels(priorSource, ["Current marketing goal", "Marketing goal", "Current goals", "Goals"]);
+  const evidence = retainedUserEvidence(priorSource || state.lastSourceText || "");
+  const grounded = (values: string[]) => sourceBackedValues(values, evidence);
+  const name = draft ? grounded([draft.contextArtifacts.companyContext.companyName])[0] : extractCompanyName(evidence);
+  const description = draft ? grounded([draft.contextArtifacts.messagingSource.overview])[0] : extractLineAfterLabels(evidence, ["Approved company description", "Approved description", "Company description", "Description"]);
+  const audiences = draft ? grounded(draft.contextArtifacts.companyContext.primaryAudiences) : extractListAfterLabels(evidence, ["Primary audiences", "Primary audience", "Audiences", "Audience"]);
+  const goals = draft ? grounded(draft.contextArtifacts.companyContext.goals) : extractListAfterLabels(evidence, ["Current marketing goal", "Marketing goal", "Current goals", "Goals"]);
   const channels = draft?.contextArtifacts.channelRegistry.approvedChannels ?? exactChannelDeclarations(priorSource) ?? [];
   // A previous natural declaration also closes the missing-channel slot. Its values
   // are validated by the channel resolver, not inferred here from a later bare reply.
   if (!draft && /\bchannels?\s+(?:are|include)\b/i.test(priorSource)) return false;
   return Boolean(name && !isTbdish(name) && description && !isTbdish(description) &&
     cleanSemanticValues(audiences).length && cleanSemanticValues(goals).length && !cleanSemanticValues(channels).length);
+}
+
+// Reconciled field summaries are generated, not new source evidence. Walk only
+// the retained user turns so earlier model guesses cannot acquire provenance.
+function retainedUserEvidence(source: string): string {
+  const turns: string[] = [];
+  let current = source;
+  while (current.startsWith("Resume Company Context using the reconciled source below.")) {
+    const latest = current.indexOf("\n## Latest user follow-up\n");
+    const prior = current.indexOf("\n## Prior source retained for audit\n", latest);
+    if (latest < 0 || prior < 0) return turns.join("\n");
+    turns.unshift(current.slice(latest + "\n## Latest user follow-up\n".length, prior));
+    current = current.slice(prior + "\n## Prior source retained for audit\n".length);
+  }
+  return [current, ...turns].join("\n");
+}
+
+function sourceBackedValues(values: string[], evidence: string): string[] {
+  const normalize = (value: string) => value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const source = ` ${normalize(evidence)} `;
+  return cleanSemanticValues(values).filter(value => source.includes(` ${normalize(value)} `));
 }
 
 function builderSemanticStateSummary(state: AgentState): {
@@ -1253,6 +1291,12 @@ function reconcileBuilderContextSource(
       ),
     ),
   };
+
+  const evidence = retainedUserEvidence(state.lastSourceText ?? "");
+  for (const field of Object.keys(fields) as SemanticContextField[]) {
+    // Channels already have their own source/span validation and replay path.
+    if (field !== "channels") fields[field] = sourceBackedValues(fields[field], evidence);
+  }
 
   for (const update of action?.field_updates ?? []) {
     const value = update.supporting_span.trim();
@@ -2286,10 +2330,10 @@ function extractMarketerContextPacket(
   }
 
   if (
-    !companyName ||
-    !description ||
-    audiences.length === 0 ||
-    goals.length === 0 ||
+    !companyName || isTbdish(companyName) ||
+    !description || isTbdish(description) ||
+    cleanSemanticValues(audiences).length === 0 ||
+    cleanSemanticValues(goals).length === 0 ||
     channels.length === 0
   ) {
     return undefined;

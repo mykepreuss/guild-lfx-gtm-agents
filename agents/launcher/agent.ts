@@ -61,6 +61,7 @@ import {
   type ArtifactRecord,
 } from "./launcher-state.js";
 import { suitePackageBindings } from "./suite-binding.js";
+import { builderControlReply, isPersistenceStatusQuestion, renderPersistenceStatus } from "./persistence-status.js";
 import {
   resolveLauncherSemanticAction,
   type LauncherSemanticCandidate,
@@ -197,6 +198,9 @@ async function run(
       type: "text",
       text: renderCompanyContextArtifactRead(userText, cockpit),
     };
+  }
+  if (isPersistenceStatusQuestion(userText)) {
+    return { type: "text", text: renderPersistenceStatus(userText, initialState) };
   }
   if (isCockpitExportRequest(userText)) {
     return {
@@ -846,6 +850,23 @@ async function run(
     }
 
     const attemptText = extractSpecialistText(attemptOutput);
+    const control = route === "company_context" ? builderControlReply(attemptText) : undefined;
+    if (control) {
+      // Run/workstream changes above are provisional until task.save. A control
+      // reply is not an artifact or failed attempt: discard those local changes.
+      return {
+        type: "text",
+        text: control === "status"
+          ? renderPersistenceStatus(userText, initialState, true)
+          : [
+              "# Company Context Clarification",
+              "",
+              "Please name the context field you are answering and its confirmed value. For channels, say whether you are adding to or replacing the planning scope.",
+              "",
+              "No draft, approval, or workflow changed. Workspace Context remains unchanged.",
+            ].join("\n"),
+      };
+    }
     const errors = attemptText
       ? validateSpecialistOutput(attemptText, {
           allowContextPublicationPhrase: route === "company_context",

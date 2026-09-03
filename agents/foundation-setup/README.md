@@ -50,6 +50,8 @@ Use a dedicated Marketing OS workspace so approved company context does not mix 
 - `Approve Company Context Builder artifact revision 1` — when sent through Launcher, approves only the named artifact revision.
 - `Approve it` — explicitly approves the current uniquely resolved review-ready draft; `Looks good` alone does not approve it.
 
+Core-field completeness is checked against retained user source, not model-generated audience guesses or other draft suggestions. Follow-up reconciliation does not promote those suggestions to user-supplied facts. In Launcher, a Builder clarification leaves the pending cockpit artifact and revision unchanged.
+
 Outside Chat, send a text payload such as:
 
 ```json

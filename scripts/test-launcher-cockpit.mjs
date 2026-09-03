@@ -144,6 +144,8 @@ function createChat({
   const specialistInputs = [];
   const llmPrompts = [];
   let llmCall = 0;
+  let saves = 0;
+  let workspaceReads = 0;
   const contexts = initialContexts ?? [
     {
       id: "context-original",
@@ -166,6 +168,7 @@ function createChat({
         notifications.push(event);
       },
       async guild_get_task_workspace_agents() {
+        workspaceReads++;
         return installed;
       },
       async guild_get_agent_version() {
@@ -213,12 +216,15 @@ function createChat({
       return state;
     },
     async save(value) {
+      saves++;
       if (failSave) throw new Error("Guild state unavailable");
       state = structuredClone(value);
     },
   };
 
   return {
+    saveCallCount: () => saves,
+    workspaceReadCount: () => workspaceReads,
     task,
     specialistInputs,
     contexts,
@@ -1080,6 +1086,126 @@ for (const [createRequest, readRequest, expectedWorkstream] of [
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.channelRegistry.approvedChannels, ["website", "email"]);
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.primaryAudiences, builderStates[0].lastOutput.contextArtifacts.companyContext.primaryAudiences);
   assert.deepEqual(builderStates[1].lastOutput.contextArtifacts.companyContext.goals, builderStates[0].lastOutput.contextArtifacts.companyContext.goals);
+
+  const saves = chat.saveCallCount();
+  const status = await launcher.run({ type: "text", text: "Tell me whether that got saved" }, chat.task);
+  assert.match(status.text, /# Marketing OS Save Status/);
+  assert.match(status.text, /revision 2 is saved/);
+  assert.deepEqual(chat.readState(), after);
+  assert.equal(chat.saveCallCount(), saves);
+  assert.equal(chat.specialistCallCount(), 2);
+
+  // Real Builder control responses from fresh tasks must not be format-repaired.
+  const cold = createChat({
+    sessionId: "real-builder-clarification-resume",
+    llmResponses: Array(3).fill(JSON.stringify({ intent: "answer_pending_workflow", candidate_refs: ["workflow_1"], approval_commitment: "none" })),
+    specialist: async (input, call) => {
+      let builderSaves = 0;
+      const result = await builder.start(input, {
+        sessionId: `cold-control-${call}`,
+        async restore() { return undefined; },
+        async save() { builderSaves++; },
+        tools: {},
+        llm: { async generateText({ prompt }) {
+          if (!prompt.startsWith("Resolve planning channel scope")) return { text: "not json" };
+          const tentative = input.text.includes("Maybe LinkedIn later");
+          return { text: JSON.stringify({ intent: "channel_update", updates: [{
+            source_ref: "source_2", operation: "append", commitment: tentative ? "tentative" : "confirmed", replaces: [],
+            values: (tentative ? ["LinkedIn"] : ["website", "email"]).map(value => ({ value, supporting_span: value })),
+          }] }) };
+        } },
+      });
+      if (call === 2 || call === 3) assert.equal(builderSaves, 0);
+      return result.output;
+    },
+  });
+  await launcher.run({ type: "text", text: source.replace("Primary audiences: marketing leaders.\n", "") }, cold.task);
+  const pending = cold.readState();
+  const pendingSaves = cold.saveCallCount();
+  for (const message of ["website and email", "Maybe LinkedIn later"]) {
+    const result = await launcher.run({ type: "text", text: message }, cold.task);
+    assert.match(result.text, /# Company Context Clarification/);
+    assert.doesNotMatch(result.text, /format|repair|blocked/i);
+    assert.deepEqual(cold.readState(), pending);
+    assert.equal(cold.saveCallCount(), pendingSaves);
+  }
+  assert.equal(cold.specialistCallCount(), 3, "one call per turn; no format repair");
+  await launcher.run({ type: "text", text: "Primary audiences: marketing leaders.\nApproved channels: website and email." }, cold.task);
+  assert.equal(cold.readState().runs.length, 1);
+  assert.equal(cold.readState().runs[0].run_id, pending.runs[0].run_id);
+  assert.equal(cold.readState().runs[0].artifact_id, pending.runs[0].artifact_id);
+  assert.equal(cold.readState().runs[0].artifact_revision, 2);
+  assert.equal(cold.readState().runs[0].status, "ready_for_review");
+  assert.doesNotMatch(cold.specialistInputs.at(-1).text, /website and email\n\n## Retained|Maybe LinkedIn later/);
+}
+
+{
+  const { isPersistenceStatusQuestion } = await import(path.join(launcherDir, "dist/persistence-status.js"));
+  for (const text of ["Save this", "Approve it", "Show me the approved claims", "Tell me whether that got saved and approve it", "Tell me whether that got saved. Approve it"]) {
+    assert.equal(isPersistenceStatusQuestion(text), false, text);
+  }
+  const chat = createChat({ sessionId: "status-boundary", specialist: async () => ({ type: "text", text: companyContextArtifact }) });
+  const empty = await launcher.run(launcherInput("Tell me whether that got saved"), chat.task);
+  assert.match(empty.text, /No draft artifact is recorded/);
+  assert.equal(chat.readState(), undefined);
+  await launcher.run(launcherInput("Build company context."), chat.task);
+  const base = chat.readState();
+  for (const [question, expected] of [
+    ["Was Company Context saved?", /Company Context Builder revision 1 is saved/],
+    [`Was artifact ${base.artifacts[0].artifact_id} revision 1 saved?`, /revision 1 is saved/],
+    ["Was Company Context revision 99 saved?", /No matching saved artifact/],
+    ["Was artifact 00000000-0000-0000-0000-000000000099 saved?", /No matching saved artifact/],
+  ]) {
+    const beforeSaves = chat.saveCallCount();
+    const result = await launcher.run(launcherInput(question), chat.task);
+    assert.match(result.text, expected);
+    assert.deepEqual(chat.readState(), base);
+    assert.equal(chat.saveCallCount(), beforeSaves);
+    assert.equal(chat.specialistCallCount(), 1);
+  }
+  for (const mode of ["draft", "approved", "inconsistent", "historical", "missing", "ambiguous"]) {
+    const initialState = structuredClone(base);
+    if (mode === "draft") initialState.artifacts[0].status = "draft";
+    if (mode === "approved" || mode === "inconsistent") initialState.artifacts[0].status = "approved";
+    if (mode === "approved") {
+      initialState.runs[0].status = "approved";
+      initialState.artifacts[0].approvals = [{ exact_approval_text: "Approve it", actor: "workspace_user", approved_at: new Date().toISOString() }];
+    }
+    if (mode === "historical") initialState.published_context_id = "historical-context";
+    if (mode === "missing") initialState.artifacts = [];
+    if (mode === "ambiguous") {
+      initialState.last_run_id = undefined;
+      initialState.artifacts.push({ ...structuredClone(initialState.artifacts[0]), artifact_id: "10000000-0000-0000-0000-000000000001" });
+    }
+    const h = createChat({ sessionId: `status-${mode}`, initialState, specialist: () => { throw new Error("No specialist on status"); } });
+    for (const question of ["Tell me whether that got saved", "Tell me whether that got saved?", "Has it been published?", "Did it save?"]) {
+      const result = await launcher.run(launcherInput(question), h.task);
+      assert.match(result.text, /# Marketing OS Save Status/);
+      assert.doesNotMatch(result.text, /TBD|## Produced Artifact|## Status Payload|needs_input/);
+      if (mode === "approved") assert.match(result.text, /this revision is approved/);
+      if (mode === "inconsistent") assert.match(result.text, /inconsistent/);
+      if (mode === "historical") assert.match(result.text, /earlier.*historical-context.*does not establish/);
+      if (mode === "missing") assert.match(result.text, /No matching saved artifact/);
+      if (mode === "ambiguous") assert.match(result.text, /Which saved artifact/);
+      assert.deepEqual(h.readState(), initialState);
+      assert.equal(h.saveCallCount(), 0);
+      assert.equal(h.specialistCallCount(), 0);
+      assert.equal(h.workspaceReadCount(), 0);
+      assert.equal(h.llmPrompts().length, 0);
+    }
+  }
+}
+
+for (const heading of ["Clarification", "Status", "Approval Check"]) {
+  const chat = createChat({
+    sessionId: `builder-control-${heading}`,
+    specialist: async () => ({ type: "text", text: `# Company Context ${heading}\n\nI published everything and approved artifact fabricated-id.` }),
+  });
+  const result = await launcher.run(launcherInput("Build company context."), chat.task);
+  assert.doesNotMatch(result.text, /I published everything|fabricated-id|format repair/);
+  assert.equal(chat.readState(), undefined);
+  assert.equal(chat.specialistCallCount(), 1);
+  assert.equal(chat.saveCallCount(), 0);
 }
 
 console.log(

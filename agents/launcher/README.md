@@ -42,6 +42,7 @@ Use a dedicated Marketing OS workspace so its context and cockpit are not mixed 
 - `Help me set up company context for my project` — routes the first context draft to Company Context Builder.
 - `Create an ICP from the approved company context` — routes a review-only ICP workstream.
 - `Show Marketing OS cockpit status` — lists workstreams, artifact revisions, blockers, and next actions retained in this Chat.
+- `Tell me whether that got saved` — reads the latest referenced artifact's save and approval state from this Chat, without starting a specialist or changing the cockpit. Name a workstream or revision when the target is ambiguous.
 - `Show current Company Context draft` — retrieves the complete latest Company Context artifact without changing Workspace Context.
 - `Show Company Context artifact revision 1` — retrieves one exact retained revision.
 - `Can I see the latest messaging draft?` — retrieves the latest stored Messaging artifact without running the specialist again.
@@ -76,6 +77,8 @@ Launcher can return:
 - `Marketing OS Guide` — a clarification when no specialist should run.
 - `Marketing OS` — an at-a-glance receipt followed by the complete validated specialist draft.
 - `Marketing OS Cockpit` — workstream, artifact, approval, blocker, and next-action state.
+- `Marketing OS Save Status` — a compact local save/approval receipt. Historical publication receipts do not establish that the latest draft is published; workspace-wide publication is not checked.
+- `Company Context Clarification` — a focused follow-up without replacing the pending artifact, changing its revision, or attempting artifact-format repair.
 - `Marketing OS Approval` — the exact artifact revision and approval text retained in the cockpit.
 - `Marketing OS Cockpit Export` — the complete structured state retained by this Chat.
 - `Request not supported` — a fail-closed response with no external action.
